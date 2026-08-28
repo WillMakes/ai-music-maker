@@ -1,0 +1,35 @@
+{
+  "manifest_version": 3,
+  "name": "SunoMaker",
+  "version": "1.0.0",
+  "description": "Fills Suno's Lyrics, Style and Title fields from a track planned in SunoMaker.",
+  "icons": {
+    "16": "icon-16.png",
+    "32": "icon-32.png",
+    "48": "icon-48.png",
+    "128": "icon-128.png"
+  },
+  "action": {
+    "default_title": "SunoMaker",
+    "default_icon": {
+      "16": "icon-16.png",
+      "32": "icon-32.png",
+      "48": "icon-48.png",
+      "128": "icon-128.png"
+    }
+  },
+  "background": {"service_worker": "background.js"},
+  "permissions": ["storage"],
+  "content_scripts": [
+    {
+      "matches": ["https://suno.com/*"],
+      "js": ["config.js", "content.js"],
+      "css": ["panel.css"],
+      "run_at": "document_idle"
+    }
+  ],
+  "host_permissions": ["http://127.0.0.1/*"],
+  "web_accessible_resources": [
+    {"resources": ["logo.png"], "matches": ["https://suno.com/*"]}
+  ]
+}
