@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <!-- The Go SDK installed on this machine. GoLand matches SDKs by name; if it
+       does not recognise this one it will offer to pick one, which is a
+       one-time prompt rather than an error. go.mod asks for 1.25, which the
+       toolchain mechanism downloads on first build. -->
+  <component name="ProjectRootManager" version="2" project-jdk-name="go1.23.2" project-jdk-type="Go SDK" />
+</project>

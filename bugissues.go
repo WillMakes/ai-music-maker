@@ -109,15 +109,25 @@ func (a *App) findIssueQueue() (issueQueue, error) {
 
 // githubToken is a credential to act as.
 //
+// A variable, and that is not decoration. The tests run inside this very
+// checkout, so currentBugRepo finds the real remote and `gh auth token` answers
+// with the producer's real credential — a test suite that filed reports would
+// open real issues on the real repository, which is exactly what happened the
+// first time this was written. newTestApp points this at "" so findIssueQueue
+// answers errIssuesUnavailable immediately, with no network call to wait on.
+var githubToken = realGitHubToken
+
+// realGitHubToken reads a credential from the environment or from gh.
+//
 // The environment first, because a CI run or an agent's shell says so
 // explicitly. Then `gh auth token`, which is the case that needs no setup at
 // all: a producer signed in to gh has already done the work, and without this
 // path the queue would be unreachable on exactly the machines most set up for
 // it.
 //
-// Nothing is stored here. A token this app kept a copy of would be a token that
+// Nothing is stored here. A token this app kept a copy of would be one that
 // outlives the sign-in it came from, and gh refreshes its own.
-func githubToken() string {
+func realGitHubToken() string {
 	for _, name := range []string{"GITHUB_TOKEN", "GH_TOKEN"} {
 		if token := strings.TrimSpace(os.Getenv(name)); token != "" {
 			return token

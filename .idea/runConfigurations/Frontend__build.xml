@@ -1,0 +1,21 @@
+<component name="ProjectRunConfigurationManager">
+  <!-- `npm run build` — tsc then vite — filling frontend/dist, which main.go
+       embeds with `//go:embed all:frontend/dist`. Without this, a debug run
+       compiles the current Go source around whatever dist happened to be left on
+       disk, so UI edits appear to have no effect and the window shows a build
+       from some earlier session.
+
+       tsc is strict and unused locals fail, so this doubles as the frontend
+       typecheck: a broken frontend stops the launch here rather than opening a
+       window onto a stale bundle. -->
+  <configuration default="false" name="Frontend: build" type="js.build_tools.npm">
+    <package-json value="$PROJECT_DIR$/frontend/package.json" />
+    <command value="run" />
+    <scripts>
+      <script value="build" />
+    </scripts>
+    <node-interpreter value="project" />
+    <envs />
+    <method v="2" />
+  </configuration>
+</component>
