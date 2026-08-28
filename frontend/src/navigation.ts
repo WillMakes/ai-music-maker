@@ -82,18 +82,32 @@ export interface NavEntry {
   icon: LucideIcon
 }
 
-/** The sidebar, top to bottom. Settings is separated in the rail's own layout. */
+/**
+ * The work, at the top of the rail: the overview, and the library the whole app
+ * is about.
+ *
+ * Deliberately short. Everything a producer opens this app to do is under
+ * Artists — an album and a track are reached through the artist that owns them —
+ * so a rail with six entries would be inventing places to go.
+ */
 export const PRIMARY_NAV: NavEntry[] = [
   {id: 'dashboard', label: 'Dashboard', icon: Home},
   {id: 'artists', label: 'Artists', icon: Music4},
-  {id: 'skills', label: 'Skills', icon: Sparkles},
 ]
 
-export const SETTINGS_NAV: NavEntry = {
-  id: 'settings-ai',
-  label: 'Settings',
-  icon: SettingsIcon,
-}
+/**
+ * Pinned to the bottom of the rail, below a rule (#10).
+ *
+ * Neither of these is a place the work happens. Skills is read while doing one
+ * of the things above rather than on the way in, and Settings is configuration.
+ * Grouping them at the foot says that: the top of the rail is what you came for,
+ * the bottom is what supports it — which is the shape Site Maker Pro's rail has,
+ * and the reason this was reported.
+ */
+export const BOTTOM_NAV: NavEntry[] = [
+  {id: 'skills', label: 'Skills', icon: Sparkles},
+  {id: 'settings-ai', label: 'Settings', icon: SettingsIcon},
+]
 
 /** The settings tabs, in the order the strip shows them. */
 export const SETTINGS_TABS: {id: ViewId; label: string}[] = [
