@@ -1,0 +1,8 @@
+# Editor state that is per-machine rather than per-project. The run
+# configurations beside this file ARE committed — they are how the project is
+# run, and re-deriving them on every checkout is work nobody should repeat.
+/workspace.xml
+/shelf/
+/httpRequests/
+/usage.statistics.xml
+/dictionaries/

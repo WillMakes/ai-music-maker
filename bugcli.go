@@ -178,17 +178,18 @@ func bugCommand(args []string, stdout, stderr io.Writer) int {
 		return out.emit(app.ReleaseBugReport(rest[0]))
 
 	case "link":
+		id, flags := leadingID(rest)
 		set := flag.NewFlagSet("link", flag.ContinueOnError)
 		set.SetOutput(stderr)
 		jax := set.Int("jax", 0, "the Jax report id")
-		if err := set.Parse(rest); err != nil {
+		if err := set.Parse(flags); err != nil {
 			return 2
 		}
-		if set.NArg() != 1 || *jax == 0 {
+		if id == "" || *jax == 0 {
 			fmt.Fprint(stderr, "bugs: link <id> --jax <n>\n")
 			return 2
 		}
-		report, err := store.bugReport(set.Arg(0))
+		report, err := store.bugReport(id)
 		if err != nil {
 			return out.emit(nil, err)
 		}
@@ -216,18 +217,19 @@ func bugCommand(args []string, stdout, stderr io.Writer) int {
 		}))
 
 	case "resolve":
+		id, flags := leadingID(rest)
 		set := flag.NewFlagSet("resolve", flag.ContinueOnError)
 		set.SetOutput(stderr)
 		sha := set.String("sha", "", "the commit the fix landed in")
 		url := set.String("url", "", "where that commit can be read")
-		if err := set.Parse(rest); err != nil {
+		if err := set.Parse(flags); err != nil {
 			return 2
 		}
-		if set.NArg() != 1 {
+		if id == "" {
 			fmt.Fprint(stderr, "bugs: resolve <id> [--sha <sha>] [--url <url>]\n")
 			return 2
 		}
-		return out.emit(app.ResolveBugReport(set.Arg(0), *sha, *url))
+		return out.emit(app.ResolveBugReport(id, *sha, *url))
 
 	case "history":
 		return out.emit(app.ListResolvedReports())
@@ -235,6 +237,24 @@ func bugCommand(args []string, stdout, stderr io.Writer) int {
 
 	fmt.Fprint(stderr, bugUsage)
 	return 2
+}
+
+// leadingID pulls a report id off the front of an argument list, returning it
+// and whatever is left for the flag set.
+//
+// Go's flag package stops at the first non-flag argument, so
+// `bugs resolve <id> --sha abc` parses no flags at all — the id ends the flag
+// section. Every other CLI in the world takes the subject first, so the fix is
+// to lift the positional out here rather than to make agents write
+// `bugs resolve --sha abc <id>` and be silently ignored when they do not.
+//
+// Only one, and only at the front: these commands take exactly one id, and
+// anything after the flags begin is the flags' business.
+func leadingID(args []string) (id string, flags []string) {
+	if len(args) > 0 && !strings.HasPrefix(args[0], "-") {
+		return args[0], args[1:]
+	}
+	return "", args
 }
 
 // bugWorkflowText is the workflow as it stands: the producer's override of the

@@ -1,0 +1,36 @@
+<component name="ProjectRunConfigurationManager">
+  <!-- First before-launch step of "App (Go debugger)". GoLand compiles that
+       config to a fixed path in its tmp dir and overwrites it on every run;
+       Windows refuses to overwrite a running image, so one surviving instance
+       fails the whole launch with "The process cannot access the file because it
+       is being used by another process" — an error about the previous run, not
+       about the code, which is what makes it confusing.
+
+       They survive because stopping a Wails debug session kills the parent and
+       leaves the webview child behind, windowless, where it accumulates
+       silently.
+
+       Matched on process name, not on path under the JetBrains tmp dir, so it
+       keeps working when GoLand is upgraded and the version in that path moves.
+       The `___N` prefix is GoLand's own index and varies per run, hence the
+       wildcard. Deliberately scoped to this run config's binary: a real
+       suno-maker.exe the producer is running is left alone.
+
+       Always exits 0. A before-launch task that failed when it found nothing to
+       kill would block every clean launch. -->
+  <configuration default="false" name="Kill stale debug processes" type="ShConfigurationType">
+    <option name="SCRIPT_TEXT" value="$p = @(Get-Process -Name '___*App__Go_debugger_' -ErrorAction SilentlyContinue); if ($p.Count -eq 0) { 'No stale debug processes.' } else { $p | ForEach-Object { Write-Host ('Killing stale PID ' + $_.Id + ' (' + $_.ProcessName + ')') }; $p | Stop-Process -Force -ErrorAction SilentlyContinue; Wait-Process -Id ($p | ForEach-Object { $_.Id }) -Timeout 10 -ErrorAction SilentlyContinue }; exit 0" />
+    <option name="INDEPENDENT_SCRIPT_PATH" value="true" />
+    <option name="SCRIPT_PATH" value="" />
+    <option name="SCRIPT_OPTIONS" value="" />
+    <option name="INDEPENDENT_SCRIPT_WORKING_DIRECTORY" value="true" />
+    <option name="SCRIPT_WORKING_DIRECTORY" value="$PROJECT_DIR$" />
+    <option name="INDEPENDENT_INTERPRETER_PATH" value="true" />
+    <option name="INTERPRETER_PATH" value="powershell.exe" />
+    <option name="INTERPRETER_OPTIONS" value="-NoProfile -Command" />
+    <option name="EXECUTE_IN_TERMINAL" value="false" />
+    <option name="EXECUTE_SCRIPT_FILE" value="false" />
+    <envs />
+    <method v="2" />
+  </configuration>
+</component>
