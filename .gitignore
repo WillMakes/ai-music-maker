@@ -1,0 +1,40 @@
+# Build output
+build/bin/
+frontend/dist/
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Node
+frontend/node_modules/
+frontend/package.json.md5
+
+# Wails generates these from the Go bindings on every build. Committed nowhere:
+# they are output, and a stale copy in a diff is noise that hides a real change.
+frontend/wailsjs/
+
+# Go
+*.test
+*.out
+vendor/
+
+# Editor state. The run configurations under .idea/ ARE committed — they are how
+# the project is run — so this is deliberately a list of files rather than the
+# whole folder.
+.idea/workspace.xml
+.idea/shelf/
+.idea/httpRequests/
+.idea/usage.statistics.xml
+.idea/dictionaries/
+.vscode/
+*.swp
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
