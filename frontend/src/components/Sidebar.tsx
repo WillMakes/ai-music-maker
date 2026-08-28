@@ -1,8 +1,14 @@
 import {ChevronLeft, ChevronRight} from 'lucide-react'
-import {PRIMARY_NAV, SETTINGS_NAV, type ViewId} from '../navigation'
+import {BOTTOM_NAV, PRIMARY_NAV, type NavEntry, type ViewId} from '../navigation'
 
 /**
  * The navigation rail.
+ *
+ * Two groups (#10). The work is at the top — the overview and the library —
+ * and Skills and Settings are pinned to the foot below a rule, because neither
+ * is a place the work happens: one is read while doing something else, the other
+ * is configuration. It is the shape Site Maker Pro's rail has, and grouping them
+ * that way is what stops the rail reading as five equal destinations.
  *
  * Collapsible, and the collapsed state is remembered, because this app's content
  * is wide — a lyric sheet beside a style prompt — and the rail is the first
@@ -24,7 +30,6 @@ export function Sidebar({
   onNavigate: (view: ViewId) => void
   onToggle: () => void
 }) {
-  const entries = [...PRIMARY_NAV, SETTINGS_NAV]
   return (
     <nav
       className={
@@ -33,44 +38,52 @@ export function Sidebar({
       }
       aria-label="Sections"
     >
-      <div className="flex items-center gap-2 px-3 py-3">
-        <div
+      {/* The lockup is the way back to the dashboard, the way a site's logo is
+          home on the web. A button rather than a div, so it carries the
+          affordance to the keyboard and the accessibility tree too. */}
+      <button
+        className={
+          'flex items-center gap-2 px-3 py-3 transition-opacity hover:opacity-80 ' +
+          (collapsed ? 'justify-center' : '')
+        }
+        type="button"
+        title="Dashboard"
+        aria-label="Go to the dashboard"
+        onClick={() => onNavigate('dashboard')}
+      >
+        <span
           className="flex size-8 shrink-0 items-center justify-center rounded-md bg-accent font-semibold text-accent-fg"
           aria-hidden="true"
         >
           S
-        </div>
+        </span>
         {!collapsed && <span className="truncate font-semibold">SunoMaker</span>}
-      </div>
+      </button>
 
+      {/* flex-1 is what pushes the bottom group to the foot of the rail rather
+          than leaving it under the last primary item. */}
       <ul className="flex flex-1 flex-col gap-0.5 px-2 py-2">
-        {entries.map((entry) => {
-          const active = current === entry.id
-          const Icon = entry.icon
-          return (
-            <li key={entry.id}>
-              <button
-                className={
-                  'flex w-full items-center gap-2.5 rounded-md px-2.5 py-2 text-sm ' +
-                  (active
-                    ? 'bg-active font-medium text-active-fg'
-                    : 'text-fg hover:bg-surface-hover')
-                }
-                type="button"
-                title={collapsed ? entry.label : undefined}
-                aria-current={active ? 'page' : undefined}
-                onClick={() => onNavigate(entry.id)}
-              >
-                <Icon
-                  className={active ? 'text-nav-icon' : 'text-fg-muted'}
-                  size={17}
-                  aria-hidden="true"
-                />
-                {!collapsed && <span className="truncate">{entry.label}</span>}
-              </button>
-            </li>
-          )
-        })}
+        {PRIMARY_NAV.map((entry) => (
+          <Item
+            key={entry.id}
+            entry={entry}
+            active={current === entry.id}
+            collapsed={collapsed}
+            onSelect={onNavigate}
+          />
+        ))}
+      </ul>
+
+      <ul className="flex flex-col gap-0.5 border-t border-edge px-2 py-2">
+        {BOTTOM_NAV.map((entry) => (
+          <Item
+            key={entry.id}
+            entry={entry}
+            active={current === entry.id}
+            collapsed={collapsed}
+            onSelect={onNavigate}
+          />
+        ))}
       </ul>
 
       <button
@@ -82,5 +95,49 @@ export function Sidebar({
         {!collapsed && <span>Collapse</span>}
       </button>
     </nav>
+  )
+}
+
+/**
+ * One rail entry.
+ *
+ * Its own component so the two groups cannot drift apart: a highlight or a
+ * padding changed in one list and not the other is exactly the kind of
+ * difference nobody notices until the rail looks wrong.
+ */
+function Item({
+  entry,
+  active,
+  collapsed,
+  onSelect,
+}: {
+  entry: NavEntry
+  active: boolean
+  collapsed: boolean
+  onSelect: (view: ViewId) => void
+}) {
+  const Icon = entry.icon
+  return (
+    <li>
+      <button
+        className={
+          'flex w-full items-center gap-2.5 rounded-md px-2.5 py-2 text-sm ' +
+          (active
+            ? 'bg-active font-medium text-active-fg'
+            : 'text-fg hover:bg-surface-hover')
+        }
+        type="button"
+        title={collapsed ? entry.label : undefined}
+        aria-current={active ? 'page' : undefined}
+        onClick={() => onSelect(entry.id)}
+      >
+        <Icon
+          className={active ? 'text-nav-icon' : 'text-fg-muted'}
+          size={17}
+          aria-hidden="true"
+        />
+        {!collapsed && <span className="truncate">{entry.label}</span>}
+      </button>
+    </li>
   )
 }
