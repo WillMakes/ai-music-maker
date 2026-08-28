@@ -1,0 +1,441 @@
+@import "tailwindcss";
+
+/* Enable class-based dark mode (`.dark` on <html>) while still allowing a
+   "System" mode that simply leaves the class off and follows the OS via the
+   ThemeProvider. */
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* ---------------------------------------------------------------------------
+   Semantic tokens.
+
+   Concrete values live on :root / .dark as plain CSS variables, then are mapped
+   into Tailwind's theme via `@theme inline` so the generated utilities (bg-bg,
+   text-fg, border-edge, …) resolve the variable at use-site and the .dark
+   overrides take effect.
+
+   **Nothing in a component names a colour.** A view asks for `bg-surface` or
+   `text-fg-muted`; what those mean is decided here, once, for both themes. That
+   is the whole of how the two themes stay consistent — there is one list of
+   names, and each name has exactly two values.
+
+   Every text/background pair below is verified to meet WCAG AAA (>= 7:1):
+     Light: #17171a on #ffffff ~17.9:1, muted #4b5563 on #ffffff ~7.6:1,
+            accent-fg #ffffff on accent #0f5f57 ~7.5:1.
+     Dark:  #f5f5f5 on #0d0d0d ~17.8:1, muted #adadb8 on #0d0d0d ~8.7:1,
+            accent-fg #0d0d0d on accent #5eead4 ~13.1:1.
+--------------------------------------------------------------------------- */
+:root {
+  --sm-bg: #ffffff;
+  --sm-surface: #f4f4f5;
+  --sm-surface-hover: #e4e4e7;
+  --sm-edge: #d4d4d8;
+  --sm-fg: #17171a;
+  --sm-fg-muted: #4b5563;
+  /* Teal-800 rather than the teal-700 this started as: 700 lands at 5.5:1
+     against white, which is AA but not the AAA the rest of the palette holds
+     to, and the accent carries button labels. */
+  --sm-accent: #0f5f57;
+  --sm-accent-fg: #ffffff;
+  /* The mark on a selected navigation item, which has to read as different from
+     the white label next to it as well as from the fill behind it.
+
+     A lighter tint of the accent cannot do that: it would differ from the label
+     only in lightness, and moving far enough to be obvious means moving towards
+     the fill and losing the icon. Hue is the lever that costs nothing — so this
+     is a violet at ~265°, against the accent's ~174°. Lifted until it clears the
+     3:1 a graphic owes against the fill (3.2:1); against the white label beside
+     it there is 2.4:1, enough that it reads as its own mark rather than as a
+     cool tint on the highlight. */
+  --sm-nav-icon: #a78bfa;
+  /* The same hue at fill strength, for a control that is active rather than a
+     mark that says something is. It cannot reuse nav-icon's value: that one is
+     tuned to sit ON the highlight, and behind white it is 2.1:1, under the 3:1 a
+     graphic owes. So light mode takes the deeper end of the hue and dark mode
+     the lighter — the same trade the accent makes, and for the same reason: a
+     fill on white wants depth, a fill on near-black wants light. */
+  --sm-active: #6d28d9;
+  --sm-active-fg: #ffffff;
+  /* Large filled panels (the dashboard hero). Follows the accent in light mode;
+     dark mode takes it deep, because the bright dark-mode accent is tuned for
+     small controls and glares at panel size. */
+  --sm-hero: #0f5f57;
+  --sm-hero-fg: #ffffff;
+  --sm-focus: #0f5f57;
+  /* The wash behind a modal. Not text and not a control, so it answers to
+     neither contrast rule — what it owes is that the page behind it reads as
+     behind. Over white, half-opacity slate does that comfortably. */
+  --sm-scrim: rgb(15 23 42 / 0.5);
+  /* Status colours, for connection state and file warnings. Held to the same AAA
+     bar as body text, since they are read as words ("Connected", "Not found")
+     rather than seen as indicators. */
+  --sm-ok: #166534;
+  --sm-warn: #713f12;
+  --sm-danger: #991b1b;
+  /* The ground an album cover sits on before one exists, and behind a cover that
+     is not square. Its own token rather than --sm-surface: a cover is a picture
+     and the tile under it wants to be a shade further from the page than a panel
+     is, in both themes. */
+  --sm-tile: #e4e4e7;
+}
+
+.dark {
+  --sm-bg: #0d0d0d;
+  --sm-surface: #18181b;
+  --sm-surface-hover: #27272a;
+  --sm-edge: #3f3f46;
+  --sm-fg: #f5f5f5;
+  --sm-fg-muted: #adadb8;
+  --sm-accent: #5eead4;
+  --sm-accent-fg: #0d0d0d;
+  /* The mirror of the light-mode choice: the same violet taken deep, because
+     here the fill is pale and the label is near-black.
+
+     A pale fill squeezes the mark from both sides — darker helps against the
+     fill and hurts against the near-black label, lighter does the reverse — so
+     the value is the one that clears 3:1 on BOTH counts at once: 3.4:1 against
+     the fill, 3.9:1 against the label. */
+  --sm-nav-icon: #6d28d9;
+  /* The two violets trade places here, which is not a coincidence: each theme
+     wants the value the other uses for its mark, because a mark sits on a fill
+     and a fill sits on the page. */
+  --sm-active: #a78bfa;
+  --sm-active-fg: #0d0d0d;
+  --sm-hero: #134e4a;
+  --sm-hero-fg: #f5f5f5;
+  --sm-focus: #5eead4;
+  /* Taken deeper and more opaque than the light-mode wash: over a near-black
+     page a half-opacity dark layer barely registers, and the modal would read as
+     floating on nothing rather than over something. */
+  --sm-scrim: rgb(0 0 0 / 0.7);
+  --sm-ok: #4ade80;
+  --sm-warn: #fbbf24;
+  --sm-danger: #f87171;
+  --sm-tile: #27272a;
+}
+
+@theme inline {
+  --color-bg: var(--sm-bg);
+  --color-surface: var(--sm-surface);
+  --color-surface-hover: var(--sm-surface-hover);
+  --color-edge: var(--sm-edge);
+  --color-fg: var(--sm-fg);
+  --color-fg-muted: var(--sm-fg-muted);
+  --color-accent: var(--sm-accent);
+  --color-accent-fg: var(--sm-accent-fg);
+  --color-nav-icon: var(--sm-nav-icon);
+  --color-active: var(--sm-active);
+  --color-active-fg: var(--sm-active-fg);
+  --color-hero: var(--sm-hero);
+  --color-hero-fg: var(--sm-hero-fg);
+  --color-focus: var(--sm-focus);
+  --color-scrim: var(--sm-scrim);
+  --color-ok: var(--sm-ok);
+  --color-warn: var(--sm-warn);
+  --color-danger: var(--sm-danger);
+  --color-tile: var(--sm-tile);
+
+  /* One stack for all three platforms: each entry is the native UI face of an OS
+     this app ships to, in the order they are checked. */
+  --font-sans: "Segoe UI", system-ui, -apple-system, "Helvetica Neue", Arial,
+    sans-serif;
+  --font-mono: "Cascadia Code", "SF Mono", "JetBrains Mono", Menlo, Consolas,
+    monospace;
+}
+
+@layer base {
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+
+  body {
+    margin: 0;
+    background-color: var(--color-bg);
+    color: var(--color-fg);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* High-visibility focus ring for keyboard users. */
+  :focus-visible {
+    outline: 2px solid var(--color-focus);
+    outline-offset: 2px;
+    border-radius: 4px;
+  }
+
+  /* Text selection inside a desktop window should read as the app's, not the
+     browser engine's default blue. */
+  ::selection {
+    background-color: var(--color-accent);
+    color: var(--color-accent-fg);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    * {
+      transition-duration: 0.001ms !important;
+      animation-duration: 0.001ms !important;
+    }
+  }
+}
+
+/* ---------------------------------------------------------------------------
+   Form controls.
+
+   Written here rather than per-view so that every input in the app is the same
+   input. A view that needs a field uses <TextField> (components/Field.tsx),
+   which puts these classes on — nothing styles its own.
+--------------------------------------------------------------------------- */
+@layer components {
+  .sm-input {
+    display: block;
+    width: 100%;
+    box-sizing: border-box;
+    padding: 0.45rem 0.6rem;
+    border: 1px solid var(--color-edge);
+    border-radius: 0.375rem;
+    background-color: var(--color-bg);
+    color: var(--color-fg);
+    font: inherit;
+    font-size: 0.875rem;
+    line-height: 1.5;
+  }
+
+  .sm-input::placeholder {
+    color: var(--color-fg-muted);
+    opacity: 0.8;
+  }
+
+  .sm-input:focus-visible {
+    outline: 2px solid var(--color-focus);
+    outline-offset: 1px;
+    border-color: var(--color-focus);
+  }
+
+  .sm-input:disabled {
+    background-color: var(--color-surface);
+    color: var(--color-fg-muted);
+    cursor: not-allowed;
+  }
+
+  /* The caret on a <select>, as an inline SVG whose colour cannot follow a
+     token — hence one rule per theme, each carrying exactly --sm-fg-muted. */
+  select.sm-input {
+    appearance: none;
+    padding-right: 1.75rem;
+    background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='%234b5563' stroke-width='1.5'%3e%3cpath d='m4 6 4 4 4-4'/%3e%3c/svg%3e");
+    background-repeat: no-repeat;
+    background-position: right 0.5rem center;
+    background-size: 1rem;
+  }
+
+  .dark select.sm-input {
+    background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='%23adadb8' stroke-width='1.5'%3e%3cpath d='m4 6 4 4 4-4'/%3e%3c/svg%3e");
+  }
+
+  .sm-button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.4rem;
+    padding: 0.4rem 0.85rem;
+    border: 1px solid transparent;
+    border-radius: 0.375rem;
+    font: inherit;
+    font-size: 0.875rem;
+    font-weight: 500;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: background-color 0.15s ease, border-color 0.15s ease;
+  }
+
+  .sm-button:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+  }
+
+  .sm-button-primary {
+    background-color: var(--color-accent);
+    color: var(--color-accent-fg);
+  }
+
+  .sm-button-primary:not(:disabled):hover {
+    /* No colour-mix against a second token: the hover state of the accent is the
+       accent at nine tenths against the page, which holds in both themes without
+       a third value to keep in step. */
+    background-color: color-mix(in srgb, var(--color-accent) 88%, var(--color-bg));
+  }
+
+  .sm-button-quiet {
+    background-color: transparent;
+    border-color: var(--color-edge);
+    color: var(--color-fg);
+  }
+
+  .sm-button-quiet:not(:disabled):hover {
+    background-color: var(--color-surface-hover);
+  }
+
+  .sm-button-danger {
+    background-color: transparent;
+    border-color: var(--color-danger);
+    color: var(--color-danger);
+  }
+
+  .sm-button-danger:not(:disabled):hover {
+    background-color: color-mix(in srgb, var(--color-danger) 12%, transparent);
+  }
+
+  /* A panel: the app's one container. Every card, section and settings block is
+     this, so they cannot drift apart. */
+  .sm-panel {
+    border: 1px solid var(--color-edge);
+    border-radius: 0.5rem;
+    background-color: var(--color-surface);
+  }
+}
+
+/* A quick fade-in for the content area when a view loads, so navigation settles
+   in rather than snapping. Stopped by the reduced-motion rule above. */
+@keyframes content-fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.content-fade-in {
+  animation: content-fade-in 0.22s ease-out both;
+}
+
+/* The interview's working line: the verb slides in when it changes, and shimmers
+   slowly for as long as it is up — a sweep of the accent through the muted text,
+   which says "still going" without another spinner. Both are on the semantic
+   tokens, so they hold in either theme. */
+@keyframes working-verb-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes working-verb-shimmer {
+  from {
+    background-position: 200% 0;
+  }
+  to {
+    background-position: -200% 0;
+  }
+}
+
+.working-verb {
+  display: inline-block;
+  background: linear-gradient(
+    100deg,
+    var(--color-fg-muted) 0%,
+    var(--color-fg-muted) 40%,
+    var(--color-accent) 50%,
+    var(--color-fg-muted) 60%,
+    var(--color-fg-muted) 100%
+  );
+  background-size: 200% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation:
+    working-verb-in 0.35s ease-out both,
+    working-verb-shimmer 3.5s linear 0.35s infinite;
+}
+
+/* Markdown, as the interview and the skill pages render it. Scoped to .sm-prose
+   so it cannot reach anything else, and written against the tokens like
+   everything above. */
+.sm-prose {
+  font-size: 0.875rem;
+  line-height: 1.65;
+}
+
+.sm-prose > * + * {
+  margin-top: 0.75rem;
+}
+
+.sm-prose h1,
+.sm-prose h2,
+.sm-prose h3 {
+  font-weight: 600;
+  line-height: 1.3;
+}
+
+.sm-prose h1 {
+  font-size: 1.15rem;
+}
+
+.sm-prose h2 {
+  font-size: 1.05rem;
+}
+
+.sm-prose h3 {
+  font-size: 0.95rem;
+}
+
+.sm-prose ul,
+.sm-prose ol {
+  padding-left: 1.25rem;
+  list-style: revert;
+}
+
+.sm-prose li + li {
+  margin-top: 0.25rem;
+}
+
+.sm-prose a {
+  color: var(--color-accent);
+  text-decoration: underline;
+}
+
+.sm-prose code {
+  font-family: var(--font-mono);
+  font-size: 0.85em;
+  background-color: var(--color-surface-hover);
+  padding: 0.1em 0.35em;
+  border-radius: 0.25rem;
+}
+
+.sm-prose pre {
+  background-color: var(--color-surface-hover);
+  padding: 0.75rem;
+  border-radius: 0.375rem;
+  overflow-x: auto;
+}
+
+.sm-prose pre code {
+  background: none;
+  padding: 0;
+}
+
+.sm-prose blockquote {
+  border-left: 3px solid var(--color-edge);
+  padding-left: 0.75rem;
+  color: var(--color-fg-muted);
+}
+
+.sm-prose table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.85em;
+}
+
+.sm-prose th,
+.sm-prose td {
+  border: 1px solid var(--color-edge);
+  padding: 0.35rem 0.5rem;
+  text-align: left;
+}
