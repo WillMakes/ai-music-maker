@@ -237,6 +237,17 @@ func (q issueQueue) openIssues() ([]githubIssue, error) {
 	return issues, nil
 }
 
+// issue reads one by number.
+//
+// The only way to learn whether an issue is closed. Its absence from openIssues
+// is not that: see the note on reconcileIssues.
+func (q issueQueue) issue(number int) (githubIssue, error) {
+	var found githubIssue
+	err := q.call(http.MethodGet,
+		fmt.Sprintf("/repos/%s/issues/%d", q.slug, number), nil, &found)
+	return found, err
+}
+
 // createIssue opens an issue for a report.
 func (q issueQueue) createIssue(report BugReport) (issueRef, error) {
 	q.ensureLabels()
@@ -473,9 +484,12 @@ func (a *App) closeIssue(report BugReport, commitURL string) {
 //
 //  1. an open issue with no local row gets one, so an issue written on
 //     github.com is in the queue;
-//  2. a local row whose issue has been closed leaves the queue, resolved;
+//  2. a local row whose issue is *confirmed closed* leaves the queue, resolved;
 //  3. a local row with no issue gets one, catching up anything filed while the
 //     forge was unreachable.
+//
+// "Confirmed" is doing real work in step 2 (#11). Absence from the open list is
+// not evidence of closure — see the branch itself.
 //
 // Rate-limited and silent. Every failure mode here — closed, offline, no
 // credential — is a state where the right answer is the local projection.
@@ -534,8 +548,24 @@ func (a *App) reconcileIssues() {
 	for _, r := range local {
 		switch {
 		case r.IssueNumber != 0 && !openNumbers[r.IssueNumber]:
-			// Closed on the forge. Resolving here is what makes closing an issue
-			// on github.com a way to work the queue.
+			// Missing from the open list, which is *not* proof it was closed
+			// (#11). It is also what a list that has not caught up looks like:
+			// GitHub's issue list is eventually consistent, so an issue created
+			// a second ago is routinely absent from it. Reading that as closure
+			// resolved reports at the instant they were filed, and the next
+			// sweep then adopted their own issues back as hand-written ones,
+			// losing the route, the subject and the id.
+			//
+			// So the issue is read directly and only a state it states itself
+			// counts. Anything else — a network failure, a rate limit, an issue
+			// that is merely parked and so filtered out of the list — leaves the
+			// report where it is, which is the answer that can be corrected on
+			// the next sweep. One extra call, only for a report whose issue is
+			// not in the open list, which is rare.
+			issue, err := queue.issue(r.IssueNumber)
+			if err != nil || issue.State != "closed" {
+				continue
+			}
 			if _, err := a.store.resolveBugReport(r, "", ""); err == nil {
 				changed = true
 			}
