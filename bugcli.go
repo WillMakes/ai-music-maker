@@ -117,9 +117,14 @@ func bugCommand(args []string, stdout, stderr io.Writer) int {
 	}
 	defer store.Close()
 
+	// A write here has to reach an open window, which is a different process
+	// (see notifyRunningWindow) — an agent resolving a report from a terminal
+	// should clear the badge in a window somebody is looking at.
+	store.onChange = notifyRunningWindow(store)
+
 	// One app for the whole invocation, so every command reaches the issue queue
-	// and Jax the same way the window does. No context and no window: the emit
-	// hook is left nil, and App.emit is written to do nothing without one.
+	// and Jax the same way the window does. No context and no window of its own:
+	// App.emit is written to do nothing without one.
 	app := &App{store: store, toJax: fileReportInJax}
 
 	command, rest := args[0], args[1:]

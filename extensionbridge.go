@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"io/fs"
 	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -33,11 +34,14 @@ import (
 // ambient credential to forge — a page without the token cannot act, whatever
 // CORS says.
 //
-// Five routes: health, so the extension can tell whether the app is up; library,
-// the artists/albums/tracks it picks from; track, one track's fields; open, which
-// raises the window; and artwork, which is not for the extension at all — it is
-// how the app's own webview loads an album cover out of ~/.sunomaker (see
-// artwork.go).
+// Four routes are the extension's: health, so it can tell whether the app is up;
+// library, the artists/albums/tracks it picks from; track, one track's fields;
+// and open, which raises the window.
+//
+// Two are not for the extension at all. artwork is how the app's own webview
+// loads an album cover out of ~/.sunomaker (see artwork.go), and changed is how a
+// second process — the MCP server, the bug CLI — tells the running window that it
+// wrote something (see notifyRunningWindow).
 // ---------------------------------------------------------------------------
 
 // extensionBridgePort is where the bridge listens. Fixed rather than chosen at
@@ -93,6 +97,7 @@ func (a *App) superviseExtensionBridge(ctx context.Context) {
 	mux.HandleFunc("/track/", a.bridgeTrack)
 	mux.HandleFunc("/open", a.bridgeOpen)
 	mux.HandleFunc("/artwork/", a.bridgeArtwork)
+	mux.HandleFunc("/changed", a.bridgeChanged)
 
 	srv := &http.Server{
 		Addr:              "127.0.0.1:" + strconv.Itoa(extensionBridgePort),
@@ -286,6 +291,81 @@ func (a *App) bridgeOpen(w http.ResponseWriter, r *http.Request) {
 	}
 	a.ShowWindow()
 	bridgeJSON(w, http.StatusOK, map[string]any{"ok": true})
+}
+
+// ---------------------------------------------------------------------------
+// Telling the window that another process wrote
+//
+// The store's onChange hook is what makes an open page reload, and it only
+// reaches the process it was set in. The MCP server and the bug CLI are
+// *separate processes* running the same binary against the same database — so an
+// agent adding a track through MCP moved data the open window had no way to hear
+// about, and the page went on showing the old list until somebody navigated away
+// and back.
+//
+// The bridge is already a loopback server that the window is running, so the
+// second process posts the scope to it and the window emits it as its own. If
+// there is no window — the ordinary case for a CLI invocation — the post fails
+// instantly against a closed port and nothing is lost, because there is nothing
+// on screen to correct.
+// ---------------------------------------------------------------------------
+
+// bridgeChanged re-emits a scope written by another process.
+func (a *App) bridgeChanged(w http.ResponseWriter, r *http.Request) {
+	bridgeCORS(w)
+	if r.Method == http.MethodOptions {
+		w.WriteHeader(http.StatusNoContent)
+		return
+	}
+	if !a.bridgeAuthed(w, r) {
+		return
+	}
+	scope := strings.TrimSpace(r.URL.Query().Get("scope"))
+	if scope == "" {
+		http.Error(w, "no scope", http.StatusBadRequest)
+		return
+	}
+	// Straight to the window rather than through store.changed, which would post
+	// it back to this same endpoint and go round for ever.
+	a.emit("data:changed", scope)
+	bridgeJSON(w, http.StatusOK, map[string]any{"ok": true})
+}
+
+// notifyWindowClient is bounded hard. This runs after every write in a
+// short-lived process, and a CLI that paused a second per write to tell a window
+// that is not there would be slower for the case that is most common.
+var notifyWindowClient = &http.Client{Timeout: 2 * time.Second}
+
+// notifyRunningWindow is the store hook a windowless process installs.
+//
+// Best effort and silent throughout: every failure here means "there is no
+// window open", which is not a problem and is not something a terminal should be
+// told about.
+func notifyRunningWindow(store *Store) func(string) {
+	if store == nil {
+		return nil
+	}
+	token, err := store.setting(keyExtensionToken)
+	if err != nil || token == "" {
+		// No token yet means the window has never run, so there is certainly not
+		// one open now. Minting one here would be this process deciding a value
+		// the window owns.
+		return nil
+	}
+	return func(scope string) {
+		url := fmt.Sprintf("http://127.0.0.1:%d/changed?scope=%s",
+			extensionBridgePort, url.QueryEscape(scope))
+		req, err := http.NewRequest(http.MethodPost, url, nil)
+		if err != nil {
+			return
+		}
+		req.Header.Set("Authorization", "Bearer "+token)
+		resp, err := notifyWindowClient.Do(req)
+		if err != nil {
+			return
+		}
+		_ = resp.Body.Close()
+	}
 }
 
 // bridgeArtwork serves an album cover to the app's own webview.

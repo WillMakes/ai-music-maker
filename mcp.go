@@ -51,6 +51,11 @@ func runMCPServer(args []string, in io.Reader, out io.Writer) (code int, handled
 	}
 	defer store.Close()
 
+	// A write here has to reach an open window, which is a different process
+	// (see notifyRunningWindow). Without it an agent adding a track through MCP
+	// leaves the page showing the old list.
+	store.onChange = notifyRunningWindow(store)
+
 	app := &App{store: store, toJax: fileReportInJax}
 	return serveMCP(app, in, out), true
 }
