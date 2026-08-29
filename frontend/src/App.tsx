@@ -16,6 +16,7 @@ import {AlbumDetails} from './views/AlbumDetails'
 import {ArtistDetails} from './views/ArtistDetails'
 import {Artists} from './views/Artists'
 import {Dashboard} from './views/Dashboard'
+import {NewArtist} from './views/NewArtist'
 import {Settings} from './views/Settings'
 import {SkillDetails} from './views/SkillDetails'
 import {Skills} from './views/Skills'
@@ -204,7 +205,17 @@ export default function App() {
             )}
 
             {current.view === 'artists' && (
-              <Artists onOpen={(artistId) => go({view: 'artist-details', artistId})} />
+              <Artists
+                onOpen={(artistId) => go({view: 'artist-details', artistId})}
+                onCreate={() => go({view: 'artist-new'})}
+              />
+            )}
+
+            {current.view === 'artist-new' && (
+              <NewArtist
+                onCreated={(artistId) => go({view: 'artist-details', artistId})}
+                onCancel={back}
+              />
             )}
 
             {current.view === 'artist-details' && current.artistId && (

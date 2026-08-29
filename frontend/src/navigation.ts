@@ -21,6 +21,7 @@ import {
 export type ViewId =
   | 'dashboard'
   | 'artists'
+  | 'artist-new'
   | 'artist-details'
   | 'album-details'
   | 'track-details'
@@ -38,6 +39,7 @@ export type ViewId =
 export const ROUTE_TITLES: Record<ViewId, string> = {
   dashboard: 'Dashboard',
   artists: 'Artists',
+  'artist-new': 'Create an artist',
   'artist-details': 'Artist',
   'album-details': 'Album',
   'track-details': 'Track',
@@ -62,6 +64,7 @@ export const ROUTE_TITLES: Record<ViewId, string> = {
 export const SECTION_OF: Record<ViewId, ViewId> = {
   dashboard: 'dashboard',
   artists: 'artists',
+  'artist-new': 'artists',
   'artist-details': 'artists',
   'album-details': 'artists',
   'track-details': 'artists',
