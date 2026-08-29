@@ -1,5 +1,5 @@
 import {useCallback, useEffect, useState} from 'react'
-import {AudioLines, Disc3, ExternalLink, Loader2, Plus, Sparkles, Trash2} from 'lucide-react'
+import {AudioLines, Disc3, ExternalLink, Loader2, Plus, Sparkles, Trash2, Wand2} from 'lucide-react'
 import {
   AnalyzeMusicURL,
   ClearChat,
@@ -19,6 +19,7 @@ import {EmptyState} from '../components/EmptyState'
 import {PageHeader} from '../components/PageHeader'
 import {TextAreaField, TextField} from '../components/Field'
 import {InterviewDialog} from '../chat/InterviewDialog'
+import {StyleEditAssistant} from '../artists/StyleEditAssistant'
 import {useDataChanged} from '../lib/dataChanged'
 import {toMessage} from '../lib/errors'
 import {attachmentPathsByName, isAudioPath} from '../lib/files'
@@ -48,6 +49,8 @@ export function ArtistDetails({
   const [error, setError] = useState('')
   const [interviewing, setInterviewing] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
+  // The base-style refinement chat (#30), for an artist that already exists.
+  const [refining, setRefining] = useState(false)
 
   const reload = useCallback(() => {
     Promise.all([GetArtist(artistId), ListAlbums(artistId)])
@@ -151,7 +154,20 @@ export function ArtistDetails({
       )}
 
       <section className="sm-panel space-y-4 p-4">
-        <h2 className="text-sm font-semibold">The artist</h2>
+        <div className="flex items-center gap-3">
+          <h2 className="flex-1 text-sm font-semibold">The artist</h2>
+          {/* The interview wrote the base style once; this is how it gets
+              better afterwards (#30) — a conversation that can be handed
+              YouTube references and ends in the form, not the database. */}
+          <button
+            className="sm-button sm-button-quiet"
+            type="button"
+            onClick={() => setRefining(true)}
+          >
+            <Wand2 size={15} />
+            Refine style with AI
+          </button>
+        </div>
         <div className="grid gap-4 md:grid-cols-2">
           <TextField
             label="Name"
@@ -222,6 +238,16 @@ export function ArtistDetails({
           </ul>
         )}
       </section>
+
+      {refining && (
+        <StyleEditAssistant
+          artistId={artist.id}
+          // Into the draft the producer is already editing: they read what the
+          // model wrote, adjust it, and press Save themselves.
+          onApply={(baseStyle) => update({baseStyle})}
+          onClose={() => setRefining(false)}
+        />
+      )}
 
       {interviewing && (
         <InterviewDialog
