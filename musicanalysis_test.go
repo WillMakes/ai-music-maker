@@ -76,3 +76,19 @@ func TestResearchRidesTheTurn(t *testing.T) {
 		t.Fatalf("the transcript lost the research:\n%s", transcript)
 	}
 }
+
+// TestMergeStyleWithAnalysisRefusals: the merge is a model call, so the tests
+// pin what must hold on either side of it — an empty analysis is refused
+// before any provider is bothered, and with no provider connected the failure
+// is the connect message, not a stored half-merge.
+func TestMergeStyleWithAnalysisRefusals(t *testing.T) {
+	app := newTestApp(t)
+
+	if _, err := app.MergeStyleWithAnalysis("some style", "  "); err == nil {
+		t.Fatal("an empty analysis was merged")
+	}
+	_, err := app.MergeStyleWithAnalysis("some style", "120 BPM, tape drums")
+	if err == nil {
+		t.Fatal("a merge ran with no provider connected")
+	}
+}

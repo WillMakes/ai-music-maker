@@ -3,6 +3,7 @@ import {AudioLines, Disc3, ExternalLink, Loader2, Plus, Sparkles, Trash2, Wand2}
 import {
   AnalyzeMusicURL,
   ClearChat,
+  MergeStyleWithAnalysis,
   DeleteArtist,
   ExtractAlbum,
   ExtractTracks,
@@ -195,6 +196,14 @@ export function ArtistDetails({
       <Inspirations
         inspirations={draft.inspirations ?? []}
         onChange={(inspirations) => update({inspirations})}
+        // Adding a reference updates the style (#31): the analysis that just
+        // filled the note is folded into the base style *draft*, and the
+        // producer saves when it reads right — the AI writes, it does not
+        // take the pen.
+        onMergeStyle={async (analysis) => {
+          const merged = await MergeStyleWithAnalysis(draft.baseStyle, analysis)
+          update({baseStyle: merged})
+        }}
       />
 
       <section className="space-y-3">
@@ -354,9 +363,12 @@ export function Cover({url, name, size = 44}: {url: string; name: string; size?:
 function Inspirations({
   inspirations,
   onChange,
+  onMergeStyle,
 }: {
   inspirations: main.Inspiration[]
   onChange: (next: main.Inspiration[]) => void
+  /** Folds a fresh analysis into the base style draft (#31). */
+  onMergeStyle: (analysis: string) => Promise<void>
 }) {
   // Which reference Antigravity is researching right now (#29), and what went
   // wrong when one could not be. One at a time — each run is minutes of
@@ -373,6 +385,11 @@ function Inspirations({
       // Into the note field of the draft, not the database: the producer reads
       // it, trims it, and presses Save themselves.
       update(index, {note: breakdown})
+      // And into the base style beside it (#31) — the reference was added to
+      // change how the artist sounds, and the merge is where that lands. Its
+      // failure keeps the note: an analysis without a merge is still worth
+      // having, and the error says why the style did not move.
+      await onMergeStyle(breakdown)
     } catch (err) {
       setAnalysisError(toMessage(err))
     } finally {
@@ -418,7 +435,8 @@ function Inspirations({
         <p className="text-sm text-fg-muted">
           YouTube or YouTube Music links — specific tracks rather than artists. The note
           against each is the part that survives; the waveform button fills it with
-          Antigravity&apos;s technical breakdown of the song.
+          Antigravity&apos;s technical breakdown and folds the song&apos;s traits into
+          the base style above.
         </p>
       ) : (
         <ul className="space-y-3">
