@@ -4,15 +4,17 @@ import {StatusBar} from './components/StatusBar'
 import {TopBar} from './components/TopBar'
 import {ReportBugModal} from './bugs/ReportBugModal'
 import {useBugs} from './bugs/BugsProvider'
+import {useLibrary} from './library/LibraryProvider'
 import {SETTING_KEYS, loadSetting, saveSetting} from './lib/settings'
 import {
   RETIRED_ROUTES,
   ROUTE_TITLES,
-  SECTION_OF,
   SETTINGS_TABS,
   isSettingsView,
+  routeTrail,
   type ViewId,
 } from './navigation'
+import {main} from '../wailsjs/go/models'
 import {AIServiceDetail} from './settings/AIServiceDetail'
 import {AlbumDetails} from './views/AlbumDetails'
 import {ArtistDetails} from './views/ArtistDetails'
@@ -32,7 +34,7 @@ import {TrackDetails} from './views/TrackDetails'
  * the record behind it is edited — and so the history stack holds no stale
  * copies of data that has since moved.
  */
-interface Route {
+export interface Route {
   view: ViewId
   artistId?: string
   albumId?: string
@@ -42,6 +44,78 @@ interface Route {
 }
 
 const HOME: Route = {view: 'dashboard'}
+
+/** One step of the top bar's trail (#34). No route means "you are here". */
+interface Crumb {
+  label: string
+  route?: Route
+}
+
+/**
+ * Where the producer is, as the trail the redesign's header draws: Home, then
+ * the records by name down to the open one. Names come from the library tree —
+ * the same names the rail shows — and a tree that has not loaded yet falls
+ * back to the view's title rather than an empty bar.
+ */
+function buildCrumbs(current: Route, tree: main.LibraryArtist[]): Crumb[] {
+  const home: Crumb = {label: 'Home', route: HOME}
+  const artist = tree.find((one) => one.id === current.artistId)
+  const albumOf = (albumId?: string) => {
+    for (const one of tree) {
+      const album = one.albums.find((a) => a.id === albumId)
+      if (album) return {artist: one, album}
+    }
+    return null
+  }
+
+  switch (current.view) {
+    case 'dashboard':
+      return [{label: 'Home'}]
+    case 'artist-details':
+      return [home, {label: artist?.name ?? 'Artist'}]
+    case 'album-details': {
+      const found = albumOf(current.albumId)
+      return [
+        home,
+        found
+          ? {label: found.artist.name, route: {view: 'artist-details', artistId: found.artist.id}}
+          : {label: 'Artist'},
+        {label: found?.album.name ?? 'Album'},
+      ]
+    }
+    case 'track-details': {
+      const found = albumOf(current.albumId)
+      return [
+        home,
+        found
+          ? {label: found.artist.name, route: {view: 'artist-details', artistId: found.artist.id}}
+          : {label: 'Artist'},
+        found
+          ? {
+              label: found.album.name,
+              route: {view: 'album-details', albumId: found.album.id, artistId: found.artist.id},
+            }
+          : {label: 'Album'},
+        {label: 'Track'},
+      ]
+    }
+    case 'skill-details':
+      return [home, {label: 'Skills', route: {view: 'skills'}}, {label: 'Skill'}]
+    default: {
+      // Everything else reads its trail off the titles: "Settings — AI" is
+      // already the section and the tab in one string (#20).
+      const steps = routeTrail(current.view)
+      return [
+        home,
+        ...steps.map((label, i) =>
+          i === steps.length - 1
+            ? {label}
+            : {label, route: {view: 'settings-ai'} as Route},
+        ),
+      ]
+    }
+  }
+}
 
 /**
  * The route written down as the last one open, read back — or null when there is
@@ -103,6 +177,8 @@ export default function App() {
   const [reporting, setReporting] = useState(false)
 
   const current = nav.stack[nav.index]
+  const {tree} = useLibrary()
+  const crumbs = buildCrumbs(current, tree)
   const canBack = nav.index > 0
   const canForward = nav.index < nav.stack.length - 1
 
@@ -179,15 +255,16 @@ export default function App() {
   return (
     <div className="flex h-full">
       <Sidebar
-        current={SECTION_OF[current.view]}
+        current={current}
         collapsed={collapsed}
-        onNavigate={(view) => go({view})}
+        onGo={go}
         onToggle={toggleRail}
       />
 
       <div className="flex min-w-0 flex-1 flex-col">
         <TopBar
-          title={ROUTE_TITLES[current.view]}
+          crumbs={crumbs}
+          onCrumb={go}
           canBack={canBack}
           canForward={canForward}
           openBugs={counts.open}
@@ -204,12 +281,7 @@ export default function App() {
             key={JSON.stringify(current)}
             className="content-fade-in mx-auto max-w-6xl px-6 py-6"
           >
-            {current.view === 'dashboard' && (
-              <Dashboard
-                onNavigate={(view) => go({view})}
-                onOpenArtist={(artistId) => go({view: 'artist-details', artistId})}
-              />
-            )}
+            {current.view === 'dashboard' && <Dashboard onGo={go} />}
 
             {current.view === 'artists' && (
               <Artists
@@ -274,7 +346,6 @@ export default function App() {
                 view={current.view}
                 onNavigate={(view) => go({view})}
                 onOpenService={(serviceId) => go({view: 'settings-ai-service', serviceId})}
-                onOpenSkill={(skillId) => go({view: 'skill-details', skillId})}
               />
             )}
 
