@@ -1,4 +1,5 @@
 import {ChevronLeft, ChevronRight} from 'lucide-react'
+import logoMark from '../assets/logo-mark.png'
 import {BOTTOM_NAV, PRIMARY_NAV, type NavEntry, type ViewId} from '../navigation'
 
 /**
@@ -51,12 +52,15 @@ export function Sidebar({
         aria-label="Go to the dashboard"
         onClick={() => onNavigate('dashboard')}
       >
-        <span
-          className="flex size-8 shrink-0 items-center justify-center rounded-md bg-accent font-semibold text-accent-fg"
+        {/* The mascot rather than a lettered tile (#21): the mark carries its
+            own dark glow, so it sits on the rail directly with no background
+            of its own — a coloured tile behind it would fight the artwork. */}
+        <img
+          src={logoMark}
+          alt=""
+          className="size-8 shrink-0"
           aria-hidden="true"
-        >
-          S
-        </span>
+        />
         {!collapsed && <span className="truncate font-semibold">SunoMaker</span>}
       </button>
 
