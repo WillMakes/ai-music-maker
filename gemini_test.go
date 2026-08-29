@@ -81,3 +81,41 @@ func TestGoogleAssistantsAreRegistrable(t *testing.T) {
 		t.Fatalf("unexpected homes: %s / %s", geminiPath, antigravityPath)
 	}
 }
+
+// Antigravity is Grok's inverse (#27): a provider with a CLI and no API, so
+// account mode is the whole of how it connects and a pasted key is refused
+// with a message rather than stored.
+func TestAntigravityIsCLIOnly(t *testing.T) {
+	app := newTestApp(t)
+
+	found := false
+	for _, id := range aiServiceIDs {
+		if id == serviceAntigravity {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatal("antigravity is not in the provider list")
+	}
+	if aiCLIName(serviceAntigravity) != "agy" {
+		t.Fatalf("wrong CLI: %q", aiCLIName(serviceAntigravity))
+	}
+	if aiKeysURL(serviceAntigravity) != "" {
+		t.Fatal("antigravity claims to have somewhere to make a key")
+	}
+
+	// A key is refused before anything is stored.
+	if _, err := app.ConnectAIKey(serviceAntigravity, "not-a-real-key"); err == nil {
+		t.Fatal("a key was accepted for a provider with no API")
+	}
+
+	// The CLI path is the one that works.
+	withCLIs(t, "agy")
+	status, err := app.ConnectAIAccount(serviceAntigravity)
+	if err != nil {
+		t.Fatalf("connect by CLI: %v", err)
+	}
+	if !status.Connected || status.Mode != modeAccount {
+		t.Fatalf("not connected in account mode: %+v", status)
+	}
+}

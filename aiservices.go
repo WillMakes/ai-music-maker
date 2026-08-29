@@ -52,10 +52,14 @@ const (
 	// API's OpenAI-compatible endpoint, so it too is verified and called the
 	// way OpenAI is.
 	serviceGemini = "gemini"
+	// serviceAntigravity is Google's Antigravity (#27) — Grok's inverse: it has
+	// no API to key into, only the signed-in `agy` CLI to borrow, so account
+	// mode is the whole of how it connects.
+	serviceAntigravity = "antigravity"
 )
 
 // aiServiceIDs is every provider, in the order Settings lists them.
-var aiServiceIDs = []string{serviceAnthropic, serviceOpenAI, serviceGemini, serviceGrok}
+var aiServiceIDs = []string{serviceAnthropic, serviceOpenAI, serviceGemini, serviceAntigravity, serviceGrok}
 
 // Connection modes.
 const (
@@ -132,6 +136,8 @@ func aiServiceName(id string) string {
 		return "Grok"
 	case serviceGemini:
 		return "Gemini"
+	case serviceAntigravity:
+		return "Antigravity"
 	}
 	return id
 }
@@ -146,6 +152,8 @@ func aiCLIName(id string) string {
 		return "codex"
 	case serviceGemini:
 		return "gemini"
+	case serviceAntigravity:
+		return "agy"
 	}
 	return ""
 }
@@ -172,6 +180,8 @@ func aiInstallURL(id string) string {
 		return "https://github.com/openai/codex"
 	case serviceGemini:
 		return "https://github.com/google-gemini/gemini-cli"
+	case serviceAntigravity:
+		return "https://antigravity.google/docs/cli"
 	}
 	return ""
 }
@@ -482,6 +492,12 @@ func modelsRequest(id, key string) (*http.Request, error) {
 		// The OpenAI-compatibility surface, so the one decode in listAIModels
 		// covers this provider too.
 		url = "https://generativelanguage.googleapis.com/v1beta/openai/models"
+	case serviceAntigravity:
+		// No API and so no key to check (#27): the refusal here is what turns a
+		// pasted key into a message rather than a stored credential that can
+		// never work.
+		return nil, fmt.Errorf(
+			"Antigravity connects through its signed-in CLI — there is no API key to add")
 	default:
 		return nil, fmt.Errorf("unknown service %q", id)
 	}

@@ -145,6 +145,10 @@ export function AIServiceDetail({serviceId}: {serviceId: string}) {
         </section>
       )}
 
+      {/* Only where the provider has keys to make (#27): Antigravity has no
+          API, and a form whose every submission is refused is worse than no
+          form. */}
+      {service.keysUrl && (
       <section className="sm-panel space-y-3 p-4">
         <h2 className="text-sm font-semibold">Use an API key</h2>
         <p className="text-sm text-fg-muted">
@@ -180,6 +184,7 @@ export function AIServiceDetail({serviceId}: {serviceId: string}) {
           )}
         </div>
       </section>
+      )}
 
       {service.connected && (
         <section className="sm-panel space-y-3 p-4">

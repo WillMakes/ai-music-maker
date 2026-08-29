@@ -100,8 +100,8 @@ type AIReadiness struct {
 func (a *App) GetAIReadiness() AIReadiness {
 	connected := a.connectedAIServices()
 	if len(connected) == 0 {
-		return AIReadiness{Why: "No AI provider is connected — connect Claude, " +
-			"ChatGPT, Gemini or Grok in Settings → AI."}
+		return AIReadiness{Why: "No AI provider is connected — connect one in " +
+			"Settings → AI."}
 	}
 	id := a.defaultAIService()
 	return AIReadiness{Ready: true, Service: id, Name: aiServiceName(id)}
@@ -323,9 +323,12 @@ func chatViaCLI(ctx context.Context, id, model, system string, turns []chatMsg) 
 		}
 		args = append(args, prompt)
 		cmd = exec.CommandContext(ctx, path, args...)
-	case serviceGemini:
-		// -p is Gemini CLI's non-interactive mode: one prompt in, the answer on
-		// stdout, no session (#26).
+	case serviceGemini, serviceAntigravity:
+		// -p is the non-interactive mode both Google CLIs share — one prompt
+		// in, the answer on stdout, no session (#26, #27). agy has had releases
+		// where -p dropped stdout under a pipe; that surfaces here as its
+		// "returned nothing" error rather than a hang, which is the version of
+		// that failure a producer can act on.
 		args := []string{"-p", prompt}
 		if model != "" {
 			args = append(args, "--model", model)

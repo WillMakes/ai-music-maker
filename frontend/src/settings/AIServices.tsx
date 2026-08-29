@@ -70,7 +70,9 @@ export function AIServices({onOpen}: {onOpen: (serviceId: string) => void}) {
                   ? service.account +
                     (service.model ? ' · ' + service.model : ' · default model')
                   : service.cliName
-                    ? 'Sign in to ' + service.cliName + ', or add an API key'
+                    ? 'Sign in to ' +
+                      service.cliName +
+                      (service.keysUrl ? ', or add an API key' : '')
                     : 'API key only'}
               </span>
             </button>
