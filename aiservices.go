@@ -47,10 +47,15 @@ const (
 	// signed-in CLI to borrow — and its API is OpenAI-shaped, so it is verified
 	// and called the way OpenAI is.
 	serviceGrok = "grok"
+	// serviceGemini is Google's Gemini (#26). Account mode borrows the `gemini`
+	// CLI's signed-in session; the key path talks to the Generative Language
+	// API's OpenAI-compatible endpoint, so it too is verified and called the
+	// way OpenAI is.
+	serviceGemini = "gemini"
 )
 
 // aiServiceIDs is every provider, in the order Settings lists them.
-var aiServiceIDs = []string{serviceAnthropic, serviceOpenAI, serviceGrok}
+var aiServiceIDs = []string{serviceAnthropic, serviceOpenAI, serviceGemini, serviceGrok}
 
 // Connection modes.
 const (
@@ -125,6 +130,8 @@ func aiServiceName(id string) string {
 		return "ChatGPT"
 	case serviceGrok:
 		return "Grok"
+	case serviceGemini:
+		return "Gemini"
 	}
 	return id
 }
@@ -137,6 +144,8 @@ func aiCLIName(id string) string {
 		return "claude"
 	case serviceOpenAI:
 		return "codex"
+	case serviceGemini:
+		return "gemini"
 	}
 	return ""
 }
@@ -149,6 +158,8 @@ func aiKeysURL(id string) string {
 		return "https://platform.openai.com/api-keys"
 	case serviceGrok:
 		return "https://console.x.ai"
+	case serviceGemini:
+		return "https://aistudio.google.com/apikey"
 	}
 	return ""
 }
@@ -159,6 +170,8 @@ func aiInstallURL(id string) string {
 		return "https://docs.claude.com/en/docs/claude-code/overview"
 	case serviceOpenAI:
 		return "https://github.com/openai/codex"
+	case serviceGemini:
+		return "https://github.com/google-gemini/gemini-cli"
 	}
 	return ""
 }
@@ -465,6 +478,10 @@ func modelsRequest(id, key string) (*http.Request, error) {
 		url = "https://api.openai.com/v1/models"
 	case serviceGrok:
 		url = "https://api.x.ai/v1/models"
+	case serviceGemini:
+		// The OpenAI-compatibility surface, so the one decode in listAIModels
+		// covers this provider too.
+		url = "https://generativelanguage.googleapis.com/v1beta/openai/models"
 	default:
 		return nil, fmt.Errorf("unknown service %q", id)
 	}
@@ -507,9 +524,12 @@ func listAIModels(id, key string) ([]string, error) {
 	}
 	out := []string{}
 	for _, m := range body.Data {
-		if m.ID != "" {
-			out = append(out, m.ID)
+		if m.ID == "" {
+			continue
 		}
+		// Gemini's compatibility surface answers ids as "models/gemini-…"; the
+		// chat endpoint takes them bare, so the picker offers them bare (#26).
+		out = append(out, strings.TrimPrefix(m.ID, "models/"))
 	}
 	sort.Strings(out)
 	return out, nil

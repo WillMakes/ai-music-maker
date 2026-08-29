@@ -101,13 +101,16 @@ func TestGetAIServicesWithOneConnected(t *testing.T) {
 // connected, so the fixed version is checked at the other end of the range too.
 func TestGetAIServicesWithEveryProviderConnected(t *testing.T) {
 	app := newTestApp(t)
-	withCLIs(t, "claude", "codex")
+	withCLIs(t, "claude", "codex", "gemini")
 
 	if _, err := app.ConnectAIAccount(serviceAnthropic); err != nil {
 		t.Fatalf("claude: %v", err)
 	}
 	if _, err := app.ConnectAIAccount(serviceOpenAI); err != nil {
 		t.Fatalf("codex: %v", err)
+	}
+	if _, err := app.ConnectAIAccount(serviceGemini); err != nil {
+		t.Fatalf("gemini: %v", err)
 	}
 	// Grok has no CLI to borrow, so it is connected the only way it can be.
 	stubVerify(t)
@@ -164,13 +167,16 @@ func TestGetAIServiceMatchesTheList(t *testing.T) {
 // disconnected must not keep the star.
 func TestStarringAProviderSurvivesADisconnect(t *testing.T) {
 	app := newTestApp(t)
-	withCLIs(t, "claude", "codex")
+	withCLIs(t, "claude", "codex", "gemini")
 
 	if _, err := app.ConnectAIAccount(serviceAnthropic); err != nil {
 		t.Fatalf("claude: %v", err)
 	}
 	if _, err := app.ConnectAIAccount(serviceOpenAI); err != nil {
 		t.Fatalf("codex: %v", err)
+	}
+	if _, err := app.ConnectAIAccount(serviceGemini); err != nil {
+		t.Fatalf("gemini: %v", err)
 	}
 	if _, err := app.SetDefaultAIService(serviceOpenAI); err != nil {
 		t.Fatalf("star: %v", err)
