@@ -67,9 +67,14 @@ type BugReport struct {
 	// A note rather than an error: a refusal is a fact about Jax's queue and
 	// never stops the work here (see the top of jax.go). What it must not do is
 	// go unmentioned, which is how the two queues came to disagree in silence.
-	JaxNote   string `json:"jaxNote"`
-	CreatedAt string `json:"createdAt"`
-	UpdatedAt string `json:"updatedAt"`
+	JaxNote string `json:"jaxNote"`
+	// Attachments are the files on the report — screenshots, recordings, zips —
+	// as paths under this app's own directory (#20, see bugattachments.go).
+	// Paths rather than bytes: the queue is read whole on every change, and the
+	// agent working the report opens a path where it cannot open a blob.
+	Attachments []string `json:"attachments"`
+	CreatedAt   string   `json:"createdAt"`
+	UpdatedAt   string   `json:"updatedAt"`
 }
 
 // ResolvedReport is one that was fixed, kept for good.
@@ -118,6 +123,9 @@ func (a *App) FileBugReport(report BugReport) (BugReport, error) {
 	report.ID = newID("bug")
 	report.CreatedAt = nowStamp()
 	report.UpdatedAt = report.CreatedAt
+	// Files pasted while the report was still a draft move under its real id
+	// now that it has one (#20, see adoptAttachments).
+	report.Attachments = adoptAttachments(report.ID, report.Attachments)
 	if err := a.store.saveBugReport(report); err != nil {
 		return BugReport{}, err
 	}
@@ -172,6 +180,11 @@ func (a *App) UpdateBugReport(report BugReport) (BugReport, error) {
 	existing.Description = strings.TrimSpace(report.Description)
 	existing.Route = report.Route
 	existing.Global = report.Global
+	// The list replaces what was stored, which is how a file is taken off a
+	// report. Off the record only — the bytes stay on disk until the report is
+	// resolved, because a file the producer might re-add mid-edit is cheap to
+	// keep and gone for good if it is not (#20).
+	existing.Attachments = report.Attachments
 	existing.UpdatedAt = nowStamp()
 	if err := a.store.saveBugReport(existing); err != nil {
 		return BugReport{}, err
@@ -285,7 +298,14 @@ func (a *App) ResolveBugReport(id, commitSHA, commitURL string) (ResolvedReport,
 // having been closed.
 func (a *App) retireReport(report BugReport, commitSHA, commitURL string) (ResolvedReport, error) {
 	report.JaxNote = a.resolveInJax(report)
-	return a.store.resolveBugReport(report, commitSHA, commitURL)
+	resolved, err := a.store.resolveBugReport(report, commitSHA, commitURL)
+	if err == nil {
+		// The report's files go with it (#20): resolving is the only way out of
+		// the queue, and a folder of screenshots for reports nobody can name is
+		// a folder that only grows.
+		forgetBugAttachments(report.ID)
+	}
+	return resolved, err
 }
 
 // MarkFixesSeen clears the unseen badge, having shown the producer the notice.
@@ -318,16 +338,18 @@ func (a *App) SearchBugReports(query string) ([]BugReport, error) {
 // report — goes stale the first time somebody renames an artist.
 const bugColumns = `b.id, b.description, b.route, b.global, b.subject_kind,
 	b.subject_id, b.checked_out, b.issue_url, b.issue_number, b.jax_report_id,
-	b.jax_note, b.created_at, b.updated_at,
+	b.jax_note, b.attachments, b.created_at, b.updated_at,
 	COALESCE((SELECT name FROM artists WHERE id = b.subject_id),
 	         (SELECT name FROM albums  WHERE id = b.subject_id),
 	         (SELECT name FROM tracks  WHERE id = b.subject_id), '')`
 
 func scanBugReport(scan func(...any) error) (BugReport, error) {
 	var r BugReport
+	var attachments string
 	err := scan(&r.ID, &r.Description, &r.Route, &r.Global, &r.SubjectKind,
 		&r.SubjectID, &r.CheckedOut, &r.IssueURL, &r.IssueNumber, &r.JaxReportID,
-		&r.JaxNote, &r.CreatedAt, &r.UpdatedAt, &r.SubjectName)
+		&r.JaxNote, &attachments, &r.CreatedAt, &r.UpdatedAt, &r.SubjectName)
+	r.Attachments = decodePaths(attachments)
 	return r, err
 }
 
@@ -397,18 +419,18 @@ func (s *Store) saveBugReport(r BugReport) error {
 	_, err := s.db.Exec(
 		`INSERT INTO bug_reports (id, description, route, global, subject_kind,
 		   subject_id, checked_out, issue_url, issue_number, jax_report_id, jax_note,
-		   created_at, updated_at)
-		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		   attachments, created_at, updated_at)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		 ON CONFLICT(id) DO UPDATE SET
 		   description = excluded.description, route = excluded.route,
 		   global = excluded.global, subject_kind = excluded.subject_kind,
 		   subject_id = excluded.subject_id, checked_out = excluded.checked_out,
 		   issue_url = excluded.issue_url, issue_number = excluded.issue_number,
 		   jax_report_id = excluded.jax_report_id, jax_note = excluded.jax_note,
-		   updated_at = excluded.updated_at`,
+		   attachments = excluded.attachments, updated_at = excluded.updated_at`,
 		r.ID, r.Description, r.Route, r.Global, r.SubjectKind, r.SubjectID,
 		r.CheckedOut, r.IssueURL, r.IssueNumber, r.JaxReportID, r.JaxNote,
-		r.CreatedAt, r.UpdatedAt)
+		encodePaths(r.Attachments), r.CreatedAt, r.UpdatedAt)
 	return err
 }
 

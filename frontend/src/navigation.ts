@@ -125,6 +125,25 @@ export const SETTINGS_TABS: {id: ViewId; label: string}[] = [
 export const isSettingsView = (view: ViewId) => view.startsWith('settings-')
 
 /**
+ * A route as a trail of readable steps, for the report form's Where panel
+ * (#20).
+ *
+ * The titles above already carry the whole trail — "Settings — Chrome
+ * extension" is the section and the tab in one string — so this only has to
+ * split them apart. Derived rather than stored, because a fact stored twice is
+ * a fact that can disagree with itself.
+ *
+ * A route this file has never heard of comes back as itself: a report filed by
+ * an older build after a rename is still a report, and its raw route is more
+ * use than a blank.
+ */
+export function routeTrail(route: string): string[] {
+  const title = ROUTE_TITLES[route as ViewId]
+  if (!title) return route ? [route] : []
+  return title.split(' — ')
+}
+
+/**
  * Icons for the record kinds, used wherever one is named without being the page
  * — a breadcrumb, an empty state, the dashboard's counts. Here rather than at
  * each site so an album is the same disc everywhere.
