@@ -391,10 +391,14 @@ func issueDetails(report BugReport) string {
 	var b strings.Builder
 	b.WriteString("---\n\n")
 	b.WriteString("Filed from SunoMaker.\n\n")
+	// The page is kept whether or not the bug is app-wide (#20): global says
+	// the problem is not confined to that screen; the route still says where
+	// it showed up, which is worth having either way.
+	if report.Route != "" {
+		b.WriteString("- Page: `" + report.Route + "`\n")
+	}
 	if report.Global {
 		b.WriteString("- Scope: the whole app\n")
-	} else if report.Route != "" {
-		b.WriteString("- Page: `" + report.Route + "`\n")
 	}
 	if report.SubjectKind != "" && report.SubjectID != "" {
 		name := report.SubjectName
@@ -403,6 +407,16 @@ func issueDetails(report BugReport) string {
 		}
 		b.WriteString(fmt.Sprintf("- %s: %s (`%s`)\n",
 			capitalise(report.SubjectKind), name, report.SubjectID))
+	}
+	if len(report.Attachments) > 0 {
+		// Paths rather than pictures: GitHub has no public API for attaching a
+		// file to an issue, and a path on the reporter's machine is still what
+		// an agent working the report opens (#20).
+		files := make([]string, 0, len(report.Attachments))
+		for _, path := range report.Attachments {
+			files = append(files, "`"+path+"`")
+		}
+		b.WriteString("- Files: " + strings.Join(files, ", ") + " (on the reporter's machine)\n")
 	}
 	b.WriteString("- Report: `" + report.ID + "`\n")
 	if report.CreatedAt != "" {

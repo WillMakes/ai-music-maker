@@ -341,6 +341,9 @@ func (s *Store) addColumns() error {
 	columns := []struct{ table, column, definition string }{
 		// What Jax said when it declined to record a claim or a resolve (#15).
 		{"bug_reports", "jax_note", "TEXT NOT NULL DEFAULT ''"},
+		// The files on a report, as a JSON array of paths (#20, see
+		// bugattachments.go).
+		{"bug_reports", "attachments", "TEXT NOT NULL DEFAULT ''"},
 		{"resolved_reports", "jax_note", "TEXT NOT NULL DEFAULT ''"},
 	}
 	for _, c := range columns {
