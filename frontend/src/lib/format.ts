@@ -56,3 +56,27 @@ export function when(stamp: string): string {
     day: 'numeric',
   })
 }
+
+/**
+ * How long ago a stamp was, in the shortest form that is still true: 45s, 12m,
+ * 3h, 2d.
+ *
+ * For the status bar's "this report has been claimed for…" (#19), which is the
+ * one readout there that goes stale while nothing happens — "2m" left at 2m for
+ * half an hour reads as work that has stopped.
+ *
+ * Rounded down on purpose. Saying 4m at four minutes fifty is a claim that is
+ * still true; saying 5m is one that is not yet.
+ */
+export function formatElapsed(stamp: string): string {
+  if (!stamp) return ''
+  const then = new Date(stamp).getTime()
+  if (Number.isNaN(then)) return ''
+  const seconds = Math.max(0, Math.floor((Date.now() - then) / 1000))
+  if (seconds < 60) return `${seconds}s`
+  const minutes = Math.floor(seconds / 60)
+  if (minutes < 60) return `${minutes}m`
+  const hours = Math.floor(minutes / 60)
+  if (hours < 24) return `${hours}h`
+  return `${Math.floor(hours / 24)}d`
+}

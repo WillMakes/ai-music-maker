@@ -23,6 +23,13 @@ type BuildInfo struct {
 	Dirty     bool   `json:"dirty"`
 	GoVersion string `json:"goVersion"`
 	Platform  string `json:"platform"`
+	// StoreOK says the database opened. False is the quietest serious failure
+	// this app has: NewApp carries on without a store so there is still a window
+	// to read Settings in, every read then answers empty and every write returns
+	// errNoStore — which looks like an app with nothing in it rather than one
+	// that cannot save. The status bar says so along the bottom (#19), because
+	// admitting it only on one Settings tab was not admitting it.
+	StoreOK bool `json:"storeOk"`
 	// Repo is where reports are filed and where the source is, joined here so
 	// About has one call rather than two.
 	Repo BugRepo `json:"repo"`
@@ -35,6 +42,7 @@ func (a *App) GetBuildInfo() BuildInfo {
 		GoVersion: runtime.Version(),
 		Platform:  runtime.GOOS + "/" + runtime.GOARCH,
 		Repo:      currentBugRepo(),
+		StoreOK:   a.store != nil && a.store.db != nil,
 	}
 	built, ok := debug.ReadBuildInfo()
 	if !ok {
