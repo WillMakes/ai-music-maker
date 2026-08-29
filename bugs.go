@@ -58,9 +58,18 @@ type BugReport struct {
 	IssueURL    string `json:"issueUrl"`
 	IssueNumber int    `json:"issueNumber"`
 	// JaxReportID is the counterpart in Jax; 0 means it has not been filed there.
-	JaxReportID int    `json:"jaxReportId"`
-	CreatedAt   string `json:"createdAt"`
-	UpdatedAt   string `json:"updatedAt"`
+	JaxReportID int `json:"jaxReportId"`
+	// JaxNote is what Jax said when it declined to record a claim or a resolve
+	// (#15) — that the report is not the oldest workable one in its queue, that
+	// somebody else holds it. Empty when Jax agreed, and empty when Jax was
+	// closed, which is not a refusal.
+	//
+	// A note rather than an error: a refusal is a fact about Jax's queue and
+	// never stops the work here (see the top of jax.go). What it must not do is
+	// go unmentioned, which is how the two queues came to disagree in silence.
+	JaxNote   string `json:"jaxNote"`
+	CreatedAt string `json:"createdAt"`
+	UpdatedAt string `json:"updatedAt"`
 }
 
 // ResolvedReport is one that was fixed, kept for good.
@@ -72,6 +81,7 @@ type ResolvedReport struct {
 	IssueURL    string `json:"issueUrl"`
 	IssueNumber int    `json:"issueNumber"`
 	JaxReportID int    `json:"jaxReportId"`
+	JaxNote     string `json:"jaxNote"`
 	CreatedAt   string `json:"createdAt"`
 	ResolvedAt  string `json:"resolvedAt"`
 	// Seen marks a fix the producer has been told about. The window shows an
@@ -187,9 +197,27 @@ func (a *App) ClaimBugReport(id string) (BugReport, error) {
 		return BugReport{}, err
 	}
 	a.markIssueClaimed(report, true)
-	a.claimInJax(report)
+	// What Jax said about the claim, kept on the record (#15). A refusal does not
+	// undo the claim — see claimInJax — but it must be visible, or this queue and
+	// Jax's disagree and nothing says so.
+	a.noteFromJax(&report, a.claimInJax(report))
 	a.store.changed(scopeBugReports)
 	return report, nil
+}
+
+// noteFromJax records what Jax said, or clears a note left by an earlier one.
+//
+// Cleared on success as well as set on refusal: a report claimed once while Jax
+// was mid-sweep and again a minute later would otherwise carry a warning about a
+// refusal that no longer applies. Best effort — a note that could not be written
+// down is not worth failing the claim that provoked it.
+func (a *App) noteFromJax(report *BugReport, note string) {
+	if report.JaxNote == note {
+		return
+	}
+	report.JaxNote = note
+	report.UpdatedAt = nowStamp()
+	_ = a.store.saveBugReport(*report)
 }
 
 // ReleaseBugReport puts a claimed report back.
@@ -205,6 +233,9 @@ func (a *App) ReleaseBugReport(id string) (BugReport, error) {
 		return BugReport{}, err
 	}
 	a.markIssueClaimed(report, false)
+	// Releasing clears any refusal note: it was about a claim that no longer
+	// stands, and leaving it would have the next reader chasing a stale warning.
+	a.noteFromJax(&report, "")
 	a.store.changed(scopeBugReports)
 	return report, nil
 }
@@ -223,12 +254,15 @@ func (a *App) ResolveBugReport(id, commitSHA, commitURL string) (ResolvedReport,
 	if err != nil {
 		return ResolvedReport{}, err
 	}
+	// Jax first, so what it says about clearing the report can be written onto
+	// the history row rather than onto a queue row that is about to be deleted.
+	report.JaxNote = a.resolveInJax(report)
+
 	resolved, err := a.store.resolveBugReport(report, commitSHA, commitURL)
 	if err != nil {
 		return ResolvedReport{}, err
 	}
 	a.closeIssue(report, commitURL)
-	a.resolveInJax(report)
 	a.store.changed(scopeBugReports)
 	a.store.changed(scopeResolvedReports)
 	return resolved, nil
@@ -264,7 +298,7 @@ func (a *App) SearchBugReports(query string) ([]BugReport, error) {
 // report — goes stale the first time somebody renames an artist.
 const bugColumns = `b.id, b.description, b.route, b.global, b.subject_kind,
 	b.subject_id, b.checked_out, b.issue_url, b.issue_number, b.jax_report_id,
-	b.created_at, b.updated_at,
+	b.jax_note, b.created_at, b.updated_at,
 	COALESCE((SELECT name FROM artists WHERE id = b.subject_id),
 	         (SELECT name FROM albums  WHERE id = b.subject_id),
 	         (SELECT name FROM tracks  WHERE id = b.subject_id), '')`
@@ -273,7 +307,7 @@ func scanBugReport(scan func(...any) error) (BugReport, error) {
 	var r BugReport
 	err := scan(&r.ID, &r.Description, &r.Route, &r.Global, &r.SubjectKind,
 		&r.SubjectID, &r.CheckedOut, &r.IssueURL, &r.IssueNumber, &r.JaxReportID,
-		&r.CreatedAt, &r.UpdatedAt, &r.SubjectName)
+		&r.JaxNote, &r.CreatedAt, &r.UpdatedAt, &r.SubjectName)
 	return r, err
 }
 
@@ -342,17 +376,19 @@ func (s *Store) saveBugReport(r BugReport) error {
 	}
 	_, err := s.db.Exec(
 		`INSERT INTO bug_reports (id, description, route, global, subject_kind,
-		   subject_id, checked_out, issue_url, issue_number, jax_report_id,
+		   subject_id, checked_out, issue_url, issue_number, jax_report_id, jax_note,
 		   created_at, updated_at)
-		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		 ON CONFLICT(id) DO UPDATE SET
 		   description = excluded.description, route = excluded.route,
 		   global = excluded.global, subject_kind = excluded.subject_kind,
 		   subject_id = excluded.subject_id, checked_out = excluded.checked_out,
 		   issue_url = excluded.issue_url, issue_number = excluded.issue_number,
-		   jax_report_id = excluded.jax_report_id, updated_at = excluded.updated_at`,
+		   jax_report_id = excluded.jax_report_id, jax_note = excluded.jax_note,
+		   updated_at = excluded.updated_at`,
 		r.ID, r.Description, r.Route, r.Global, r.SubjectKind, r.SubjectID,
-		r.CheckedOut, r.IssueURL, r.IssueNumber, r.JaxReportID, r.CreatedAt, r.UpdatedAt)
+		r.CheckedOut, r.IssueURL, r.IssueNumber, r.JaxReportID, r.JaxNote,
+		r.CreatedAt, r.UpdatedAt)
 	return err
 }
 
@@ -373,7 +409,8 @@ func (s *Store) resolvedReports() ([]ResolvedReport, error) {
 	}
 	rows, err := s.db.Query(
 		`SELECT id, description, route, global, issue_url, issue_number,
-		        jax_report_id, created_at, resolved_at, seen, commit_sha, commit_url
+		        jax_report_id, jax_note, created_at, resolved_at, seen,
+		        commit_sha, commit_url
 		 FROM resolved_reports ORDER BY resolved_at DESC`)
 	if err != nil {
 		return out, err
@@ -382,8 +419,8 @@ func (s *Store) resolvedReports() ([]ResolvedReport, error) {
 	for rows.Next() {
 		var r ResolvedReport
 		if err := rows.Scan(&r.ID, &r.Description, &r.Route, &r.Global, &r.IssueURL,
-			&r.IssueNumber, &r.JaxReportID, &r.CreatedAt, &r.ResolvedAt, &r.Seen,
-			&r.CommitSHA, &r.CommitURL); err != nil {
+			&r.IssueNumber, &r.JaxReportID, &r.JaxNote, &r.CreatedAt, &r.ResolvedAt,
+			&r.Seen, &r.CommitSHA, &r.CommitURL); err != nil {
 			return out, err
 		}
 		out = append(out, r)
@@ -408,20 +445,21 @@ func (s *Store) resolveBugReport(r BugReport, sha, url string) (ResolvedReport, 
 	resolved := ResolvedReport{
 		ID: r.ID, Description: r.Description, Route: r.Route, Global: r.Global,
 		IssueURL: r.IssueURL, IssueNumber: r.IssueNumber, JaxReportID: r.JaxReportID,
-		CreatedAt: r.CreatedAt, ResolvedAt: nowStamp(),
+		JaxNote: r.JaxNote, CreatedAt: r.CreatedAt, ResolvedAt: nowStamp(),
 		CommitSHA: strings.TrimSpace(sha), CommitURL: strings.TrimSpace(url),
 	}
 	if _, err := tx.Exec(
 		`INSERT INTO resolved_reports (id, description, route, global, issue_url,
-		   issue_number, jax_report_id, created_at, resolved_at, seen, commit_sha, commit_url)
-		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?)
+		   issue_number, jax_report_id, jax_note, created_at, resolved_at, seen,
+		   commit_sha, commit_url)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?)
 		 ON CONFLICT(id) DO UPDATE SET
-		   resolved_at = excluded.resolved_at, commit_sha = excluded.commit_sha,
-		   commit_url = excluded.commit_url`,
+		   resolved_at = excluded.resolved_at, jax_note = excluded.jax_note,
+		   commit_sha = excluded.commit_sha, commit_url = excluded.commit_url`,
 		resolved.ID, resolved.Description, resolved.Route, resolved.Global,
 		resolved.IssueURL, resolved.IssueNumber, resolved.JaxReportID,
-		resolved.CreatedAt, resolved.ResolvedAt, resolved.CommitSHA,
-		resolved.CommitURL); err != nil {
+		resolved.JaxNote, resolved.CreatedAt, resolved.ResolvedAt,
+		resolved.CommitSHA, resolved.CommitURL); err != nil {
 		return ResolvedReport{}, err
 	}
 	if _, err := tx.Exec(`DELETE FROM bug_reports WHERE id = ?`, r.ID); err != nil {

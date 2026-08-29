@@ -234,7 +234,13 @@ func bugCommand(args []string, stdout, stderr io.Writer) int {
 			fmt.Fprint(stderr, "bugs: resolve <id> [--sha <sha>] [--url <url>]\n")
 			return 2
 		}
-		return out.emit(app.ResolveBugReport(id, *sha, *url))
+		resolved, err := app.ResolveBugReport(id, *sha, *url)
+		// See `claim` for why this goes to stderr and does not change the exit
+		// code: the fix is on main either way, and the refusal must not be silent.
+		if err == nil && resolved.JaxNote != "" {
+			fmt.Fprintf(stderr, "bugs: Jax did not clear the report: %s\n", resolved.JaxNote)
+		}
+		return out.emit(resolved, err)
 
 	case "history":
 		return out.emit(app.ListResolvedReports())
