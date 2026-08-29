@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"os"
 	"os/exec"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -425,6 +426,35 @@ func issueDetails(report BugReport) string {
 	return b.String()
 }
 
+// reportIDFromBody reads the report id an app-filed issue carries in its
+// footer (see issueDetails). "" for an issue with no such line — one written
+// by hand on github.com.
+func reportIDFromBody(body string) string {
+	match := reportIDPattern.FindStringSubmatch(body)
+	if match == nil {
+		return ""
+	}
+	return match[1]
+}
+
+var reportIDPattern = regexp.MustCompile("- Report: `((?:bug|issue)_[0-9a-fA-F]+)`")
+
+// closeDuplicate closes an issue that duplicates another, saying so first: an
+// issue that closed without a word is a worse record than one that names its
+// twin.
+func (q issueQueue) closeDuplicate(number, of int) {
+	why := "The report this issue was filed for has already been resolved."
+	if of != 0 {
+		why = fmt.Sprintf("Duplicate of #%d — the same report reached the forge twice.", of)
+	}
+	_ = q.call(http.MethodPost,
+		fmt.Sprintf("/repos/%s/issues/%d/comments", q.slug, number),
+		map[string]any{"body": why}, nil)
+	_ = q.call(http.MethodPatch,
+		fmt.Sprintf("/repos/%s/issues/%d", q.slug, number),
+		map[string]any{"state": "closed"}, nil)
+}
+
 // readIssue turns an issue nobody filed through the app into a report.
 //
 // The id is derived from the number rather than minted, so the same issue read
@@ -528,18 +558,59 @@ func (a *App) reconcileIssues() {
 		return
 	}
 	byNumber := map[int]BugReport{}
+	byID := map[string]BugReport{}
 	for _, r := range local {
+		byID[r.ID] = r
 		if r.IssueNumber != 0 {
 			byNumber[r.IssueNumber] = r
 		}
 	}
+	resolvedIDs := map[string]bool{}
+	if history, err := a.store.resolvedReports(); err == nil {
+		for _, r := range history {
+			resolvedIDs[r.ID] = true
+		}
+	}
 	openNumbers := map[int]bool{}
+	linkedNow := map[string]bool{}
 	changed := false
 
 	for _, issue := range issues {
 		openNumbers[issue.Number] = true
 		existing, known := byNumber[issue.Number]
 		if !known {
+			// An app-filed issue names its report in the footer, and that name
+			// outranks the issue number (#35): filing raced the sweep once and
+			// one report reached the forge as two issues — the row linked to
+			// the second while the first sat orphaned, and the next sweep
+			// adopted the orphan as a brand-new report even though its body
+			// said exactly which report it was.
+			if id := reportIDFromBody(issue.Body); id != "" {
+				if owner, mine := byID[id]; mine {
+					if owner.IssueNumber == 0 {
+						// The race the other way round: this issue IS the
+						// report's, created by a sweep while the filing was
+						// still writing the number down. Link, don't adopt —
+						// and tell the catch-up loop below, which is iterating
+						// the rows as they were read and would otherwise still
+						// see this one as unlinked and create a third issue.
+						owner.IssueURL, owner.IssueNumber = issue.URL, issue.Number
+						if err := a.store.saveBugReport(owner); err == nil {
+							byNumber[issue.Number] = owner
+							linkedNow[owner.ID] = true
+							changed = true
+						}
+					} else if owner.IssueNumber != issue.Number {
+						queue.closeDuplicate(issue.Number, owner.IssueNumber)
+					}
+					continue
+				}
+				if resolvedIDs[id] {
+					// The report was fixed; this orphan outlived it.
+					queue.closeDuplicate(issue.Number, 0)
+					continue
+				}
+			}
 			// An issue nobody filed through the app. Adopted rather than ignored:
 			// a queue you can only add to from inside the app would be the local
 			// queue again with extra steps.
@@ -587,8 +658,16 @@ func (a *App) reconcileIssues() {
 			if _, err := a.retireReport(r, "", ""); err == nil {
 				changed = true
 			}
-		case r.IssueNumber == 0:
-			// Filed while the forge was unreachable.
+		case r.IssueNumber == 0 && !linkedNow[r.ID]:
+			// Filed while the forge was unreachable — but not *just* filed: a
+			// report seconds old is usually mid-link in the process that filed
+			// it, and creating here too is how one report became two issues
+			// (#35). Two minutes is longer than any create takes and shorter
+			// than anyone waits for a lost report to surface.
+			if created, err := time.Parse(time.RFC3339, r.CreatedAt); err == nil &&
+				time.Since(created) < 2*time.Minute {
+				continue
+			}
 			if ref, err := queue.createIssue(r); err == nil {
 				r.IssueURL, r.IssueNumber = ref.URL, ref.Number
 				if err := a.store.saveBugReport(r); err == nil {
