@@ -2,20 +2,28 @@
   <!-- Launch the app under GoLand's debugger, so breakpoints in the bindings,
        the store and the domain files work.
 
-       "Kill stale debug processes" runs first because a surviving instance of
-       the previous run holds the output binary open and fails the build before
-       any of this matters — see that config for why they survive.
+       **The name matters.** GoLand derives the temporary binary's name from this
+       configuration's name: "SunoMaker (Go debugger)" compiles to
+       ___<N>SunoMaker__Go_debugger_.exe in its tmp directory. That is what makes
+       "Kill stale debug processes" able to find this app's leftovers and only
+       this app's — see #14, where this was called "App (Go debugger)", the same
+       as Site Maker Pro's, and launching one killed the other's debug session.
+       Rename this and that config's pattern together, or not at all.
+
+       "Kill stale debug processes" runs first because a surviving instance of the
+       previous run holds the output binary open and fails the build before any of
+       this matters — see that config for why they survive.
 
        The two rebuild steps after it exist because only the Go half of this app
        is rebuilt by launching it. main.go embeds frontend/dist, so the UI in the
        window is whatever was last compiled to disk, not what is in the working
        tree — running with no rebuild silently debugs current Go source against a
-       stale bundle. "Bindings: generate" must stay first: tsc checks the
-       frontend against wailsjs/App.d.ts, so a newly added App method has to be
-       regenerated before the frontend that calls it will compile.
+       stale bundle. "Bindings: generate" must stay first: tsc checks the frontend
+       against wailsjs/App.d.ts, so a newly added App method has to be regenerated
+       before the frontend that calls it will compile.
 
-       This is not a UI loop — it pays the rebuild on every launch and there is
-       no Vite watcher behind it. For UI work, use "Wails: dev".
+       This is not a UI loop — it pays the rebuild on every launch and there is no
+       Vite watcher behind it. For UI work, use "Wails: dev".
 
        The tags are not optional. Wails picks its CreateApp by build tag, and the
        one selected when none are given is a stub: it shows a message box reading
@@ -25,16 +33,16 @@
 
        - desktop, production: what `wails build` itself passes, and what makes
          CreateApp the real one rather than the stub.
-       - debug: logs at LogLevel rather than LogLevelProduction, so the lines
-         this app writes while starting up reach the Run panel.
-       - devtools: right-click → inspect in the webview. `debug` does not imply
-         it (IsDevtoolsEnabled is tag-gated on its own); the CLI passes both, so
-         this does too.
+       - debug: logs at LogLevel rather than LogLevelProduction, so the lines this
+         app writes while starting up reach the Run panel.
+       - devtools: right-click → inspect in the webview. `debug` does not imply it
+         (IsDevtoolsEnabled is tag-gated on its own); the CLI passes both, so this
+         does too.
 
        Deliberately no `-ldflags "-H windowsgui"`, which `wails build` does add on
        Windows: it detaches the console, and stdout is where the debugger's Run
        panel gets everything this app logs. -->
-  <configuration default="false" name="App (Go debugger)" type="GoApplicationRunConfiguration" factoryName="Go Application">
+  <configuration default="false" name="SunoMaker (Go debugger)" type="GoApplicationRunConfiguration" factoryName="Go Application">
     <module name="suno-maker" />
     <working_directory value="$PROJECT_DIR$" />
     <go_parameters value="-tags desktop,production,debug,devtools" />
