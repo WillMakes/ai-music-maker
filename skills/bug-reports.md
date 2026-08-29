@@ -66,6 +66,23 @@ None of it can fail the work. Jax is a separate application and is very often
 simply closed: a claim refused, or a resolve refused, because a tracker was not
 running would be this queue failing at its job to keep a second one tidy.
 
+**But a refusal is no longer silent.** Jax can accept the call and decline to act
+on it — most often because the report is not the oldest workable one in *its*
+queue, which spans every application it tracks and not just this one. That
+arrives as HTTP 200 with `isError` set in the body, which is the same shape a
+success takes, so the app used to read it as agreement and the two queues drifted
+apart with nothing saying so.
+
+Now whatever Jax said is written onto the report as `jaxNote`, shown in
+Settings → Bug reports, and printed to stderr by `bugs claim` and `bugs resolve`.
+The exit code stays 0 and the claim or the resolve still stands here — the fix is
+on `main` either way — but you can see that Jax did not record it.
+
+If you see one, it is usually Jax telling you to work a different report first.
+That is Jax's ordering across all its apps, not this repository's; `bugs list` is
+still the order to work *this* queue in. Either take the report Jax names, or
+carry on and know the two queues disagree until it is cleared.
+
 The pairing is stored on the report as `jaxReportId` rather than remembered, so
 which reports are already in Jax survives one agent stopping and another
 starting. It stays 0 when Jax was closed at the moment of filing, which costs the

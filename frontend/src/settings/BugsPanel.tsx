@@ -70,7 +70,15 @@ export function BugsPanel() {
                       <StatusPill tone="warn">Not in Jax</StatusPill>
                     )}
                     {report.checkedOut && <StatusPill tone="ok">Being worked</StatusPill>}
+                    {report.jaxNote && <StatusPill tone="warn">Jax disagrees</StatusPill>}
                   </span>
+                  {/* What Jax said when it declined to record the claim (#15).
+                      Shown rather than swallowed: the claim stands here either
+                      way, and the whole failure being fixed is the two queues
+                      disagreeing with nothing on screen to say so. */}
+                  {report.jaxNote && (
+                    <span className="mt-1 block text-xs text-warn">{report.jaxNote}</span>
+                  )}
                 </span>
                 {report.issueNumber > 0 && (
                   <button
@@ -107,6 +115,9 @@ export function BugsPanel() {
                       <span className="font-mono">{report.commitSha.slice(0, 8)}</span>
                     )}
                   </span>
+                  {report.jaxNote && (
+                    <span className="mt-1 block text-xs text-warn">{report.jaxNote}</span>
+                  )}
                 </span>
                 {report.commitUrl && (
                   <button

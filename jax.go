@@ -107,6 +107,12 @@ func fileReportInJax(report BugReport) (int, error) {
 	return readJaxReportID(result), nil
 }
 
+// findJaxTarget locates the running Jax. A variable so a test can point the
+// whole file at a stub — every call here goes through it, so one variable
+// redirects all of them, and a suite must never depend on whether the producer
+// happens to have Jax open.
+var findJaxTarget = findJax
+
 // findJax locates the running Jax and the queue to file into.
 //
 // The endpoint file first, because a Jax on this machine is the ordinary case
@@ -328,22 +334,84 @@ func (a *App) linkToJax(report BugReport) BugReport {
 	return report
 }
 
-func (a *App) claimInJax(report BugReport) {
-	if report.JaxReportID == 0 {
-		return
+// jaxRefusal reads a tool-level refusal out of an MCP result, answering "" for a
+// call that was accepted (#15).
+//
+// A refused call is not a failed request. MCP answers HTTP 200 and puts the
+// refusal in the body — {"result":{"isError":true,"content":[…]}} — which is the
+// same shape a success takes with one flag flipped. So checking the transport
+// alone reads a refusal as a success, which is how this app came to believe it
+// had told Jax things it never told it.
+//
+// An answer that cannot be read answers "" rather than guessing. The shape of a
+// tool result is Jax's to change, and a strict decode here would put a permanent
+// warning on every report the moment it did.
+func jaxRefusal(raw string) string {
+	var envelope struct {
+		Result struct {
+			IsError bool `json:"isError"`
+			Content []struct {
+				Text string `json:"text"`
+			} `json:"content"`
+		} `json:"result"`
 	}
-	if target, err := findJax(); err == nil {
-		_, _ = target.call(jaxClaimTool, map[string]any{"id": report.JaxReportID})
+	if err := json.Unmarshal([]byte(raw), &envelope); err != nil {
+		return ""
 	}
+	if !envelope.Result.IsError {
+		return ""
+	}
+	for _, block := range envelope.Result.Content {
+		if text := strings.TrimSpace(block.Text); text != "" {
+			return text
+		}
+	}
+	// Refused with nothing to quote. It still has to say something: an empty
+	// note is indistinguishable from no refusal at all, which is the bug.
+	return "Jax refused the call without saying why"
 }
 
-func (a *App) resolveInJax(report BugReport) {
+// claimInJax tells Jax the report is being worked, and reports back whatever Jax
+// said if it declined to record it.
+//
+// The returned note is not an error and does not stop the claim. Jax refusing —
+// because the report is not the oldest workable one in its own queue, or because
+// somebody else holds it — is a fact about Jax's queue, and a claim abandoned on
+// the strength of it would be this queue failing at its job to keep a second one
+// tidy (see the top of this file). What must not happen is the refusal going
+// unmentioned: the two queues then disagree and nothing says so.
+func (a *App) claimInJax(report BugReport) string {
 	if report.JaxReportID == 0 {
-		return
+		return ""
 	}
-	if target, err := findJax(); err == nil {
-		_, _ = target.call(jaxResolveTool, map[string]any{"id": report.JaxReportID})
+	target, err := findJaxTarget()
+	if err != nil {
+		// Jax is closed. An ordinary state, not a refusal.
+		return ""
 	}
+	raw, err := target.call(jaxClaimTool, map[string]any{"id": report.JaxReportID})
+	if err != nil {
+		return ""
+	}
+	return jaxRefusal(raw)
+}
+
+// resolveInJax clears the report there, and reports a refusal for claimInJax's
+// reason: the fix is on main either way, and the queues disagreeing in silence
+// is the thing being fixed.
+func (a *App) resolveInJax(report BugReport) string {
+	if report.JaxReportID == 0 {
+		return ""
+	}
+	target, err := findJaxTarget()
+	if err != nil {
+		return ""
+	}
+	raw, err := target.call(jaxResolveTool, map[string]any{"id": report.JaxReportID})
+	if err != nil {
+		return ""
+	}
+	return jaxRefusal(raw)
 }
 
 // catchUpJaxFilings files the reports that have no counterpart yet.

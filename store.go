@@ -288,6 +288,10 @@ CREATE TABLE IF NOT EXISTS bug_reports (
 	-- The matching report in Jax, which is where this queue is watched from. 0
 	-- means it has not been filed there yet.
 	jax_report_id INTEGER NOT NULL DEFAULT 0,
+	-- What Jax said when it declined to record a claim or a resolve (#15). A
+	-- refusal is not a failure and does not stop the work; it is kept so the two
+	-- queues cannot disagree in silence.
+	jax_note      TEXT NOT NULL DEFAULT '',
 	created_at    TEXT NOT NULL DEFAULT '',
 	updated_at    TEXT NOT NULL DEFAULT ''
 );
@@ -303,6 +307,7 @@ CREATE TABLE IF NOT EXISTS resolved_reports (
 	issue_url     TEXT NOT NULL DEFAULT '',
 	issue_number  INTEGER NOT NULL DEFAULT 0,
 	jax_report_id INTEGER NOT NULL DEFAULT 0,
+	jax_note      TEXT NOT NULL DEFAULT '',
 	created_at    TEXT NOT NULL DEFAULT '',
 	resolved_at   TEXT NOT NULL DEFAULT '',
 	seen          INTEGER NOT NULL DEFAULT 0,
@@ -314,8 +319,38 @@ CREATE TABLE IF NOT EXISTS resolved_reports (
 	commit_url TEXT NOT NULL DEFAULT ''
 );
 `
-	_, err := s.db.Exec(schema)
-	return err
+	if _, err := s.db.Exec(schema); err != nil {
+		return err
+	}
+	return s.addColumns()
+}
+
+// addColumns widens tables that already exist.
+//
+// migrate's statements are all CREATE TABLE IF NOT EXISTS, which is what lets it
+// run on every launch — and what makes it silently do nothing about a column
+// added after somebody's database was created. Theirs is the only database that
+// matters: a new one gets the column from the schema above, and every producer
+// who has been running the app since before it does not.
+//
+// SQLite has no ADD COLUMN IF NOT EXISTS, so the duplicate is the expected
+// answer on the second launch and is swallowed by name. Every entry here must be
+// additive with a default — this runs unconditionally, so a statement that could
+// lose data would lose it on every launch.
+func (s *Store) addColumns() error {
+	columns := []struct{ table, column, definition string }{
+		// What Jax said when it declined to record a claim or a resolve (#15).
+		{"bug_reports", "jax_note", "TEXT NOT NULL DEFAULT ''"},
+		{"resolved_reports", "jax_note", "TEXT NOT NULL DEFAULT ''"},
+	}
+	for _, c := range columns {
+		_, err := s.db.Exec(fmt.Sprintf("ALTER TABLE %s ADD COLUMN %s %s",
+			c.table, c.column, c.definition))
+		if err != nil && !strings.Contains(err.Error(), "duplicate column name") {
+			return fmt.Errorf("adding %s.%s: %w", c.table, c.column, err)
+		}
+	}
+	return nil
 }
 
 // ---------------------------------------------------------------------------
