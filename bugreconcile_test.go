@@ -372,3 +372,108 @@ func TestTheSweepDoesNotReCloseTheIssue(t *testing.T) {
 			forge.patches-before)
 	}
 }
+
+// TestAnOrphanedTwinIsNotAdopted is #35. Filing once created two issues — the
+// window and the sweep raced — and the sweep then adopted the orphan as a
+// brand-new report even though its body named the report it belonged to.
+func TestAnOrphanedTwinIsNotAdopted(t *testing.T) {
+	app := newTestApp(t)
+
+	report := BugReport{
+		ID: "bug_deadbeef00000001", Description: "the redesign",
+		IssueNumber: 34, IssueURL: "https://example.test/issues/34",
+		CreatedAt: "2026-08-29T00:00:00Z", UpdatedAt: "2026-08-29T00:00:00Z",
+	}
+	if err := app.store.saveBugReport(report); err != nil {
+		t.Fatalf("seed: %v", err)
+	}
+
+	forge := &stubForge{issues: map[int]githubIssue{
+		34: {Number: 34, URL: "https://example.test/issues/34", State: "open"},
+		33: {Number: 33, URL: "https://example.test/issues/33", State: "open",
+			Body: "…\n- Report: `bug_deadbeef00000001`\n"},
+	}}
+	forge.start(t)
+	allowReconcile(t)
+
+	app.reconcileIssues()
+
+	reports, err := app.store.bugReports()
+	if err != nil {
+		t.Fatalf("read back: %v", err)
+	}
+	if len(reports) != 1 {
+		t.Fatalf("the orphaned twin was adopted: %+v", reports)
+	}
+	if reports[0].IssueNumber != 34 {
+		t.Fatalf("the report's own link moved: %+v", reports[0])
+	}
+	// And the orphan was closed as the duplicate it is.
+	if forge.patches == 0 {
+		t.Fatal("the orphaned twin was left open on the forge")
+	}
+}
+
+// TestASweepCreatedIssueIsLinkedNotAdopted is the same race the other way
+// round: the sweep created the issue while the filing process was still
+// writing the number down, so the row is unlinked and the issue names it.
+func TestASweepCreatedIssueIsLinkedNotAdopted(t *testing.T) {
+	app := newTestApp(t)
+
+	report := BugReport{
+		ID: "bug_deadbeef00000002", Description: "still linking",
+		CreatedAt: "2026-08-29T00:00:00Z", UpdatedAt: "2026-08-29T00:00:00Z",
+	}
+	if err := app.store.saveBugReport(report); err != nil {
+		t.Fatalf("seed: %v", err)
+	}
+
+	forge := &stubForge{issues: map[int]githubIssue{
+		40: {Number: 40, URL: "https://example.test/issues/40", State: "open",
+			Body: "…\n- Report: `bug_deadbeef00000002`\n"},
+	}}
+	forge.start(t)
+	allowReconcile(t)
+
+	app.reconcileIssues()
+
+	reports, err := app.store.bugReports()
+	if err != nil {
+		t.Fatalf("read back: %v", err)
+	}
+	if len(reports) != 1 {
+		t.Fatalf("the report was duplicated: %+v", reports)
+	}
+	if reports[0].ID != report.ID || reports[0].IssueNumber != 40 {
+		t.Fatalf("the report was not linked to its own issue: %+v", reports[0])
+	}
+}
+
+// TestAJustFiledReportIsNotRecreatedByTheSweep: the other half of #35's race —
+// the catch-up create must not fire for a report filed seconds ago, because
+// the process that filed it is usually still creating its issue.
+func TestAJustFiledReportIsNotRecreatedByTheSweep(t *testing.T) {
+	app := newTestApp(t)
+
+	report := BugReport{
+		ID: "bug_deadbeef00000003", Description: "just filed",
+		CreatedAt: nowStamp(), UpdatedAt: nowStamp(),
+	}
+	if err := app.store.saveBugReport(report); err != nil {
+		t.Fatalf("seed: %v", err)
+	}
+
+	forge := &stubForge{issues: map[int]githubIssue{}}
+	forge.start(t)
+	allowReconcile(t)
+
+	app.reconcileIssues()
+
+	reports, _ := app.store.bugReports()
+	if len(reports) != 1 || reports[0].IssueNumber != 0 {
+		t.Fatalf("a seconds-old report was given an issue by the sweep: %+v", reports)
+	}
+	if len(forge.issues) != 0 {
+		t.Fatalf("the sweep created an issue for a report mid-filing: %v", forge.issues)
+	}
+}
