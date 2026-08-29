@@ -6,6 +6,7 @@ import {ReportBugModal} from './bugs/ReportBugModal'
 import {useBugs} from './bugs/BugsProvider'
 import {SETTING_KEYS, loadSetting, saveSetting} from './lib/settings'
 import {
+  RETIRED_ROUTES,
   ROUTE_TITLES,
   SECTION_OF,
   SETTINGS_TABS,
@@ -56,7 +57,12 @@ function readLastRoute(raw: string | null): Route | null {
     const parsed: unknown = JSON.parse(raw)
     if (!parsed || typeof parsed !== 'object') return null
     const candidate = parsed as Record<string, unknown>
-    const view = candidate.view
+    // A route written by a build that still had the view lands where its
+    // content lives now (#25), not on a blank content region.
+    const view =
+      typeof candidate.view === 'string'
+        ? (RETIRED_ROUTES[candidate.view] ?? candidate.view)
+        : candidate.view
     if (typeof view !== 'string' || !(view in ROUTE_TITLES)) return null
     const pick = (key: keyof Route) =>
       typeof candidate[key] === 'string' ? (candidate[key] as string) : undefined
