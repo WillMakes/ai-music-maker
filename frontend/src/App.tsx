@@ -1,5 +1,6 @@
 import {useCallback, useEffect, useRef, useState} from 'react'
 import {Sidebar} from './components/Sidebar'
+import {StatusBar} from './components/StatusBar'
 import {TopBar} from './components/TopBar'
 import {ReportBugModal} from './bugs/ReportBugModal'
 import {useBugs} from './bugs/BugsProvider'
@@ -279,6 +280,12 @@ export default function App() {
             )}
           </div>
         </main>
+
+        {/* Along the bottom of the content, not the window: the rail is its own
+            column and already ends in its own collapse control, and a bar
+            running under it would have to say something about a rail that has
+            nothing to report. */}
+        <StatusBar onNavigate={(view) => go({view})} />
       </div>
 
       {reporting && (
