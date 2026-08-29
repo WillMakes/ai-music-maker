@@ -30,9 +30,11 @@ type stubForge struct {
 	// just-created issue by a moment.
 	hideFromList int
 	// listCalls and issueCalls count what was asked, so a test can assert the
-	// direct read happened at all.
+	// direct read happened at all; patches counts writes, so a test can assert
+	// one did not happen.
 	listCalls  int
 	issueCalls int
+	patches    int
 }
 
 func (f *stubForge) start(t *testing.T) {
@@ -40,6 +42,9 @@ func (f *stubForge) start(t *testing.T) {
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		path := r.URL.Path
+		if r.Method == http.MethodPatch {
+			f.patches++
+		}
 		switch {
 		// The label-creation calls ensureLabels makes are best effort and
 		// unchecked; answered so they do not look like failures in a trace.
@@ -269,4 +274,101 @@ func idsOf(reports []BugReport) []string {
 		out = append(out, r.ID)
 	}
 	return out
+}
+
+// TestTheSweepClearsTheReportInJax is #16.
+//
+// Closing an issue on github.com is presented in skills/bug-reports.md as a way
+// to work the queue, and the sweep is what turns that into a resolved report. It
+// used to call the store method directly, which moves the row and nothing else —
+// so the report was cleared here and left open in Jax for ever. Jax enforces
+// oldest-first within an app's queue, so those stranded reports then sat at the
+// head of it and refused every later check-out.
+func TestTheSweepClearsTheReportInJax(t *testing.T) {
+	app := newTestApp(t)
+	forge := &stubForge{issues: map[int]githubIssue{
+		10: {Number: 10, URL: "https://example.test/issues/10", State: "closed"},
+	}}
+	forge.start(t)
+	jax := &jaxStub{}
+	jax.start(t)
+	allowReconcile(t)
+
+	if err := app.store.saveBugReport(BugReport{
+		ID: "bug_local", Description: "Somebody closed its issue on the forge.",
+		IssueNumber: 10, JaxReportID: 993, CreatedAt: nowStamp(),
+	}); err != nil {
+		t.Fatalf("save: %v", err)
+	}
+
+	if _, err := app.ListBugReports(); err != nil {
+		t.Fatalf("sweep: %v", err)
+	}
+
+	resolved, _ := app.ListResolvedReports()
+	if len(resolved) != 1 {
+		t.Fatalf("%d resolved, want 1 — the sweep did not resolve it at all", len(resolved))
+	}
+	if len(jax.calls) != 1 || jax.calls[0] != jaxResolveTool {
+		t.Fatalf("Jax was called with %v, want one %s — the report is cleared here "+
+			"and still open there", jax.calls, jaxResolveTool)
+	}
+}
+
+// TestTheSweepRecordsAJaxRefusal: a refusal on that path must be kept too, for
+// the reason in #15 — the two queues disagreeing in silence is the failure.
+func TestTheSweepRecordsAJaxRefusal(t *testing.T) {
+	app := newTestApp(t)
+	forge := &stubForge{issues: map[int]githubIssue{
+		10: {Number: 10, URL: "https://example.test/issues/10", State: "closed"},
+	}}
+	forge.start(t)
+	jax := &jaxStub{refuseWith: "debug report 993 is checked out by another agent"}
+	jax.start(t)
+	allowReconcile(t)
+
+	if err := app.store.saveBugReport(BugReport{
+		ID: "bug_local", IssueNumber: 10, JaxReportID: 993, CreatedAt: nowStamp(),
+	}); err != nil {
+		t.Fatalf("save: %v", err)
+	}
+	if _, err := app.ListBugReports(); err != nil {
+		t.Fatalf("sweep: %v", err)
+	}
+
+	resolved, _ := app.ListResolvedReports()
+	if len(resolved) != 1 {
+		t.Fatalf("%d resolved, want 1", len(resolved))
+	}
+	if resolved[0].JaxNote == "" {
+		t.Error("Jax refused the sweep's resolve and the history carries no note")
+	}
+}
+
+// TestTheSweepDoesNotReCloseTheIssue: it is resolving *because* the issue is
+// closed, so calling the forge again would be an API call per sweep to set a
+// state that is already set.
+func TestTheSweepDoesNotReCloseTheIssue(t *testing.T) {
+	app := newTestApp(t)
+	forge := &stubForge{issues: map[int]githubIssue{
+		10: {Number: 10, URL: "https://example.test/issues/10", State: "closed"},
+	}}
+	forge.start(t)
+	jax := &jaxStub{}
+	jax.start(t)
+	allowReconcile(t)
+
+	if err := app.store.saveBugReport(BugReport{
+		ID: "bug_local", IssueNumber: 10, JaxReportID: 993, CreatedAt: nowStamp(),
+	}); err != nil {
+		t.Fatalf("save: %v", err)
+	}
+	before := forge.patches
+	if _, err := app.ListBugReports(); err != nil {
+		t.Fatalf("sweep: %v", err)
+	}
+	if forge.patches != before {
+		t.Errorf("the sweep sent %d write(s) to the forge for an issue already closed",
+			forge.patches-before)
+	}
 }
