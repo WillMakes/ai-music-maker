@@ -18,7 +18,8 @@ import {
 import {main} from '../../wailsjs/go/models'
 import {EmptyState} from '../components/EmptyState'
 import {PageHeader} from '../components/PageHeader'
-import {TextAreaField, TextField} from '../components/Field'
+import {TextField} from '../components/Field'
+import {MarkdownField} from '../components/MarkdownField'
 import {InterviewDialog} from '../chat/InterviewDialog'
 import {StyleEditAssistant} from '../artists/StyleEditAssistant'
 import {useDataChanged} from '../lib/dataChanged'
@@ -183,11 +184,13 @@ export function ArtistDetails({
             onChange={(summary) => update({summary})}
           />
         </div>
-        <TextAreaField
+        {/* Markdown with a preview (#32), the way Site Maker Pro edits its
+            documents: the style is read far more often than written, and the
+            rendered form is what it is read in. */}
+        <MarkdownField
           label="Base technical style"
-          mono
-          rows={10}
           hint="What every record by this artist sounds like. Dense and comma-led — instruments, production, tempo range, vocal treatment, mix, and what to avoid. Combined with each album's own style when a track prompt is written."
+          placeholder="Analog synths, gated reverb drums, 100–115 BPM…"
           value={draft.baseStyle}
           onChange={(baseStyle) => update({baseStyle})}
         />
