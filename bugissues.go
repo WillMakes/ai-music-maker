@@ -566,7 +566,11 @@ func (a *App) reconcileIssues() {
 			if err != nil || issue.State != "closed" {
 				continue
 			}
-			if _, err := a.store.resolveBugReport(r, "", ""); err == nil {
+			// retireReport, not the store method: it is what also clears the
+			// report in Jax (#16). Calling the store directly here is exactly how
+			// Jax came to hold reports whose issues had been closed months —
+			// well, hours — earlier.
+			if _, err := a.retireReport(r, "", ""); err == nil {
 				changed = true
 			}
 		case r.IssueNumber == 0:

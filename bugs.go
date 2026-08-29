@@ -254,18 +254,38 @@ func (a *App) ResolveBugReport(id, commitSHA, commitURL string) (ResolvedReport,
 	if err != nil {
 		return ResolvedReport{}, err
 	}
-	// Jax first, so what it says about clearing the report can be written onto
-	// the history row rather than onto a queue row that is about to be deleted.
-	report.JaxNote = a.resolveInJax(report)
-
-	resolved, err := a.store.resolveBugReport(report, commitSHA, commitURL)
+	resolved, err := a.retireReport(report, commitSHA, commitURL)
 	if err != nil {
 		return ResolvedReport{}, err
 	}
+	// The forge is this caller's own step. The sweep's other caller is resolving
+	// *because* the issue is already closed, so it must not do this.
 	a.closeIssue(report, commitURL)
 	a.store.changed(scopeBugReports)
 	a.store.changed(scopeResolvedReports)
 	return resolved, nil
+}
+
+// retireReport moves a report to the history and tells Jax, in that order.
+//
+// The one place a report is retired (#16). ResolveBugReport had these two steps
+// written out and the reconcile sweep called the store method on its own, so
+// closing an issue on github.com — which the workflow presents as a way to work
+// the queue — cleared the report here and left the Jax counterpart open for ever.
+// Those stranded reports then sat at the head of Jax's queue, and because Jax
+// enforces oldest-first within an application's queue, they refused every later
+// check-out too.
+//
+// Jax first, so what it says can be written onto the history row rather than onto
+// a queue row that is about to be deleted. A refusal is kept, not obeyed: the fix
+// is on main either way (see claimInJax).
+//
+// What each caller does about the *forge* stays with the caller, because they
+// want opposite things — one is closing the issue, the other is reacting to it
+// having been closed.
+func (a *App) retireReport(report BugReport, commitSHA, commitURL string) (ResolvedReport, error) {
+	report.JaxNote = a.resolveInJax(report)
+	return a.store.resolveBugReport(report, commitSHA, commitURL)
 }
 
 // MarkFixesSeen clears the unseen badge, having shown the producer the notice.

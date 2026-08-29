@@ -62,6 +62,13 @@ Jax's `save_debug_report` and writes the id that comes back onto the record;
 `delete_debug_report`. So a report has normally reached Jax before any agent has
 seen it, and the row there moves as the work moves.
 
+That holds for the reconcile sweep too (#16). Closing an issue on github.com
+resolves the report here *and* clears it in Jax, the same as `bugs resolve` —
+retireReport is the one place a report is retired, and both callers go through
+it. Before that, a report resolved by the sweep was cleared here and left open
+there for ever, and because Jax enforces oldest-first within an application's
+queue, those stranded reports then refused every later check-out as well.
+
 None of it can fail the work. Jax is a separate application and is very often
 simply closed: a claim refused, or a resolve refused, because a tracker was not
 running would be this queue failing at its job to keep a second one tidy.
