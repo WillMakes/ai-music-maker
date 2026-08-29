@@ -51,6 +51,10 @@ func aiChatURL(id string) string {
 		return "https://api.openai.com/v1/chat/completions"
 	case serviceGrok:
 		return "https://api.x.ai/v1/chat/completions"
+	case serviceGemini:
+		// The OpenAI-compatibility endpoint, so Gemini rides the same request
+		// and response shape OpenAI and Grok do (#26).
+		return "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions"
 	default:
 		return "https://api.anthropic.com/v1/messages"
 	}
@@ -66,6 +70,8 @@ func defaultChatModel(id string) string {
 		return "gpt-4o"
 	case serviceGrok:
 		return "grok-2-latest"
+	case serviceGemini:
+		return "gemini-2.5-flash"
 	default:
 		return "claude-sonnet-4-5"
 	}
@@ -95,7 +101,7 @@ func (a *App) GetAIReadiness() AIReadiness {
 	connected := a.connectedAIServices()
 	if len(connected) == 0 {
 		return AIReadiness{Why: "No AI provider is connected — connect Claude, " +
-			"ChatGPT or Grok in Settings → AI."}
+			"ChatGPT, Gemini or Grok in Settings → AI."}
 	}
 	id := a.defaultAIService()
 	return AIReadiness{Ready: true, Service: id, Name: aiServiceName(id)}
@@ -317,6 +323,14 @@ func chatViaCLI(ctx context.Context, id, model, system string, turns []chatMsg) 
 		}
 		args = append(args, prompt)
 		cmd = exec.CommandContext(ctx, path, args...)
+	case serviceGemini:
+		// -p is Gemini CLI's non-interactive mode: one prompt in, the answer on
+		// stdout, no session (#26).
+		args := []string{"-p", prompt}
+		if model != "" {
+			args = append(args, "--model", model)
+		}
+		cmd = exec.CommandContext(ctx, path, args...)
 	default:
 		return "", fmt.Errorf("%s has no CLI to run", aiServiceName(id))
 	}
@@ -327,7 +341,7 @@ func chatViaCLI(ctx context.Context, id, model, system string, turns []chatMsg) 
 	cmd.Dir = os.TempDir()
 	// An account-mode run must not inherit an API key — the CLIs prefer one over
 	// the subscription login, and would quietly bill the wrong thing.
-	cmd.Env = envWithout("ANTHROPIC_API_KEY", "OPENAI_API_KEY")
+	cmd.Env = envWithout("ANTHROPIC_API_KEY", "OPENAI_API_KEY", "GEMINI_API_KEY", "GOOGLE_API_KEY")
 	hideWindow(cmd)
 
 	var stdout, stderr bytes.Buffer

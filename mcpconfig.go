@@ -21,6 +21,8 @@ import (
 //	Claude Desktop  %APPDATA%\Claude\…_config.json JSON, "mcpServers"
 //	Codex           ~/.codex/config.toml           TOML, [mcp_servers.x]
 //	Grok            ~/.grok/mcp.json               JSON, "mcpServers"
+//	Gemini CLI      ~/.gemini/settings.json        JSON, "mcpServers"
+//	Antigravity     ~/.gemini/antigravity/mcp_config.json  JSON, "mcpServers"
 //
 // All of them get the same stdio entry: this binary, relaunched as
 // `suno-maker mcp` (see mcp.go). No token and no port, because the server reads
@@ -48,6 +50,11 @@ const (
 	clientClaudeDesktop = "claude-desktop"
 	clientCodex         = "codex"
 	clientGrok          = "grok"
+	// The two Google clients (#26). Gemini CLI keeps its servers in its own
+	// settings file; Antigravity, the IDE, keeps a separate raw MCP config
+	// under the same ~/.gemini home.
+	clientGeminiCLI   = "gemini-cli"
+	clientAntigravity = "antigravity"
 )
 
 // MCPClient is one AI client's connection state, for Settings.
@@ -132,6 +139,10 @@ func clientConfigPath(id string) (string, error) {
 		return filepath.Join(home, ".codex", "config.toml"), nil
 	case clientGrok:
 		return filepath.Join(home, ".grok", "mcp.json"), nil
+	case clientGeminiCLI:
+		return filepath.Join(home, ".gemini", "settings.json"), nil
+	case clientAntigravity:
+		return filepath.Join(home, ".gemini", "antigravity", "mcp_config.json"), nil
 	}
 	return "", fmt.Errorf("unknown client %q", id)
 }
@@ -146,12 +157,17 @@ func clientName(id string) string {
 		return "Codex"
 	case clientGrok:
 		return "Grok"
+	case clientGeminiCLI:
+		return "Gemini CLI"
+	case clientAntigravity:
+		return "Antigravity"
 	}
 	return id
 }
 
 // mcpClientIDs is every client, in the order Settings lists them.
-var mcpClientIDs = []string{clientClaudeCode, clientClaudeDesktop, clientCodex, clientGrok}
+var mcpClientIDs = []string{clientClaudeCode, clientClaudeDesktop, clientCodex,
+	clientGeminiCLI, clientAntigravity, clientGrok}
 
 // GetMCPStatus reports every client.
 func (a *App) GetMCPStatus() MCPStatus {
