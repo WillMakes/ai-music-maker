@@ -1,6 +1,7 @@
 import {useCallback, useEffect, useState} from 'react'
-import {Disc3, ExternalLink, Plus, Sparkles, Trash2} from 'lucide-react'
+import {AudioLines, Disc3, ExternalLink, Loader2, Plus, Sparkles, Trash2} from 'lucide-react'
 import {
+  AnalyzeMusicURL,
   ClearChat,
   DeleteArtist,
   ExtractAlbum,
@@ -331,6 +332,28 @@ function Inspirations({
   inspirations: main.Inspiration[]
   onChange: (next: main.Inspiration[]) => void
 }) {
+  // Which reference Antigravity is researching right now (#29), and what went
+  // wrong when one could not be. One at a time — each run is minutes of
+  // agentic CLI, and a second press should wait its turn, not race the first.
+  const [analyzing, setAnalyzing] = useState<number | null>(null)
+  const [analysisError, setAnalysisError] = useState('')
+
+  const analyze = async (index: number) => {
+    if (analyzing !== null) return
+    setAnalyzing(index)
+    setAnalysisError('')
+    try {
+      const breakdown = await AnalyzeMusicURL(inspirations[index].url)
+      // Into the note field of the draft, not the database: the producer reads
+      // it, trims it, and presses Save themselves.
+      update(index, {note: breakdown})
+    } catch (err) {
+      setAnalysisError(toMessage(err))
+    } finally {
+      setAnalyzing(null)
+    }
+  }
+
   const update = (index: number, patch: Partial<main.Inspiration>) =>
     onChange(
       inspirations.map((row, i) =>
@@ -363,10 +386,13 @@ function Inspirations({
         </button>
       </div>
 
+      {analysisError && <p className="text-sm text-danger">{analysisError}</p>}
+
       {inspirations.length === 0 ? (
         <p className="text-sm text-fg-muted">
           YouTube or YouTube Music links — specific tracks rather than artists. The note
-          against each is the part that survives.
+          against each is the part that survives; the waveform button fills it with
+          Antigravity&apos;s technical breakdown of the song.
         </p>
       ) : (
         <ul className="space-y-3">
@@ -386,6 +412,20 @@ function Inspirations({
                 onChange={(note) => update(index, {note})}
               />
               <div className="flex items-end gap-1 pb-1">
+                <button
+                  className="sm-button sm-button-quiet px-2"
+                  type="button"
+                  title="Break the song down with Antigravity"
+                  aria-label="Analyze this song"
+                  disabled={!row.url || analyzing !== null}
+                  onClick={() => void analyze(index)}
+                >
+                  {analyzing === index ? (
+                    <Loader2 size={15} className="animate-spin" />
+                  ) : (
+                    <AudioLines size={15} />
+                  )}
+                </button>
                 <button
                   className="sm-button sm-button-quiet px-2"
                   type="button"

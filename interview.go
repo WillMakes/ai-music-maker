@@ -65,6 +65,11 @@ type InterviewMessage struct {
 	// app's own directory — see interviewfiles.go. The model never gets the
 	// bytes; toChatMsgs names them to it instead.
 	Attachments []string `json:"attachments"`
+	// Research is what the app looked up for this turn (#29): the Antigravity
+	// breakdown of a song link the producer shared. Its own field for the same
+	// reason Note is — the text is the producer's own words, and the app's
+	// findings must not be written into them.
+	Research string `json:"research"`
 }
 
 // Chat is a conversation as it stands.
@@ -119,6 +124,16 @@ func (a *App) AskInterview(kind, subjectID string, messages []InterviewMessage) 
 	brief, err := a.interviewBrief(kind, subjectID)
 	if err != nil {
 		return nil, err
+	}
+
+	// A song link in the new turn is researched before the model answers it
+	// (#29): the conversation runs on whatever provider is default, and the
+	// one thing that provider cannot do is listen — Antigravity's breakdown
+	// rides the turn so the interview can talk about how the song actually
+	// sounds. Only the newest turn, and only once: the whole transcript comes
+	// back every send, and research already on a turn stays what it was.
+	if last := &messages[len(messages)-1]; last.Role == "user" && last.Research == "" {
+		last.Research = a.researchForTurn(last.Text)
 	}
 
 	answer, askErr := a.askAI(a.interviewContext(), brief, toChatMsgs(trimTranscript(messages)))
@@ -290,6 +305,13 @@ func toChatMsgs(messages []InterviewMessage) []chatMsg {
 				names = append(names, filepath.Base(path))
 			}
 			text = strings.TrimSpace(text + "\n\n[Attached files: " + strings.Join(names, ", ") + "]")
+		}
+		// The app's research rides the turn it was run for (#29), labelled as
+		// the app's: unlabelled it would read as the producer's own claim
+		// about the song rather than a lookup to lean on.
+		if m.Research != "" {
+			text = strings.TrimSpace(text +
+				"\n\n[Music analysis the app ran for this turn:\n" + m.Research + "]")
 		}
 		if text == "" {
 			continue
@@ -503,6 +525,10 @@ func renderTranscript(messages []InterviewMessage) string {
 				names = append(names, filepath.Base(path))
 			}
 			text = strings.TrimSpace(text + "\n[Attached files: " + strings.Join(names, ", ") + "]")
+		}
+		if m.Research != "" {
+			text = strings.TrimSpace(text +
+				"\n[Music analysis the app ran for this turn:\n" + m.Research + "]")
 		}
 		if text == "" {
 			continue

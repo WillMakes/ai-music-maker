@@ -1,5 +1,5 @@
 import {useCallback, useEffect, useRef, useState, type DragEvent, type ClipboardEvent} from 'react'
-import {FileAudio, Image as ImageIcon, Paperclip, Send, X} from 'lucide-react'
+import {AudioLines, FileAudio, Image as ImageIcon, Paperclip, Send, X} from 'lucide-react'
 import {
   AskInterview,
   AttachInterviewFile,
@@ -332,6 +332,20 @@ export function InterviewConversation({
                     {message.attachments.map((path) => (
                       <FileChip key={path} path={path} />
                     ))}
+                  </span>
+                )}
+                {/* What the app looked up for a song link in this turn (#29),
+                    shown as the app's finding rather than folded into the
+                    producer's words. */}
+                {message.research && (
+                  <span className="mt-2 block rounded border-l-2 border-edge bg-bg px-2.5 py-2">
+                    <span className="mb-1 flex items-center gap-1.5 text-xs font-medium text-fg-muted">
+                      <AudioLines size={12} aria-hidden />
+                      Music analysis
+                    </span>
+                    <span className="block whitespace-pre-wrap text-xs text-fg-muted">
+                      {message.research}
+                    </span>
                   </span>
                 )}
               </>
