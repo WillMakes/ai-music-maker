@@ -85,6 +85,48 @@ func (a *App) AnalyzeMusicURL(url string) (string, error) {
 	return answer, nil
 }
 
+// MergeStyleWithAnalysis folds one song's breakdown into a base technical
+// style and returns the merged style (#31).
+//
+// This is a writing job, not a research one, so it runs on the default chat
+// provider the way the interviews do — Antigravity already did the listening.
+// The style passed in is the producer's current *draft*, unsaved edits and
+// all, and the merge comes back to the draft: adding a reference updates the
+// style on screen, and the producer presses Save when it reads right.
+func (a *App) MergeStyleWithAnalysis(baseStyle, analysis string) (string, error) {
+	analysis = strings.TrimSpace(analysis)
+	if analysis == "" {
+		return "", fmt.Errorf("there is no analysis to merge")
+	}
+	system := "You maintain an artist's base technical style — the dense, " +
+		"comma-led breakdown every album under them inherits, six to twelve " +
+		"lines covering instrumentation, production, tempo range, vocal " +
+		"treatment, mix, and what to avoid. Fold a new reference's traits into " +
+		"the existing style: keep what is there unless the new reference " +
+		"genuinely shifts it, integrate what is new, never just append. Answer " +
+		"with the merged style text and nothing else — no preamble, no fence, " +
+		"no commentary."
+	prompt := "The new reference's technical breakdown:\n\n" + analysis +
+		"\n\nReturn the merged base style."
+	if strings.TrimSpace(baseStyle) != "" {
+		prompt = "The base technical style as it stands:\n\n" + baseStyle +
+			"\n\n" + prompt
+	} else {
+		prompt = "There is no base style yet — write one from the breakdown " +
+			"below, in the shape described.\n\n" + prompt
+	}
+	answer, err := a.askAI(a.interviewContext(), system,
+		[]chatMsg{{Role: "user", Text: prompt}})
+	if err != nil {
+		return "", err
+	}
+	merged := strings.TrimSpace(unfence(answer))
+	if merged == "" {
+		return "", fmt.Errorf("the merge came back empty — try again")
+	}
+	return merged, nil
+}
+
 // researchForTurn runs the analysis for every song link in one interview turn
 // and returns what the app found, "" when there is nothing to do.
 //
