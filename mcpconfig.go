@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strconv"
 	"strings"
 )
 
@@ -95,9 +96,18 @@ func mcpCommand() (string, error) {
 	return path, nil
 }
 
+// mcpConfigHome is where the client config files are looked for.
+//
+// A variable so tests can point it at a temp directory. Not defensive plumbing:
+// the real paths are the producer's own ~/.claude.json and ~/.codex/config.toml,
+// which belong to other applications and hold configuration they care about — a
+// suite that wrote into those would be doing the exact thing every comment in
+// this file says never to do.
+var mcpConfigHome = os.UserHomeDir
+
 // clientConfigPath is where one client keeps its servers.
 func clientConfigPath(id string) (string, error) {
-	home, err := os.UserHomeDir()
+	home, err := mcpConfigHome()
 	if err != nil {
 		return "", err
 	}
@@ -175,7 +185,7 @@ func describeMCPClient(id, command string) MCPClient {
 	if id == clientCodex {
 		entry, found := tomlServerBlock(string(data))
 		client.Connected = found
-		client.Current = found && strings.Contains(entry, command)
+		client.Current = found && sameCommand(tomlBlockCommand(entry), command)
 		return client
 	}
 
@@ -194,8 +204,34 @@ func describeMCPClient(id, command string) MCPClient {
 	}
 	entry, ok := servers[mcpServerName]
 	client.Connected = ok
-	client.Current = ok && strings.Contains(string(entry), jsonEscape(command))
+	if ok {
+		// Decoded rather than searched. The entry holds the command JSON-escaped —
+		// a Windows path arrives with every backslash doubled — so looking for the
+		// raw path inside the text finds nothing, which is the shape of the bug the
+		// TOML branch had (#13). Decoding asks the question directly and has no
+		// escaping to get wrong.
+		var stored struct {
+			Command string `json:"command"`
+		}
+		_ = json.Unmarshal(entry, &stored)
+		client.Current = sameCommand(stored.Command, command)
+	}
 	return client
+}
+
+// sameCommand says whether a stored command names this binary.
+//
+// Case-insensitively on Windows, where the filesystem is, and exactly everywhere
+// else, where it is not. Both sides come from mcpCommand, so the only differences
+// that should ever appear are ones the platform considers meaningless.
+func sameCommand(stored, command string) bool {
+	if stored == "" || command == "" {
+		return false
+	}
+	if runtime.GOOS == "windows" {
+		return strings.EqualFold(stored, command)
+	}
+	return stored == command
 }
 
 // ConnectMCPClient writes this app's entry into a client's config.
@@ -325,18 +361,6 @@ func removeJSONEntry(path string) error {
 	return os.WriteFile(path, append(out, '\n'), 0o600)
 }
 
-// jsonEscape renders a string the way it appears inside JSON, so a path
-// containing backslashes can be looked for in an encoded entry. Windows paths
-// are the whole reason this exists: C:\Users\… is written C:\\Users\\… in the
-// file, and a plain Contains would never match.
-func jsonEscape(value string) string {
-	encoded, err := json.Marshal(value)
-	if err != nil {
-		return value
-	}
-	return strings.Trim(string(encoded), `"`)
-}
-
 // ---------------------------------------------------------------------------
 // Codex's TOML
 // ---------------------------------------------------------------------------
@@ -366,6 +390,39 @@ func tomlServerBlock(content string) (string, bool) {
 		break
 	}
 	return content[start : start+len(tomlHeader)+end], true
+}
+
+// tomlBlockCommand reads the command out of this app's block, unquoted.
+//
+// writeTOMLEntry writes it with %q, so a Windows path is stored with every
+// backslash doubled. Reading it back with strconv.Unquote undoes exactly that,
+// which is what makes the comparison in describeMCPClient about the path rather
+// than about how it happened to be quoted (#13).
+//
+// A line scan rather than a TOML parse, for the reason at the top of this file:
+// this app has no TOML library, and adding one to read one string would be a
+// dependency taken on to answer a question two lines of text handling can.
+// Anything it cannot read answers "", which reports "points elsewhere" — the same
+// thing an entry that genuinely could not be verified should report.
+func tomlBlockCommand(block string) string {
+	for _, line := range strings.Split(block, "\n") {
+		rest, found := strings.CutPrefix(strings.TrimSpace(line), "command")
+		if !found {
+			continue
+		}
+		rest, found = strings.CutPrefix(strings.TrimSpace(rest), "=")
+		if !found {
+			continue
+		}
+		rest = strings.TrimSpace(rest)
+		if unquoted, err := strconv.Unquote(rest); err == nil {
+			return unquoted
+		}
+		// Not a quoted string — somebody hand-edited it. Answer what is there
+		// rather than nothing, so a config a person wrote still compares.
+		return rest
+	}
+	return ""
 }
 
 func writeTOMLEntry(path, command string) error {
