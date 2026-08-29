@@ -4,10 +4,13 @@ import {
   ClearChat,
   DeleteArtist,
   ExtractAlbum,
+  ExtractTracks,
   GetArtist,
   ListAlbums,
   OpenURL,
+  ImportTrackFile,
   SaveAlbum,
+  SaveTrack,
   SaveArtist,
 } from '../../wailsjs/go/main/App'
 import {main} from '../../wailsjs/go/models'
@@ -17,6 +20,7 @@ import {TextAreaField, TextField} from '../components/Field'
 import {InterviewDialog} from '../chat/InterviewDialog'
 import {useDataChanged} from '../lib/dataChanged'
 import {toMessage} from '../lib/errors'
+import {attachmentPathsByName, isAudioPath} from '../lib/files'
 
 /**
  * One artist: who they are, what they sound like, what they were listening to,
@@ -242,6 +246,32 @@ export function ArtistDetails({
                   artworkPrompt: albumDraft.artworkPrompt,
                 }),
               )
+              // Audio dropped into this chat is finished tracks (#24): run the
+              // track extraction over the same conversation and create them on
+              // the album that now exists, each with its file imported. Only
+              // when there is audio — an album interview with no files has not
+              // discussed a running order, and extracting tracks from it would
+              // invent one.
+              const attached = attachmentPathsByName(messages)
+              if (Object.keys(attached).some(isAudioPath)) {
+                const drafts = await ExtractTracks(messages).catch(() => [])
+                for (const track of drafts ?? []) {
+                  const saved = await SaveTrack(
+                    main.Track.createFrom({
+                      albumId: album.id,
+                      name: track.name || 'Untitled',
+                      prompt: track.prompt,
+                      lyrics: track.lyrics,
+                      targetSeconds: track.targetSeconds,
+                      files: [],
+                    }),
+                  )
+                  for (const name of track.files ?? []) {
+                    const path = attached[name]
+                    if (path) await ImportTrackFile(saved.id, path, '')
+                  }
+                }
+              }
               await ClearChat('album', artist.id).catch(() => {})
               setInterviewing(false)
               onOpenAlbum(album.id)

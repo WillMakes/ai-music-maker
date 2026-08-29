@@ -244,13 +244,10 @@ func attachmentsDir(reportID string) (string, error) {
 // extension, and the size is checked before the decode rather than after, so a
 // 200MB paste is turned away without being held in memory first.
 func decodeDataURL(dataURL string) (string, []byte, error) {
-	dataURL = strings.TrimSpace(dataURL)
-	head, encoded, ok := strings.Cut(dataURL, ",")
-	if !ok || !strings.HasPrefix(head, "data:") || !strings.HasSuffix(head, ";base64") {
-		return "", nil, fmt.Errorf("that does not look like a file this app can keep")
+	mime, encoded, err := splitDataURL(dataURL)
+	if err != nil {
+		return "", nil, err
 	}
-
-	mime := strings.ToLower(strings.TrimSuffix(strings.TrimPrefix(head, "data:"), ";base64"))
 	kind, known := attachmentKinds[mime]
 	if !known {
 		return "", nil, fmt.Errorf("%s is not something this app can keep on a report", mime)
@@ -270,6 +267,20 @@ func decodeDataURL(dataURL string) (string, []byte, error) {
 		return "", nil, fmt.Errorf("that file is empty")
 	}
 	return kind, payload, nil
+}
+
+// splitDataURL parses "data:<mime>;base64,<payload>" without decoding the
+// payload, so a caller can refuse an oversized one before holding its bytes.
+// Shared with the interview attachments (#24), which take a different set of
+// kinds through the same shape.
+func splitDataURL(dataURL string) (string, string, error) {
+	dataURL = strings.TrimSpace(dataURL)
+	head, encoded, ok := strings.Cut(dataURL, ",")
+	if !ok || !strings.HasPrefix(head, "data:") || !strings.HasSuffix(head, ";base64") {
+		return "", "", fmt.Errorf("that does not look like a file this app can keep")
+	}
+	mime := strings.ToLower(strings.TrimSuffix(strings.TrimPrefix(head, "data:"), ";base64"))
+	return mime, encoded, nil
 }
 
 // encodePaths and decodePaths are how the list sits in its TEXT column. JSON

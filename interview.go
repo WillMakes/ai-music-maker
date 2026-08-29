@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"path/filepath"
 	"strings"
 )
 
@@ -60,6 +61,10 @@ type InterviewMessage struct {
 	// back to the model as its own words on every later turn, and this is the
 	// app's.
 	Note string `json:"note"`
+	// Attachments are files sent with this turn (#24), as paths under this
+	// app's own directory — see interviewfiles.go. The model never gets the
+	// bytes; toChatMsgs names them to it instead.
+	Attachments []string `json:"attachments"`
 }
 
 // Chat is a conversation as it stands.
@@ -94,6 +99,9 @@ func (a *App) ClearChat(kind, subjectID string) error {
 	if err := a.store.clearChat(kind, subjectID); err != nil {
 		return err
 	}
+	// The conversation's files go with it (#24): anything worth keeping was
+	// imported into the music library when the tracks were made.
+	clearInterviewFiles(kind, subjectID)
 	a.store.changed(scopeChats)
 	return nil
 }
@@ -271,10 +279,22 @@ func trimTranscript(messages []InterviewMessage) []InterviewMessage {
 func toChatMsgs(messages []InterviewMessage) []chatMsg {
 	out := make([]chatMsg, 0, len(messages))
 	for _, m := range messages {
-		if strings.TrimSpace(m.Text) == "" {
+		text := strings.TrimSpace(m.Text)
+		// A turn's files are named to the model (#24): it is a text
+		// conversation and the bytes would mean nothing to it, but the names
+		// are enough to discuss — and a Suno download's name is the track it
+		// belongs to, which is what the extraction leans on.
+		if len(m.Attachments) > 0 {
+			names := make([]string, 0, len(m.Attachments))
+			for _, path := range m.Attachments {
+				names = append(names, filepath.Base(path))
+			}
+			text = strings.TrimSpace(text + "\n\n[Attached files: " + strings.Join(names, ", ") + "]")
+		}
+		if text == "" {
 			continue
 		}
-		out = append(out, chatMsg{Role: m.Role, Text: m.Text})
+		out = append(out, chatMsg{Role: m.Role, Text: text})
 	}
 	return out
 }
@@ -326,6 +346,10 @@ type TrackDraft struct {
 	Prompt        string `json:"prompt"`
 	Lyrics        string `json:"lyrics"`
 	TargetSeconds int    `json:"targetSeconds"`
+	// Files are the attached audio files that are takes of this track (#24), by
+	// base name — assigned by the extraction from the conversation, resolved
+	// back to paths and imported by the caller that creates the track.
+	Files []string `json:"files"`
 }
 
 // ExtractArtist reads an artist out of a finished conversation.
@@ -375,7 +399,7 @@ func (a *App) ExtractTracks(messages []InterviewMessage) ([]TrackDraft, error) {
 	var wrapper struct {
 		Tracks []TrackDraft `json:"tracks"`
 	}
-	err := a.extract(messages, `Read the conversation and return every track it settled on.
+	instruction := `Read the conversation and return every track it settled on.
 
 Return ONLY a JSON object, no prose and no code fence, of the form
 {"tracks":[…]}, where each entry has:
@@ -384,15 +408,37 @@ Return ONLY a JSON object, no prose and no code fence, of the form
                    words, most important terms first, ending with what to avoid
   "lyrics"         the full lyrics with [Section] tags. For an instrumental,
                    the tags alone.
-  "targetSeconds"  the target length in seconds
+  "targetSeconds"  the target length in seconds`
+
+	// Attached audio is assigned here rather than matched by code (#24): the
+	// conversation may have said outright which file is which track, and a
+	// filename heuristic would overrule the producer's own words.
+	if names := attachedAudioNames(messages); len(names) > 0 {
+		instruction += `
+  "files"          which of the attached audio files are takes of this track,
+                   by exact filename — the conversation marks them with
+                   [Attached files: …]. A file is usually named after its
+                   track. Assign each audio file to at most one track, and
+                   leave out any file that belongs to none.
+
+The attached audio files are: ` + strings.Join(names, ", ")
+	}
+	instruction += `
 
 Return every track that was agreed, in the order they were discussed. If only
-one was settled, return an array of one.`, &wrapper)
+one was settled, return an array of one.`
+
+	err := a.extract(messages, instruction, &wrapper)
 	if err != nil {
 		return nil, err
 	}
 	if wrapper.Tracks == nil {
 		wrapper.Tracks = []TrackDraft{}
+	}
+	for i := range wrapper.Tracks {
+		if wrapper.Tracks[i].Files == nil {
+			wrapper.Tracks[i].Files = []string{}
+		}
 	}
 	return wrapper.Tracks, nil
 }
@@ -447,7 +493,18 @@ func unfence(answer string) string {
 func renderTranscript(messages []InterviewMessage) string {
 	var b strings.Builder
 	for _, m := range messages {
-		if strings.TrimSpace(m.Text) == "" {
+		text := strings.TrimSpace(m.Text)
+		// The same attachment markers the conversation carried (#24): the
+		// extraction reads the transcript, and an assignment it was never shown
+		// is an assignment it can only invent.
+		if len(m.Attachments) > 0 {
+			names := make([]string, 0, len(m.Attachments))
+			for _, path := range m.Attachments {
+				names = append(names, filepath.Base(path))
+			}
+			text = strings.TrimSpace(text + "\n[Attached files: " + strings.Join(names, ", ") + "]")
+		}
+		if text == "" {
 			continue
 		}
 		who := "Producer"
@@ -456,7 +513,7 @@ func renderTranscript(messages []InterviewMessage) string {
 		}
 		b.WriteString(who)
 		b.WriteString(": ")
-		b.WriteString(m.Text)
+		b.WriteString(text)
 		b.WriteString("\n\n")
 	}
 	return b.String()
