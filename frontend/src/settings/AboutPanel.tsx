@@ -3,6 +3,7 @@ import {ExternalLink} from 'lucide-react'
 import {Documentation, GetBuildInfo, OpenURL} from '../../wailsjs/go/main/App'
 import {main} from '../../wailsjs/go/models'
 import {StatusPill} from '../components/StatusPill'
+import logo from '../assets/logo.png'
 import {toMessage} from '../lib/errors'
 
 /**
@@ -34,6 +35,10 @@ export function AboutPanel() {
   return (
     <div className="space-y-5">
       <section className="sm-panel space-y-3 p-4">
+        {/* The full lockup, wordmark and all (#21). About is the one page with
+            room for it; everywhere smaller gets the mascot alone, because the
+            wordmark does not survive being 32 pixels tall. */}
+        <img src={logo} alt="SunoMaker" className="mx-auto w-52 max-w-full" />
         <h2 className="flex items-center gap-2 text-sm font-semibold">
           SunoMaker
           <StatusPill tone="muted">{info.version}</StatusPill>
