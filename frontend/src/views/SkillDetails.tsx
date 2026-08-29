@@ -1,11 +1,18 @@
 import {useCallback, useEffect, useState} from 'react'
-import {Eye, PencilLine, RotateCcw, Trash2} from 'lucide-react'
-import {DeleteSkill, GetSkill, ResetSkill, SaveSkill} from '../../wailsjs/go/main/App'
+import {Eye, PencilLine, RotateCcw, Sparkles, Trash2} from 'lucide-react'
+import {
+  DeleteSkill,
+  GetAIReadiness,
+  GetSkill,
+  ResetSkill,
+  SaveSkill,
+} from '../../wailsjs/go/main/App'
 import {main} from '../../wailsjs/go/models'
 import {Markdown} from '../components/Markdown'
 import {PageHeader} from '../components/PageHeader'
 import {StatusPill} from '../components/StatusPill'
 import {TextAreaField, TextField} from '../components/Field'
+import {SkillEditAssistant} from '../skills/SkillEditAssistant'
 import {toMessage} from '../lib/errors'
 
 /**
@@ -22,6 +29,16 @@ export function SkillDetails({skillId, onBack}: {skillId: string; onBack: () => 
   const [editing, setEditing] = useState(false)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
+  const [assisting, setAssisting] = useState(false)
+  // Whether a provider is connected, which is what gates the AI edit (#23) —
+  // a button that opens a dialog whose every send fails is worse than none.
+  const [aiReady, setAiReady] = useState(false)
+
+  useEffect(() => {
+    GetAIReadiness()
+      .then((readiness) => setAiReady(readiness.ready))
+      .catch(() => setAiReady(false))
+  }, [])
 
   const reload = useCallback(() => {
     GetSkill(skillId)
@@ -107,6 +124,16 @@ export function SkillDetails({skillId, onBack}: {skillId: string; onBack: () => 
                 Delete
               </button>
             )}
+            {aiReady && (
+              <button
+                className="sm-button sm-button-quiet"
+                type="button"
+                onClick={() => setAssisting(true)}
+              >
+                <Sparkles size={15} />
+                Edit with AI
+              </button>
+            )}
             <button
               className="sm-button sm-button-quiet"
               type="button"
@@ -176,6 +203,20 @@ export function SkillDetails({skillId, onBack}: {skillId: string; onBack: () => 
             <p className="text-sm text-fg-muted">Nothing written yet.</p>
           )}
         </section>
+      )}
+
+      {assisting && (
+        <SkillEditAssistant
+          skillId={skill.id}
+          // The revision lands in the edit form, not in the database: the form
+          // opens on it so the producer reads what the model wrote and presses
+          // Save themselves — or walks away and loses nothing.
+          onApply={(revised) => {
+            update({title: revised.title, description: revised.description, body: revised.body})
+            setEditing(true)
+          }}
+          onClose={() => setAssisting(false)}
+        />
       )}
     </div>
   )
