@@ -1,6 +1,5 @@
 import {useState} from 'react'
-import {ExternalLink} from 'lucide-react'
-import {FileBugReport, OpenURL} from '../../wailsjs/go/main/App'
+import {FileBugReport} from '../../wailsjs/go/main/App'
 import {main} from '../../wailsjs/go/models'
 import {Modal} from '../components/Modal'
 import {toMessage} from '../lib/errors'
@@ -14,10 +13,16 @@ import {toMessage} from '../lib/errors'
  * found a bug to also summarise it, categorise it and retype where they were is
  * a form that gets closed.
  *
+ * Filing closes it, with nothing in between (#18). It used to answer with a
+ * "thanks — it is on the queue" panel and the issue number, which is one more
+ * click on the way back to whatever the producer was doing and tells them
+ * something they did not ask for: the queue is in Settings → Bug reports if they
+ * want it, and the badge in the top bar has already gone up by one.
+ *
  * Filing cannot fail for want of a network: the report is written locally
- * whatever happens, and the issue and the Jax counterpart are caught up later.
- * So this shows what it managed — an issue number when there is one, and the
- * plain fact of the report when there is not.
+ * whatever happens, and the issue and the Jax counterpart are caught up later. So
+ * the only thing that keeps this box open is an error worth reading — an empty
+ * description, or a database that will not take the write.
  */
 export function ReportBugModal({
   route,
@@ -35,15 +40,14 @@ export function ReportBugModal({
   const [description, setDescription] = useState('')
   const [global, setGlobal] = useState(false)
   const [filing, setFiling] = useState(false)
-  const [filed, setFiled] = useState<main.BugReport | null>(null)
   const [error, setError] = useState('')
 
   const file = async () => {
-    if (!description.trim()) return
+    if (!description.trim() || filing) return
     setFiling(true)
     setError('')
     try {
-      const report = await FileBugReport(
+      await FileBugReport(
         main.BugReport.createFrom({
           description,
           route,
@@ -52,45 +56,14 @@ export function ReportBugModal({
           subjectId: global ? '' : subjectId,
         }),
       )
-      setFiled(report)
+      onClose()
     } catch (err) {
       setError(toMessage(err))
-    } finally {
       setFiling(false)
     }
-  }
-
-  if (filed) {
-    return (
-      <Modal
-        title="Reported"
-        onClose={onClose}
-        footer={
-          <button className="sm-button sm-button-primary" type="button" onClick={onClose}>
-            Done
-          </button>
-        }
-      >
-        <div className="space-y-3 text-sm">
-          <p>Thanks — it is on the queue.</p>
-          {filed.issueNumber ? (
-            <button
-              className="sm-button sm-button-quiet"
-              type="button"
-              onClick={() => void OpenURL(filed.issueUrl).catch(() => {})}
-            >
-              <ExternalLink size={15} />
-              Issue #{filed.issueNumber}
-            </button>
-          ) : (
-            <p className="text-fg-muted">
-              It could not reach GitHub just now, so it has no issue yet — the next
-              sweep will open one.
-            </p>
-          )}
-        </div>
-      </Modal>
-    )
+    // Deliberately no setFiling(false) on success: the box is closing, and
+    // clearing the flag would flip the button back to "File it" for the frame
+    // before it goes.
   }
 
   return (
