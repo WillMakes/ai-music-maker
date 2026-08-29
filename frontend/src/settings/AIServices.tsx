@@ -3,6 +3,7 @@ import {Check, Star} from 'lucide-react'
 import {GetAIServices, SetDefaultAIService} from '../../wailsjs/go/main/App'
 import {main} from '../../wailsjs/go/models'
 import {StatusPill} from '../components/StatusPill'
+import {ProviderLogo} from './ProviderLogo'
 import {useDataChanged} from '../lib/dataChanged'
 import {toMessage} from '../lib/errors'
 
@@ -46,6 +47,9 @@ export function AIServices({onOpen}: {onOpen: (serviceId: string) => void}) {
       <ul className="sm-panel divide-y divide-edge overflow-hidden">
         {services.map((service) => (
           <li key={service.id} className="flex items-center gap-3 px-4 py-3">
+            {/* The provider's own mark (#25), so the row is recognisable at a
+                glance the way the row in any other tool is. */}
+            <ProviderLogo id={service.id} />
             <button
               className="min-w-0 flex-1 text-left"
               type="button"

@@ -32,8 +32,15 @@ export function Settings({
       <PageHeader title="Settings" />
       <TabStrip tabs={SETTINGS_TABS} current={view} onSelect={onNavigate} />
       <div>
-        {view === 'settings-ai' && <AIServices onOpen={onOpenService} />}
-        {view === 'settings-assistants' && <AIAssistants />}
+        {/* Providers and assistants together (#25): both answer "what AI can
+            reach this app", and two tabs about the same configuration were one
+            tab cut in half. */}
+        {view === 'settings-ai' && (
+          <div className="space-y-8">
+            <AIServices onOpen={onOpenService} />
+            <AIAssistants />
+          </div>
+        )}
         {view === 'settings-skills' && <SkillsPanel onOpenSkill={onOpenSkill} />}
         {view === 'settings-extension' && <ExtensionPanel />}
         {view === 'settings-bugs' && <BugsPanel />}

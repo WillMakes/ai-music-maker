@@ -29,7 +29,6 @@ export type ViewId =
   | 'skill-details'
   | 'settings-ai'
   | 'settings-ai-service'
-  | 'settings-assistants'
   | 'settings-skills'
   | 'settings-extension'
   | 'settings-bugs'
@@ -47,7 +46,6 @@ export const ROUTE_TITLES: Record<ViewId, string> = {
   'skill-details': 'Skill',
   'settings-ai': 'Settings — AI',
   'settings-ai-service': 'Settings — AI service',
-  'settings-assistants': 'Settings — AI assistants',
   'settings-skills': 'Settings — Skills',
   'settings-extension': 'Settings — Chrome extension',
   'settings-bugs': 'Settings — Bug reports',
@@ -72,7 +70,6 @@ export const SECTION_OF: Record<ViewId, ViewId> = {
   'skill-details': 'skills',
   'settings-ai': 'settings-ai',
   'settings-ai-service': 'settings-ai',
-  'settings-assistants': 'settings-ai',
   'settings-skills': 'settings-ai',
   'settings-extension': 'settings-ai',
   'settings-bugs': 'settings-ai',
@@ -115,7 +112,6 @@ export const BOTTOM_NAV: NavEntry[] = [
 /** The settings tabs, in the order the strip shows them. */
 export const SETTINGS_TABS: {id: ViewId; label: string}[] = [
   {id: 'settings-ai', label: 'AI'},
-  {id: 'settings-assistants', label: 'AI assistants'},
   {id: 'settings-skills', label: 'Skills'},
   {id: 'settings-extension', label: 'Chrome extension'},
   {id: 'settings-bugs', label: 'Bug reports'},
@@ -123,6 +119,18 @@ export const SETTINGS_TABS: {id: ViewId; label: string}[] = [
 ]
 
 export const isSettingsView = (view: ViewId) => view.startsWith('settings-')
+
+/**
+ * Views this app used to have, mapped to where their content lives now (#25).
+ * A route survives its view in two places — the stored last_route and the
+ * route on an old bug report — and both should land somewhere rather than on
+ * a blank content region.
+ */
+export const RETIRED_ROUTES: Record<string, ViewId> = {
+  // The assistants moved onto the AI tab; two tabs about the same
+  // configuration were one tab cut in half.
+  'settings-assistants': 'settings-ai',
+}
 
 /**
  * A route as a trail of readable steps, for the report form's Where panel
@@ -138,7 +146,7 @@ export const isSettingsView = (view: ViewId) => view.startsWith('settings-')
  * use than a blank.
  */
 export function routeTrail(route: string): string[] {
-  const title = ROUTE_TITLES[route as ViewId]
+  const title = ROUTE_TITLES[(RETIRED_ROUTES[route] ?? route) as ViewId]
   if (!title) return route ? [route] : []
   return title.split(' — ')
 }

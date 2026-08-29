@@ -137,7 +137,7 @@ export function StatusBar({onNavigate}: {onNavigate: (view: ViewId) => void}) {
         onClick={() => onNavigate('settings-ai')}
       />
 
-      {mcp && <AssistantsSegment mcp={mcp} onOpen={() => onNavigate('settings-assistants')} />}
+      {mcp && <AssistantsSegment mcp={mcp} onOpen={() => onNavigate('settings-ai')} />}
 
       {extension && (
         <Segment
