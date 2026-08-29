@@ -612,12 +612,16 @@ func (a *App) aiKey(id string) string {
 // A thin wrapper on exec.LookPath, and a variable, so tests can say what is
 // installed. Without it every test of a connection depends on whether the
 // machine running it happens to have the Claude CLI.
+//
+// When the inherited PATH misses, the registry PATH is tried (#28): a CLI
+// installed after this app's environment was inherited exists on the machine
+// and in every new terminal, and "not found on this machine" about that CLI is
+// wrong in the way that costs a producer half an hour. See freshPathLookup.
 var lookUpCommand = func(name string) (string, bool) {
-	path, err := exec.LookPath(name)
-	if err != nil {
-		return "", false
+	if path, err := exec.LookPath(name); err == nil {
+		return path, true
 	}
-	return path, true
+	return freshPathLookup(name)
 }
 
 // envWithout returns the current environment with the named variables removed.
