@@ -1,5 +1,5 @@
 import {useCallback, useEffect, useState} from 'react'
-import {AudioLines, Disc3, ExternalLink, Loader2, Plus, Sparkles, Trash2, Wand2} from 'lucide-react'
+import {AudioLines, Disc3, ExternalLink, FolderInput, Loader2, Plus, Sparkles, Trash2, Wand2} from 'lucide-react'
 import {
   AnalyzeMusicURL,
   ClearChat,
@@ -10,6 +10,7 @@ import {
   GetArtist,
   ListAlbums,
   OpenURL,
+  ImportAlbum,
   ImportTrackFile,
   SaveAlbum,
   SaveTrack,
@@ -22,6 +23,7 @@ import {TextField} from '../components/Field'
 import {MarkdownField} from '../components/MarkdownField'
 import {InterviewDialog} from '../chat/InterviewDialog'
 import {StyleEditAssistant} from '../artists/StyleEditAssistant'
+import {Modal} from '../components/Modal'
 import {useDataChanged} from '../lib/dataChanged'
 import {toMessage} from '../lib/errors'
 import {attachmentPathsByName, isAudioPath} from '../lib/files'
@@ -53,6 +55,8 @@ export function ArtistDetails({
   const [confirmDelete, setConfirmDelete] = useState(false)
   // The base-style refinement chat (#30), for an artist that already exists.
   const [refining, setRefining] = useState(false)
+  // Importing a record that already exists (#36).
+  const [importing, setImporting] = useState(false)
 
   const reload = useCallback(() => {
     Promise.all([GetArtist(artistId), ListAlbums(artistId)])
@@ -213,6 +217,14 @@ export function ArtistDetails({
         <div className="flex items-center gap-3">
           <h2 className="flex-1 text-sm font-semibold">Albums</h2>
           <button
+            className="sm-button sm-button-quiet"
+            type="button"
+            onClick={() => setImporting(true)}
+          >
+            <FolderInput size={15} />
+            Import an album
+          </button>
+          <button
             className="sm-button sm-button-primary"
             type="button"
             onClick={() => setInterviewing(true)}
@@ -250,6 +262,17 @@ export function ArtistDetails({
           </ul>
         )}
       </section>
+
+      {importing && (
+        <ImportAlbumDialog
+          artistId={artist.id}
+          onDone={(albumId) => {
+            setImporting(false)
+            onOpenAlbum(albumId)
+          }}
+          onClose={() => setImporting(false)}
+        />
+      )}
 
       {refining && (
         <StyleEditAssistant
@@ -363,6 +386,81 @@ export function Cover({url, name, size = 44}: {url: string; name: string; size?:
  * wholesale on the backend (see SaveArtist), and a row saved independently would
  * be undone by the next save of the fields above it.
  */
+/**
+ * Bringing in a record that already exists (#36): a folder of audio becomes an
+ * album with a track per file, each imported into the music library — or a
+ * name alone becomes an empty album, for content this app cannot read yet.
+ * The counterpart of the blank artist: the interview invents, this imports.
+ */
+function ImportAlbumDialog({
+  artistId,
+  onDone,
+  onClose,
+}: {
+  artistId: string
+  onDone: (albumId: string) => void
+  onClose: () => void
+}) {
+  const [name, setName] = useState('')
+  const [dir, setDir] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [problem, setProblem] = useState('')
+
+  const run = async () => {
+    if (busy || (!name.trim() && !dir.trim())) return
+    setBusy(true)
+    setProblem('')
+    try {
+      const album = await ImportAlbum(artistId, name, dir)
+      onDone(album.id)
+    } catch (err) {
+      setProblem(toMessage(err))
+      setBusy(false)
+    }
+  }
+
+  return (
+    <Modal
+      title="Import an album"
+      onClose={onClose}
+      footer={
+        <>
+          <button className="sm-button sm-button-quiet" type="button" onClick={onClose}>
+            Cancel
+          </button>
+          <button
+            className="sm-button sm-button-primary"
+            type="button"
+            onClick={run}
+            disabled={busy || (!name.trim() && !dir.trim())}
+          >
+            {busy ? 'Importing…' : 'Import'}
+          </button>
+        </>
+      }
+    >
+      <div className="space-y-3">
+        <TextField
+          label="Folder of audio files"
+          hint="Every audio file becomes a track, named and ordered from its filename, and copied into your music library. Leave it blank to create an empty album by name."
+          placeholder="C:/Music/Night Drive"
+          value={dir}
+          onChange={setDir}
+          disabled={busy}
+        />
+        <TextField
+          label="Album name"
+          hint="Blank means the folder's own name."
+          value={name}
+          onChange={setName}
+          disabled={busy}
+        />
+        {problem && <p className="text-sm text-danger">{problem}</p>}
+      </div>
+    </Modal>
+  )
+}
+
 function Inspirations({
   inspirations,
   onChange,
