@@ -5,6 +5,15 @@
    ThemeProvider. */
 @custom-variant dark (&:where(.dark, .dark *));
 
+/* The redesign's density (#34): the mockups set 13px body text where the
+   browser default gave 14 (text-sm on a 16px root). Scaling the root to 15px
+   lands text-sm at ~13.1px and shrinks every rem-derived space by the same
+   6%, so the whole app tightens coherently instead of each component being
+   renegotiated. */
+html {
+  font-size: 15px;
+}
+
 /* ---------------------------------------------------------------------------
    Semantic tokens.
 

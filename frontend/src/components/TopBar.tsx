@@ -1,5 +1,6 @@
 import {ArrowLeft, ArrowRight, Bug, Monitor, Moon, Sun} from 'lucide-react'
 import {useTheme, type ThemePreference} from '../theme/ThemeProvider'
+import type {Route} from '../App'
 
 /**
  * The bar above the content: where you are, where you have been, the theme, and
@@ -10,7 +11,8 @@ import {useTheme, type ThemePreference} from '../theme/ThemeProvider'
  * one. The rail is about sections.
  */
 export function TopBar({
-  title,
+  crumbs,
+  onCrumb,
   canBack,
   canForward,
   openBugs,
@@ -18,7 +20,9 @@ export function TopBar({
   onForward,
   onReportBug,
 }: {
-  title: string
+  /** The trail down to here (#34); the last step is the page itself. */
+  crumbs: {label: string; route?: Route}[]
+  onCrumb: (route: Route) => void
   canBack: boolean
   canForward: boolean
   /** How many reports are open, for the badge. */
@@ -38,7 +42,32 @@ export function TopBar({
         </IconButton>
       </div>
 
-      <h1 className="min-w-0 flex-1 truncate text-sm font-medium">{title}</h1>
+      {/* The trail rather than a lone title (#34): every step above the page
+          is a way back to it, which back/forward alone cannot offer. */}
+      <nav className="flex min-w-0 flex-1 items-center gap-1.5 truncate text-sm" aria-label="You are here">
+        {crumbs.map((crumb, index) => (
+          <span key={index + ':' + crumb.label} className="flex min-w-0 items-center gap-1.5">
+            {index > 0 && (
+              <span className="text-fg-muted" aria-hidden>
+                ›
+              </span>
+            )}
+            {crumb.route ? (
+              <button
+                className="truncate text-fg-muted hover:text-fg"
+                type="button"
+                onClick={() => onCrumb(crumb.route as Route)}
+              >
+                {crumb.label}
+              </button>
+            ) : (
+              <span className="truncate font-medium" aria-current="page">
+                {crumb.label}
+              </span>
+            )}
+          </span>
+        ))}
+      </nav>
 
       <ThemeToggle />
 

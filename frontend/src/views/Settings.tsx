@@ -6,7 +6,7 @@ import {AIServices} from '../settings/AIServices'
 import {AboutPanel} from '../settings/AboutPanel'
 import {BugsPanel} from '../settings/BugsPanel'
 import {ExtensionPanel} from '../settings/ExtensionPanel'
-import {SkillsPanel} from '../settings/SkillsPanel'
+import {LibraryPanel} from '../settings/LibraryPanel'
 
 /**
  * The settings shell.
@@ -20,12 +20,10 @@ export function Settings({
   view,
   onNavigate,
   onOpenService,
-  onOpenSkill,
 }: {
   view: ViewId
   onNavigate: (view: ViewId) => void
   onOpenService: (serviceId: string) => void
-  onOpenSkill: (skillId: string) => void
 }) {
   return (
     <div className="space-y-5">
@@ -41,7 +39,7 @@ export function Settings({
             <AIAssistants />
           </div>
         )}
-        {view === 'settings-skills' && <SkillsPanel onOpenSkill={onOpenSkill} />}
+        {view === 'settings-library' && <LibraryPanel />}
         {view === 'settings-extension' && <ExtensionPanel />}
         {view === 'settings-bugs' && <BugsPanel />}
         {view === 'settings-about' && <AboutPanel />}

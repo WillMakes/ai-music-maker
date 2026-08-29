@@ -18,6 +18,7 @@ import {EmptyState} from '../components/EmptyState'
 import {PageHeader} from '../components/PageHeader'
 import {TextAreaField, TextField} from '../components/Field'
 import {InterviewDialog} from '../chat/InterviewDialog'
+import {TabStrip} from '../components/TabStrip'
 import {Cover} from './ArtistDetails'
 import {useDataChanged} from '../lib/dataChanged'
 import {duration} from '../lib/format'
@@ -52,6 +53,9 @@ export function AlbumDetails({
   const [error, setError] = useState('')
   const [interviewing, setInterviewing] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
+  // The page as tabs (#34): Record, Tracks, Artwork, Release. Local state
+  // rather than routes — the album is the place, these are its drawers.
+  const [tab, setTab] = useState<'record' | 'tracks' | 'artwork' | 'release'>('record')
 
   const reload = useCallback(() => {
     Promise.all([GetAlbum(albumId), ListTracks(albumId)])
@@ -187,7 +191,21 @@ export function AlbumDetails({
         </div>
       )}
 
-      <div className="grid gap-4 lg:grid-cols-[240px_1fr]">
+      <TabStrip
+        tabs={[
+          {id: 'record', label: 'Record'},
+          {id: 'tracks', label: 'Tracks'},
+          {id: 'artwork', label: 'Artwork'},
+          {id: 'release', label: 'Release'},
+        ]}
+        current={tab}
+        onSelect={setTab}
+      />
+
+      {/* Hidden rather than unmounted: artwork generation runs for minutes,
+          and unmounting the panel mid-draw would drop its busy state while the
+          call kept running. */}
+      <div className={tab === 'artwork' ? 'max-w-md' : 'hidden'}>
         <section className="sm-panel space-y-3 p-4">
           <h2 className="text-sm font-semibold">Artwork</h2>
           <div className="flex justify-center">
@@ -255,8 +273,10 @@ export function AlbumDetails({
             )}
           </div>
         </section>
+      </div>
 
-        <div className="space-y-4">
+      {tab === 'record' && (
+        <div className="max-w-2xl space-y-4">
           <section className="sm-panel space-y-4 p-4">
             <h2 className="text-sm font-semibold">The record</h2>
             <TextField
@@ -278,7 +298,11 @@ export function AlbumDetails({
               onChange={(technicalStyle) => update({technicalStyle})}
             />
           </section>
+        </div>
+      )}
 
+      {tab === 'release' && (
+        <div className="max-w-2xl">
           <section className="sm-panel space-y-4 p-4">
             <h2 className="text-sm font-semibold">Released at</h2>
             <p className="text-xs text-fg-muted">
@@ -307,8 +331,9 @@ export function AlbumDetails({
             </div>
           </section>
         </div>
-      </div>
+      )}
 
+      {tab === 'tracks' && (
       <section className="space-y-3">
         <div className="flex items-center gap-3">
           <h2 className="flex-1 text-sm font-semibold">Tracks</h2>
@@ -360,6 +385,7 @@ export function AlbumDetails({
           </ul>
         )}
       </section>
+      )}
 
       {interviewing && (
         <InterviewDialog
