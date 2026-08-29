@@ -164,21 +164,42 @@ func aiInstallURL(id string) string {
 }
 
 // GetAIServices reports every provider.
+//
+// The default is resolved once, here, and handed to each description — not asked
+// for from inside one (#12). See describeAIService.
 func (a *App) GetAIServices() []AIServiceStatus {
 	stored := a.aiConnections()
+	starred := a.defaultAIService()
 	out := []AIServiceStatus{}
 	for _, id := range aiServiceIDs {
-		out = append(out, a.describeAIService(id, stored[id]))
+		out = append(out, a.describeAIService(id, stored[id], starred))
 	}
 	return out
 }
 
 // GetAIService reports one, for its own settings page.
 func (a *App) GetAIService(id string) AIServiceStatus {
-	return a.describeAIService(id, a.aiConnections()[id])
+	return a.describeAIService(id, a.aiConnections()[id], a.defaultAIService())
 }
 
-func (a *App) describeAIService(id string, conn aiConnection) AIServiceStatus {
+// describeAIService is one provider's row.
+//
+// starred is passed in rather than looked up, and that is the whole of #12. This
+// used to end with
+//
+//	status.Default = status.Connected && a.defaultAIService() == id
+//
+// and defaultAIService asks connectedAIServices, which asks describeAIService —
+// a cycle. Go's && short-circuit was the only thing holding it: with nothing
+// connected, status.Connected is false for every provider and defaultAIService
+// is never reached, so the panel drew correctly and the bug was invisible.
+// Connecting one provider opened the guard and the call recursed until the stack
+// gave out, which took the answer and the whole AI panel with it — "when an AI
+// connection is made, the displays go away".
+//
+// So the question "which one is starred" is answered above this function, once,
+// by the two bindings that need it. Nothing on this path may ask again.
+func (a *App) describeAIService(id string, conn aiConnection, starred string) AIServiceStatus {
 	status := AIServiceStatus{
 		ID:          id,
 		Name:        aiServiceName(id),
@@ -194,17 +215,33 @@ func (a *App) describeAIService(id string, conn aiConnection) AIServiceStatus {
 	if status.CLIName != "" {
 		status.CLIPath, status.CLIFound = lookUpCommand(status.CLIName)
 	}
-	// Connected in account mode means the CLI is still there. A machine that has
-	// had the CLI uninstalled since is not connected, whatever the stored blob
-	// says, and reporting otherwise would offer a run that cannot start.
+	status.Connected = serviceConnected(id, conn)
+	status.Default = status.Connected && starred == id
+	return status
+}
+
+// serviceConnected says whether this app can currently act as a provider.
+//
+// Its own function because two callers need the answer and only one of them
+// wants a whole row: connectedAIServices asks this directly, which is what keeps
+// it off describeAIService and out of the cycle described above (#12).
+//
+// Connected in account mode means the CLI is still there. A machine that has had
+// the CLI uninstalled since is not connected, whatever the stored blob says, and
+// reporting otherwise would offer a run that cannot start.
+func serviceConnected(id string, conn aiConnection) bool {
 	switch conn.Mode {
 	case modeAccount:
-		status.Connected = status.CLIFound
+		cli := aiCLIName(id)
+		if cli == "" {
+			return false
+		}
+		_, found := lookUpCommand(cli)
+		return found
 	case modeAPIKey:
-		status.Connected = conn.Key != ""
+		return conn.Key != ""
 	}
-	status.Default = status.Connected && a.defaultAIService() == id
-	return status
+	return false
 }
 
 // maskKey shows enough of a key to recognise it and not enough to use it.
@@ -248,7 +285,10 @@ func (a *App) connectedAIServices() []string {
 	out := []string{}
 	stored := a.aiConnections()
 	for _, id := range aiServiceIDs {
-		if a.describeAIService(id, stored[id]).Connected {
+		// serviceConnected rather than describeAIService: building a whole row
+		// here is what closed the cycle that #12 was (see describeAIService), and
+		// the only thing wanted is the flag.
+		if serviceConnected(id, stored[id]) {
 			out = append(out, id)
 		}
 	}
