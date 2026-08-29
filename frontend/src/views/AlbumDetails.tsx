@@ -7,6 +7,7 @@ import {
   GenerateAlbumArtwork,
   GetAlbum,
   ImportAlbumArtwork,
+  ImportTrackFile,
   ListTracks,
   RemoveAlbumArtwork,
   SaveAlbum,
@@ -21,6 +22,7 @@ import {Cover} from './ArtistDetails'
 import {useDataChanged} from '../lib/dataChanged'
 import {duration} from '../lib/format'
 import {toMessage} from '../lib/errors'
+import {attachmentPathsByName} from '../lib/files'
 
 /**
  * One album: its cover, what is different about this record, its tracks, and the
@@ -377,11 +379,14 @@ export function AlbumDetails({
             try {
               const drafts = await ExtractTracks(messages)
               if (!drafts?.length) return 'The conversation did not settle on a track yet.'
+              // Audio dropped into the chat, resolved from the names the
+              // extraction assigned back to the stored paths (#24).
+              const attached = attachmentPathsByName(messages)
               // Sequentially rather than in parallel: each save reads the highest
               // position to append after it, and five concurrent saves would all
               // read the same one and land on the same number.
               for (const track of drafts) {
-                await SaveTrack(
+                const saved = await SaveTrack(
                   main.Track.createFrom({
                     albumId: album.id,
                     name: track.name || 'Untitled',
@@ -391,6 +396,13 @@ export function AlbumDetails({
                     files: [],
                   }),
                 )
+                // Each assigned file lands as a variation through the same
+                // import every other route uses, so it is copied into the music
+                // library before ClearChat sweeps the chat's own copy.
+                for (const name of track.files ?? []) {
+                  const path = attached[name]
+                  if (path) await ImportTrackFile(saved.id, path, '')
+                }
               }
               await ClearChat('track', album.id).catch(() => {})
               setInterviewing(false)

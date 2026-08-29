@@ -1,7 +1,8 @@
-import {useCallback, useEffect, useRef, useState} from 'react'
-import {Send} from 'lucide-react'
+import {useCallback, useEffect, useRef, useState, type DragEvent, type ClipboardEvent} from 'react'
+import {FileAudio, Image as ImageIcon, Paperclip, Send, X} from 'lucide-react'
 import {
   AskInterview,
+  AttachInterviewFile,
   ClearChat,
   GetAIReadiness,
   GetChat,
@@ -9,6 +10,7 @@ import {
 import {main} from '../../wailsjs/go/models'
 import {Markdown} from '../components/Markdown'
 import {toMessage} from '../lib/errors'
+import {fileName, isAudioPath, readAsDataURL} from '../lib/files'
 import {WORKING_VERBS, WORKING_VERB_MS, otherVerb} from '../lib/workingVerbs'
 
 /**
@@ -47,6 +49,11 @@ export interface Interview {
   send: () => Promise<void>
   finish: () => Promise<void>
   clear: () => Promise<void>
+  /** Files staged for the next send (#24), as stored paths. */
+  pending: string[]
+  attaching: boolean
+  attach: (files: File[]) => Promise<void>
+  unstage: (path: string) => void
 }
 
 /**
@@ -79,6 +86,11 @@ export function useInterview({
   const [error, setError] = useState('')
   const [ready, setReady] = useState<main.AIReadiness | null>(null)
   const [verb, setVerb] = useState(WORKING_VERBS[0])
+  // Files staged for the next send (#24). They ride the message they are sent
+  // with — staged rather than sent at once, so the producer can drop three
+  // takes and then say what they are in the same turn.
+  const [pending, setPending] = useState<string[]>([])
+  const [attaching, setAttaching] = useState(false)
 
   // Whether an interview can run at all, asked before the producer types
   // anything. A page that takes a paragraph and then says "no AI provider is
@@ -105,13 +117,47 @@ export function useInterview({
     return () => clearInterval(timer)
   }, [busy])
 
+  const attach = useCallback(
+    async (files: File[]) => {
+      const keep = files.filter(attachable)
+      if (keep.length === 0) return
+      setAttaching(true)
+      setError('')
+      try {
+        // One at a time: a dropped album of ten takes would otherwise build ten
+        // data URLs at once.
+        for (const file of keep) {
+          // eslint-disable-next-line no-await-in-loop
+          const dataURL = await readAsDataURL(file)
+          // eslint-disable-next-line no-await-in-loop
+          const path = await AttachInterviewFile(subjectKind, subjectId, file.name, dataURL)
+          setPending((all) => [...all, path])
+        }
+      } catch (err) {
+        setError(toMessage(err))
+      } finally {
+        setAttaching(false)
+      }
+    },
+    [subjectKind, subjectId],
+  )
+
+  const unstage = useCallback((path: string) => {
+    // Off the next message, not off disk: the file is cheap to keep until the
+    // chat is cleared, and gone for good if it is not.
+    setPending((all) => all.filter((one) => one !== path))
+  }, [])
+
   const send = useCallback(async () => {
     const text = draft.trim()
-    if (!text || busy) return
+    // A turn may be files alone (#24) — dropping three takes and pressing send
+    // is a complete thing to say.
+    if ((!text && pending.length === 0) || busy) return
     const next = [
       ...messages,
-      main.InterviewMessage.createFrom({role: 'user', text, note: ''}),
+      main.InterviewMessage.createFrom({role: 'user', text, note: '', attachments: pending}),
     ]
+    setPending([])
     setMessages(next)
     setDraft('')
     setBusy(true)
@@ -127,7 +173,7 @@ export function useInterview({
     } finally {
       setBusy(false)
     }
-  }, [busy, draft, messages, subjectKind, subjectId])
+  }, [busy, draft, messages, pending, subjectKind, subjectId])
 
   const finish = useCallback(async () => {
     setFinishing(true)
@@ -140,6 +186,9 @@ export function useInterview({
   const clear = useCallback(async () => {
     await ClearChat(subjectKind, subjectId).catch(() => {})
     setMessages([])
+    // Staged files went with the chat — ClearChat sweeps the folder they were
+    // written to, so holding their paths would be holding dangling ones.
+    setPending([])
     setError('')
   }, [subjectKind, subjectId])
 
@@ -156,8 +205,19 @@ export function useInterview({
     send,
     finish,
     clear,
+    pending,
+    attaching,
+    attach,
+    unstage,
   }
 }
+
+// What a chat will take (#24), mirroring the backend's own list: audio is the
+// point — finished Suno files — and images ride along for artwork references.
+const attachable = (file: File) =>
+  file.type.startsWith('audio/') ||
+  file.type.startsWith('image/') ||
+  isAudioPath(file.name)
 
 /**
  * The conversation itself: the transcript and the composer, filling whatever it
@@ -174,10 +234,46 @@ export function InterviewConversation({
   /** The first thing on screen, before anybody has typed. */
   opening: string
 }) {
-  const {messages, busy, finishing, error, ready, blocked, verb, draft, setDraft, send} =
-    interview
+  const {
+    messages,
+    busy,
+    finishing,
+    error,
+    ready,
+    blocked,
+    verb,
+    draft,
+    setDraft,
+    send,
+    pending,
+    attaching,
+    attach,
+    unstage,
+  } = interview
   const scroller = useRef<HTMLDivElement>(null)
   const input = useRef<HTMLTextAreaElement>(null)
+  const picker = useRef<HTMLInputElement>(null)
+  // A file is being dragged over the conversation, for the drop highlight.
+  const [dragging, setDragging] = useState(false)
+
+  const drop = async (event: DragEvent) => {
+    const files = Array.from(event.dataTransfer?.files ?? [])
+    setDragging(false)
+    if (files.length === 0) return
+    // The default is held onto only when there are files — a drop of anything
+    // else is left for the OS to do whatever it would have.
+    event.preventDefault()
+    await attach(files)
+  }
+
+  const paste = async (event: ClipboardEvent) => {
+    // A copied file reaches the webview as a file; ordinary text keeps its
+    // default so this stays a paste handler rather than a paste replacement.
+    const files = Array.from(event.clipboardData?.files ?? [])
+    if (files.length === 0) return
+    event.preventDefault()
+    await attach(files)
+  }
 
   // Pinned to the bottom as turns arrive.
   useEffect(() => {
@@ -196,7 +292,26 @@ export function InterviewConversation({
   }
 
   return (
-    <>
+    <div
+      className={
+        'flex min-h-0 flex-1 flex-col gap-3 rounded-lg transition-colors ' +
+        (dragging ? 'outline-dashed outline-2 outline-offset-4 outline-accent' : '')
+      }
+      // Drop and paste anywhere over the conversation (#24): a file being
+      // dragged in should land wherever it is let go, not on a target the
+      // producer has to aim for.
+      onDragOver={(event) => {
+        if (Array.from(event.dataTransfer?.items ?? []).some((item) => item.kind === 'file')) {
+          event.preventDefault()
+          setDragging(true)
+        }
+      }}
+      onDragLeave={(event) => {
+        if (event.currentTarget === event.target) setDragging(false)
+      }}
+      onDrop={(event) => void drop(event)}
+      onPaste={(event) => void paste(event)}
+    >
       <div ref={scroller} className="min-h-0 flex-1 space-y-3 overflow-y-auto pr-1">
         <Bubble role="assistant">
           <Markdown>{opening}</Markdown>
@@ -210,7 +325,16 @@ export function InterviewConversation({
             ) : (
               // The producer's own words, not markdown: they typed them, and
               // rendering an asterisk as emphasis would change what they said.
-              <p className="whitespace-pre-wrap text-sm">{message.text}</p>
+              <>
+                {message.text && <p className="whitespace-pre-wrap text-sm">{message.text}</p>}
+                {(message.attachments?.length ?? 0) > 0 && (
+                  <span className="mt-1 flex flex-wrap gap-1.5">
+                    {message.attachments.map((path) => (
+                      <FileChip key={path} path={path} />
+                    ))}
+                  </span>
+                )}
+              </>
             )}
           </Bubble>
         ))}
@@ -223,7 +347,40 @@ export function InterviewConversation({
 
       {error && <p className="text-sm text-danger">{error}</p>}
 
+      {/* Files staged for the next send (#24), each removable until it goes. */}
+      {(pending.length > 0 || attaching) && (
+        <div className="flex flex-wrap gap-1.5">
+          {pending.map((path) => (
+            <FileChip key={path} path={path} onRemove={() => unstage(path)} />
+          ))}
+          {attaching && <span className="text-xs text-fg-muted">Attaching…</span>}
+        </div>
+      )}
+
       <div className="flex items-end gap-2">
+        <button
+          className="sm-button sm-button-quiet h-10"
+          type="button"
+          onClick={() => picker.current?.click()}
+          disabled={busy || finishing || attaching}
+          aria-label="Attach files"
+          title="Attach a finished track or a reference image"
+        >
+          <Paperclip size={15} />
+        </button>
+        <input
+          ref={picker}
+          type="file"
+          multiple
+          accept="audio/*,image/*"
+          className="hidden"
+          onChange={(event) => {
+            const files = Array.from(event.target.files ?? [])
+            // Cleared so picking the same file twice fires the change again.
+            event.target.value = ''
+            void attach(files)
+          }}
+        />
         <textarea
           ref={input}
           className="sm-input max-h-32 min-h-[2.5rem] resize-y"
@@ -246,13 +403,41 @@ export function InterviewConversation({
           className="sm-button sm-button-primary h-10"
           type="button"
           onClick={send}
-          disabled={busy || finishing || !draft.trim()}
+          disabled={busy || finishing || (!draft.trim() && pending.length === 0)}
           aria-label="Send"
         >
           <Send size={15} />
         </button>
       </div>
-    </>
+    </div>
+  )
+}
+
+/**
+ * One attached file as a chip: what it is (a note or a picture) and its name.
+ * Named rather than played — the file is evidence for the conversation and the
+ * import step, and a player in a chat bubble is neither.
+ */
+function FileChip({path, onRemove}: {path: string; onRemove?: () => void}) {
+  return (
+    <span className="inline-flex max-w-56 items-center gap-1.5 rounded-full border border-edge bg-bg px-2.5 py-1 text-xs">
+      {isAudioPath(path) ? (
+        <FileAudio size={12} className="shrink-0 text-fg-muted" aria-hidden />
+      ) : (
+        <ImageIcon size={12} className="shrink-0 text-fg-muted" aria-hidden />
+      )}
+      <span className="truncate">{fileName(path)}</span>
+      {onRemove && (
+        <button
+          type="button"
+          onClick={onRemove}
+          aria-label={'Remove ' + fileName(path)}
+          className="shrink-0 text-fg-muted hover:text-danger"
+        >
+          <X size={11} aria-hidden />
+        </button>
+      )}
+    </span>
   )
 }
 
