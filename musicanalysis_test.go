@@ -92,3 +92,36 @@ func TestMergeStyleWithAnalysisRefusals(t *testing.T) {
 		t.Fatal("a merge ran with no provider connected")
 	}
 }
+
+// TestParseAnalysis is #51's contract with agy: a JSON answer carries the
+// song's identity alongside the breakdown, and anything else — narration,
+// a fence, an empty style — degrades to a breakdown without identity rather
+// than an error. The producer pressed the button for the style; the metadata
+// is the bonus, never the gate.
+func TestParseAnalysis(t *testing.T) {
+	got := parseAnalysis("```json\n{\"title\": \"Night Drive\", \"artist\": \"Kavinsky\", " +
+		"\"album\": \"OutRun\", \"artworkUrl\": \"https://img.example/a.jpg\", " +
+		"\"style\": \"**Genre** — synthwave, 110 BPM\"}\n```")
+	if got.Title != "Night Drive" || got.Artist != "Kavinsky" ||
+		got.Album != "OutRun" || got.ArtworkURL != "https://img.example/a.jpg" {
+		t.Fatalf("the identity was lost: %+v", got)
+	}
+	if got.Style != "**Genre** — synthwave, 110 BPM" {
+		t.Fatalf("wrong style: %q", got.Style)
+	}
+
+	freeform := parseAnalysis("A dense synthwave cut, 110 BPM, analog pads.")
+	if freeform.Style != "A dense synthwave cut, 110 BPM, analog pads." {
+		t.Fatalf("a freeform answer should become the style: %+v", freeform)
+	}
+	if freeform.Title != "" {
+		t.Fatalf("a freeform answer invented a title: %+v", freeform)
+	}
+
+	// JSON with nothing in the style is agy misfiring, not an analysis — the
+	// raw answer at least shows the producer what came back.
+	empty := parseAnalysis("{\"title\": \"x\", \"style\": \"  \"}")
+	if empty.Style == "" {
+		t.Fatalf("an empty style slipped through: %+v", empty)
+	}
+}

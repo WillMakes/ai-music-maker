@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"regexp"
 	"strings"
@@ -46,16 +47,53 @@ func musicURLs(text string) []string {
 	return out
 }
 
-// analysisBrief is who agy is asked to be for this job.
+// analysisBrief is who agy is asked to be for this job. One structured call,
+// not a conversation — there is nobody to converse with, so the interview rule
+// does not apply and the metadata can ride along with the breakdown (#51).
 const analysisBrief = `You are a music analyst with web access, working for a
 producer who writes technical style prompts for AI music generation. Research
 the song at the URL you are given — a YouTube or YouTube Music link — and
-answer with its technical breakdown and nothing else: genre and era markers,
-instrumentation, production character, estimated tempo and feel, song
-structure, vocal treatment and effects, mix character, and what defines the
-sound. Dense, concrete and comma-led, ten to sixteen lines, the language a
-style prompt is written in. No preamble, no disclaimers; if the song cannot be
-found, say so in one line.`
+answer with one JSON object and nothing else, in exactly this shape:
+
+{"title": "the song's title", "artist": "who performs it", "album": "the release it appears on, or \"\"", "artworkUrl": "a direct https URL to its cover art image, or \"\"", "style": "the technical breakdown"}
+
+The style value is the complete breakdown, written in Markdown with a bold
+lead-in per aspect: genre and era markers, instrumentation, production
+character, estimated tempo and feel, song structure, vocal treatment and
+effects, mix character, and what defines the sound. Dense, concrete and
+comma-led, ten to sixteen lines, the language a style prompt is written in.
+No preamble, no disclaimers, nothing outside the JSON object; if the song
+cannot be found, say so in the style value and leave the other fields "".`
+
+// MusicAnalysis is what one research run brings home: the song's identity —
+// title, artist, album, cover — alongside the markdown style breakdown (#51).
+// The identity is what keeps a list of references legible: a row of bare
+// YouTube URLs says nothing a week later.
+type MusicAnalysis struct {
+	Title      string `json:"title"`
+	Artist     string `json:"artist"`
+	Album      string `json:"album"`
+	ArtworkURL string `json:"artworkUrl"`
+	Style      string `json:"style"`
+}
+
+// parseAnalysis reads agy's JSON answer. When it is not JSON, or the style
+// inside is empty, the whole answer becomes the style: an agentic model
+// occasionally narrates instead of complying, and losing the metadata is a
+// smaller failure than losing the breakdown it wrapped.
+func parseAnalysis(answer string) MusicAnalysis {
+	var out MusicAnalysis
+	if err := json.Unmarshal([]byte(unfence(answer)), &out); err != nil ||
+		strings.TrimSpace(out.Style) == "" {
+		return MusicAnalysis{Style: strings.TrimSpace(answer)}
+	}
+	out.Title = strings.TrimSpace(out.Title)
+	out.Artist = strings.TrimSpace(out.Artist)
+	out.Album = strings.TrimSpace(out.Album)
+	out.ArtworkURL = strings.TrimSpace(out.ArtworkURL)
+	out.Style = strings.TrimSpace(out.Style)
+	return out
+}
 
 // analysisURLCap bounds how many links one turn will research. Each is an
 // agentic CLI run measured in minutes; a message with five links is a playlist,
@@ -67,22 +105,22 @@ const analysisURLCap = 2
 // It requires Antigravity connected in account mode: the run bills whatever
 // the CLI is signed in as, and this app never starts billing a producer on a
 // connection they did not deliberately make.
-func (a *App) AnalyzeMusicURL(url string) (string, error) {
+func (a *App) AnalyzeMusicURL(url string) (MusicAnalysis, error) {
 	url = strings.TrimSpace(url)
 	if len(musicURLs(url)) == 0 {
-		return "", fmt.Errorf("that is not a YouTube or YouTube Music link")
+		return MusicAnalysis{}, fmt.Errorf("that is not a YouTube or YouTube Music link")
 	}
 	if a.aiConnections()[serviceAntigravity].Mode != modeAccount {
-		return "", fmt.Errorf(
+		return MusicAnalysis{}, fmt.Errorf(
 			"music analysis runs on Antigravity's signed-in CLI — connect it in Settings → AI")
 	}
 	answer, err := chatViaCLI(a.interviewContext(), serviceAntigravity,
 		a.aiServiceModel(serviceAntigravity), analysisBrief,
 		[]chatMsg{{Role: "user", Text: "Analyze this song: " + url}})
 	if err != nil {
-		return "", err
+		return MusicAnalysis{}, err
 	}
-	return answer, nil
+	return parseAnalysis(answer), nil
 }
 
 // MergeStyleWithAnalysis folds one song's breakdown into a base technical
@@ -144,14 +182,25 @@ func (a *App) researchForTurn(text string) string {
 	}
 	var b strings.Builder
 	for _, url := range urls {
-		breakdown, err := a.AnalyzeMusicURL(url)
+		analysis, err := a.AnalyzeMusicURL(url)
+		breakdown := analysis.Style
 		if err != nil {
 			breakdown = "The analysis could not run: " + err.Error()
+		}
+		// The song's name over its URL when research found one — the model
+		// reading this transcript writes prose, and prose quotes names.
+		label := url
+		if analysis.Title != "" {
+			label = analysis.Title
+			if analysis.Artist != "" {
+				label += " — " + analysis.Artist
+			}
+			label += " (" + url + ")"
 		}
 		if b.Len() > 0 {
 			b.WriteString("\n\n")
 		}
-		b.WriteString(url + "\n" + breakdown)
+		b.WriteString(label + "\n" + breakdown)
 	}
 	return b.String()
 }

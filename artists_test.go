@@ -147,3 +147,29 @@ func TestChangeScopesAreReported(t *testing.T) {
 		t.Error("saving an album reported no scope")
 	}
 }
+
+// TestInspirationCarriesTheSongsIdentity: the metadata analysis grabs (#51)
+// has to survive the save/read round trip, or the artist page forgets what
+// every reference is each time it reloads.
+func TestInspirationCarriesTheSongsIdentity(t *testing.T) {
+	app := newTestApp(t)
+	artist, err := app.SaveArtist(Artist{
+		Name: "Cassette Motel",
+		Inspirations: []Inspiration{{
+			URL:        "https://youtu.be/abc",
+			Title:      "Night Drive",
+			Artist:     "Kavinsky",
+			Album:      "OutRun",
+			ArtworkURL: "https://img.example/a.jpg",
+			Note:       "**Genre** — synthwave",
+		}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := artist.Inspirations[0]
+	if got.Artist != "Kavinsky" || got.Album != "OutRun" ||
+		got.ArtworkURL != "https://img.example/a.jpg" || got.Title != "Night Drive" {
+		t.Fatalf("the identity did not round-trip: %+v", got)
+	}
+}

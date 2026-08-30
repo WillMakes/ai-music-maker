@@ -46,9 +46,14 @@ type Inspiration struct {
 	ID    string `json:"id"`
 	URL   string `json:"url"`
 	Title string `json:"title"`
-	// Note is what this reference was chosen for — the part that survives. A
-	// list of bare URLs a year later says nothing about why any of them is
-	// there.
+	// The song's identity, captured when it is analyzed (#51). Display-only —
+	// the URL stays the reference — but a list of bare URLs a year later says
+	// nothing about what any of them is.
+	Artist     string `json:"artist"`
+	Album      string `json:"album"`
+	ArtworkURL string `json:"artworkUrl"`
+	// Note is what this reference contributes: the full markdown style
+	// breakdown once the song has been analyzed, or the producer's own line.
 	Note     string `json:"note"`
 	Position int    `json:"position"`
 }
@@ -172,7 +177,8 @@ func (s *Store) artist(id string) (Artist, error) {
 func (s *Store) inspirations(artistID string) ([]Inspiration, error) {
 	out := []Inspiration{}
 	rows, err := s.db.Query(
-		`SELECT id, url, title, note, position FROM artist_inspirations
+		`SELECT id, url, title, artist, album, artwork_url, note, position
+		 FROM artist_inspirations
 		 WHERE artist_id = ? ORDER BY position, at`, artistID)
 	if err != nil {
 		return out, err
@@ -180,7 +186,8 @@ func (s *Store) inspirations(artistID string) ([]Inspiration, error) {
 	defer rows.Close()
 	for rows.Next() {
 		var i Inspiration
-		if err := rows.Scan(&i.ID, &i.URL, &i.Title, &i.Note, &i.Position); err != nil {
+		if err := rows.Scan(&i.ID, &i.URL, &i.Title, &i.Artist, &i.Album,
+			&i.ArtworkURL, &i.Note, &i.Position); err != nil {
 			return out, err
 		}
 		out = append(out, i)
@@ -241,9 +248,12 @@ func (s *Store) saveArtist(artist Artist) (Artist, error) {
 			insp.ID = newID("insp")
 		}
 		if _, err := tx.Exec(
-			`INSERT INTO artist_inspirations (id, artist_id, url, title, note, position, at)
-			 VALUES (?, ?, ?, ?, ?, ?, ?)`,
+			`INSERT INTO artist_inspirations
+			 (id, artist_id, url, title, artist, album, artwork_url, note, position, at)
+			 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 			insp.ID, artist.ID, strings.TrimSpace(insp.URL), strings.TrimSpace(insp.Title),
+			strings.TrimSpace(insp.Artist), strings.TrimSpace(insp.Album),
+			strings.TrimSpace(insp.ArtworkURL),
 			strings.TrimSpace(insp.Note), n, now); err != nil {
 			return Artist{}, err
 		}

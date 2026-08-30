@@ -180,13 +180,16 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_artists_slug ON artists(slug);
 -- each one is the part that survives — a bare list of URLs a year later says
 -- nothing about why any of them is there.
 CREATE TABLE IF NOT EXISTS artist_inspirations (
-	id        TEXT PRIMARY KEY,
-	artist_id TEXT NOT NULL,
-	url       TEXT NOT NULL DEFAULT '',
-	title     TEXT NOT NULL DEFAULT '',
-	note      TEXT NOT NULL DEFAULT '',
-	position  INTEGER NOT NULL DEFAULT 0,
-	at        TEXT NOT NULL DEFAULT ''
+	id          TEXT PRIMARY KEY,
+	artist_id   TEXT NOT NULL,
+	url         TEXT NOT NULL DEFAULT '',
+	title       TEXT NOT NULL DEFAULT '',
+	artist      TEXT NOT NULL DEFAULT '',
+	album       TEXT NOT NULL DEFAULT '',
+	artwork_url TEXT NOT NULL DEFAULT '',
+	note        TEXT NOT NULL DEFAULT '',
+	position    INTEGER NOT NULL DEFAULT 0,
+	at          TEXT NOT NULL DEFAULT ''
 );
 CREATE INDEX IF NOT EXISTS idx_inspirations_artist
 	ON artist_inspirations(artist_id, position);
@@ -345,6 +348,10 @@ func (s *Store) addColumns() error {
 		// bugattachments.go).
 		{"bug_reports", "attachments", "TEXT NOT NULL DEFAULT ''"},
 		{"resolved_reports", "jax_note", "TEXT NOT NULL DEFAULT ''"},
+		// The song's identity on a reference, grabbed at analysis time (#51).
+		{"artist_inspirations", "artist", "TEXT NOT NULL DEFAULT ''"},
+		{"artist_inspirations", "album", "TEXT NOT NULL DEFAULT ''"},
+		{"artist_inspirations", "artwork_url", "TEXT NOT NULL DEFAULT ''"},
 	}
 	for _, c := range columns {
 		_, err := s.db.Exec(fmt.Sprintf("ALTER TABLE %s ADD COLUMN %s %s",
