@@ -4,6 +4,7 @@ import {
   ChooseTrackFile,
   DeleteTrack,
   GetTrack,
+  ImportDroppedTrackFile,
   ImportTrackFile,
   RemoveTrackFile,
   RevealTrackFile,
@@ -13,6 +14,7 @@ import {main} from '../../wailsjs/go/models'
 import {StatusPill} from '../components/StatusPill'
 import {TabStrip} from '../components/TabStrip'
 import {useDataChanged} from '../lib/dataChanged'
+import {isAudioPath, readAsDataURL} from '../lib/files'
 import {duration, fileSize, parseDuration} from '../lib/format'
 import {toMessage} from '../lib/errors'
 import {usePlayer} from '../player/PlayerProvider'
@@ -428,6 +430,9 @@ function Takes({
   onError: (message: string) => void
 }) {
   const files = track.files ?? []
+  // Whether a drag is hovering the panel (#57) — the ring is the "drop it
+  // here" answer to the file being carried over the window.
+  const [dragging, setDragging] = useState(false)
   const act = async (work: Promise<main.Track>) => {
     try {
       onChanged(await work)
@@ -437,8 +442,36 @@ function Takes({
     }
   }
 
+  // Dropped files arrive as bytes, not paths — the webview keeps the disk
+  // location to itself — so each rides the bridge as a data URL and the
+  // backend files it exactly as if it had been picked (#57). Sequential, so
+  // two takes dropped together get distinct numbered names.
+  const importDropped = async (dropped: FileList) => {
+    for (const file of Array.from(dropped)) {
+      if (!isAudioPath(file.name) && !file.type.startsWith('audio/')) {
+        onError(file.name + ' is not an audio file this app knows')
+        continue
+      }
+      await act(
+        ImportDroppedTrackFile(track.id, file.name, await readAsDataURL(file), ''),
+      )
+    }
+  }
+
   return (
-    <section className="sm-panel space-y-3 p-4">
+    <section
+      className={'sm-panel space-y-3 p-4' + (dragging ? ' ring-2 ring-accent' : '')}
+      onDragOver={(event) => {
+        event.preventDefault()
+        setDragging(true)
+      }}
+      onDragLeave={() => setDragging(false)}
+      onDrop={(event) => {
+        event.preventDefault()
+        setDragging(false)
+        if (event.dataTransfer.files.length) void importDropped(event.dataTransfer.files)
+      }}
+    >
       <div className="flex items-center gap-3">
         <h2 className="flex-1 text-sm font-semibold">Takes</h2>
         <button
@@ -457,7 +490,8 @@ function Takes({
 
       {files.length === 0 ? (
         <p className="text-sm text-fg-muted">
-          Nothing imported yet. Files are copied into your music folder under{' '}
+          Nothing imported yet — drop the file here, or import it above. Files are
+          copied into your music folder under{' '}
           <span className="font-mono text-xs">SunoMaker/Artist/Album</span>, so a music
           player finds them.
         </p>
