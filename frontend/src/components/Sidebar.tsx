@@ -115,9 +115,15 @@ export function Sidebar({
             )}
 
             {filtered.map((artist) => {
+              // Matched by the album ids as well as the route's artistId: an
+              // album route restored from an old build or opened off a bug
+              // report may not carry the artist, and the branch collapsing on
+              // the very album it shows is the bug (#41).
               const artistOpen =
-                current.artistId === artist.id &&
-                (current.view === 'artist-details' || current.view === 'album-details')
+                (current.artistId === artist.id &&
+                  (current.view === 'artist-details' || current.view === 'album-details')) ||
+                (current.view === 'album-details' &&
+                  artist.albums.some((album) => album.id === current.albumId))
               return (
                 <div key={artist.id} className="mb-0.5 flex flex-col gap-px">
                   <TreeRow
@@ -141,7 +147,9 @@ export function Sidebar({
                         active={
                           current.view === 'album-details' && current.albumId === album.id
                         }
-                        onClick={() => onGo({view: 'album-details', albumId: album.id})}
+                        onClick={() =>
+                          onGo({view: 'album-details', albumId: album.id, artistId: artist.id})
+                        }
                       />
                     ))}
                 </div>
