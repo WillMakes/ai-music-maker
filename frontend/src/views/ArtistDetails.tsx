@@ -59,6 +59,10 @@ export function ArtistDetails({
   const [error, setError] = useState('')
   const [interviewing, setInterviewing] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
+  // The typed-back name that arms the Delete button (#53). Deleting an artist
+  // takes their whole discography with them, so the confirmation costs the
+  // same deliberate act everywhere else reserves for irreversible things.
+  const [confirmName, setConfirmName] = useState('')
   // The base-style refinement chat (#30), for an artist that already exists.
   const [refining, setRefining] = useState(false)
   // Importing a record that already exists (#36).
@@ -177,7 +181,10 @@ export function ArtistDetails({
             <button
               className="sm-button sm-button-danger"
               type="button"
-              onClick={() => setConfirmDelete(true)}
+              onClick={() => {
+                setConfirmName('')
+                setConfirmDelete(true)
+              }}
             >
               <Trash2 size={15} />
               Delete
@@ -191,12 +198,41 @@ export function ArtistDetails({
       {confirmDelete && (
         <div className="sm-panel space-y-3 border-danger p-4">
           <p className="text-sm">
-            Delete <strong>{artist.name}</strong>, their {albums.length} album
-            {albums.length === 1 ? '' : 's'} and every track under them? The audio
-            files stay in your music folder.
+            Are you sure? Deleting <strong>{artist.name}</strong> also deletes every
+            record under them and every track on those records. The audio files stay
+            in your music folder.
           </p>
+          {/* What would actually go (#53): the discography by name, not a
+              count — a number is easy to wave through, a list of records
+              somebody spent evenings on is not. */}
+          {albums.length === 0 ? (
+            <p className="text-sm text-fg-muted">They have no albums — only the artist itself goes.</p>
+          ) : (
+            <ul className="space-y-1">
+              {albums.map((album) => (
+                <li key={album.id} className="flex items-center gap-2 text-sm">
+                  <Disc3 size={14} className="shrink-0 text-fg-muted" aria-hidden />
+                  <span className="truncate font-medium">{album.name}</span>
+                  <span className="shrink-0 text-xs text-fg-muted">
+                    {album.trackCount} track{album.trackCount === 1 ? '' : 's'}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
+          <TextField
+            label="Type the artist's name to confirm"
+            placeholder={artist.name}
+            value={confirmName}
+            onChange={setConfirmName}
+          />
           <div className="flex gap-2">
-            <button className="sm-button sm-button-danger" type="button" onClick={remove}>
+            <button
+              className="sm-button sm-button-danger"
+              type="button"
+              disabled={confirmName.trim() !== artist.name.trim()}
+              onClick={remove}
+            >
               Delete the artist
             </button>
             <button
