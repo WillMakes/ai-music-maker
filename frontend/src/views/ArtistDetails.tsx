@@ -1,4 +1,4 @@
-import {useCallback, useEffect, useState} from 'react'
+import {useCallback, useEffect, useRef, useState} from 'react'
 import {AudioLines, Disc3, ExternalLink, FolderInput, Loader2, Music4, Play, Plus, Sparkles, Trash2, Wand2} from 'lucide-react'
 import {
   AnalyzeMusicURL,
@@ -33,10 +33,11 @@ import {usePlayer} from '../player/PlayerProvider'
  * One artist: who they are, what they sound like, what they were listening to,
  * and their records.
  *
- * The fields are edited in place and saved explicitly rather than on every
- * keystroke. A base technical style is a paragraph somebody works on for several
- * minutes, and autosaving it would write forty half-finished versions and
- * re-render the page under them each time.
+ * The fields save themselves (#52): edits land in a local draft on every
+ * keystroke and a debounce writes the draft down once typing pauses, so
+ * nothing is lost to a forgotten Save button. The draft still exists — it is
+ * what keeps a background reload from re-rendering under the cursor — but it
+ * is a buffer now, not a decision.
  */
 export function ArtistDetails({
   artistId,
@@ -50,7 +51,11 @@ export function ArtistDetails({
   const [artist, setArtist] = useState<main.Artist | null>(null)
   const [albums, setAlbums] = useState<main.Album[]>([])
   const [draft, setDraft] = useState<main.Artist | null>(null)
-  const [saving, setSaving] = useState(false)
+  const [saveState, setSaveState] = useState<'idle' | 'saving' | 'saved'>('idle')
+  // Only a draft the producer has touched is auto-saved. Without this gate, a
+  // background write (MCP, the bridge) that reloads `artist` would make the
+  // untouched draft look dirty, and the debounce would quietly revert it.
+  const editedRef = useRef(false)
   const [error, setError] = useState('')
   const [interviewing, setInterviewing] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
@@ -76,23 +81,45 @@ export function ArtistDetails({
   useEffect(reload, [reload])
   useDataChanged(['artists', 'albums'], reload)
 
-  const update = (patch: Partial<main.Artist>) =>
+  const update = (patch: Partial<main.Artist>) => {
+    editedRef.current = true
     setDraft((current) => (current ? main.Artist.createFrom({...current, ...patch}) : current))
-
-  const save = async () => {
-    if (!draft) return
-    setSaving(true)
-    setError('')
-    try {
-      const saved = await SaveArtist(draft)
-      setArtist(saved)
-      setDraft(main.Artist.createFrom(saved))
-    } catch (err) {
-      setError(toMessage(err))
-    } finally {
-      setSaving(false)
-    }
   }
+
+  // The auto-save itself (#52): a debounce off the draft, so one write per
+  // pause in typing rather than forty half-finished versions. The stored
+  // record is adopted back into the draft only when nothing changed while the
+  // save was in flight — the store assigns ids and trims, and skipping the
+  // adoption when the producer kept typing lets the next debounce converge
+  // instead of clobbering their keystrokes.
+  useEffect(() => {
+    if (!draft || !editedRef.current) return
+    // An empty name would just be refused — wait for the field to be typed
+    // back in rather than flashing an error per deleted character.
+    if (!draft.name.trim()) return
+    const sent = JSON.stringify(draft)
+    const timer = setTimeout(async () => {
+      setSaveState('saving')
+      try {
+        const saved = await SaveArtist(draft)
+        setArtist(saved)
+        setDraft((current) =>
+          current && JSON.stringify(current) === sent
+            ? main.Artist.createFrom(saved)
+            : current,
+        )
+        // A keystroke during the flight re-armed the debounce before this
+        // line runs, so clearing the flag cannot lose an edit.
+        editedRef.current = false
+        setSaveState('saved')
+        setError('')
+      } catch (err) {
+        setSaveState('idle')
+        setError(toMessage(err))
+      }
+    }, 800)
+    return () => clearTimeout(timer)
+  }, [draft])
 
   const remove = async () => {
     try {
@@ -106,8 +133,6 @@ export function ArtistDetails({
   if (!artist || !draft) {
     return <p className="text-sm text-fg-muted">{error || 'Loading…'}</p>
   }
-
-  const dirty = JSON.stringify(draft) !== JSON.stringify(artist)
 
   return (
     <div className="space-y-5">
@@ -141,6 +166,14 @@ export function ArtistDetails({
                 ok
               />
             </div>
+            {/* No Save button (#52) — just the word for what the debounce
+                is doing, so a producer who closes the window right after
+                typing knows whether it landed. */}
+            {saveState !== 'idle' && (
+              <span className="text-xs text-fg-muted" role="status">
+                {saveState === 'saving' ? 'Saving…' : 'Saved'}
+              </span>
+            )}
             <button
               className="sm-button sm-button-danger"
               type="button"
@@ -148,14 +181,6 @@ export function ArtistDetails({
             >
               <Trash2 size={15} />
               Delete
-            </button>
-            <button
-              className="sm-button sm-button-primary"
-              type="button"
-              onClick={save}
-              disabled={!dirty || saving}
-            >
-              {saving ? 'Saving…' : dirty ? 'Save changes' : 'Saved'}
             </button>
           </>
         }
@@ -282,9 +307,8 @@ export function ArtistDetails({
         inspirations={draft.inspirations ?? []}
         onChange={(inspirations) => update({inspirations})}
         // Adding a reference updates the style (#31): the analysis that just
-        // filled the note is folded into the base style *draft*, and the
-        // producer saves when it reads right — the AI writes, it does not
-        // take the pen.
+        // filled the note is folded into the base style draft, and the
+        // auto-save writes it down like any other edit (#52).
         onMergeStyle={async (analysis) => {
           const merged = await MergeStyleWithAnalysis(draft.baseStyle, analysis)
           update({baseStyle: merged})
@@ -305,8 +329,8 @@ export function ArtistDetails({
       {refining && (
         <StyleEditAssistant
           artistId={artist.id}
-          // Into the draft the producer is already editing: they read what the
-          // model wrote, adjust it, and press Save themselves.
+          // Into the draft the producer is already editing — read it, adjust
+          // it, and the auto-save takes it from there (#52).
           onApply={(baseStyle) => update({baseStyle})}
           onClose={() => setRefining(false)}
         />
@@ -587,10 +611,9 @@ function Inspirations({
     setAnalysisError('')
     try {
       const analysis = await AnalyzeMusicURL(inspirations[index].url)
-      // Into the draft, not the database: the producer reads it, trims it,
-      // and presses Save themselves. The style lands in the note, and the
-      // song's identity — title, artist, album, cover — rides along (#51),
-      // so the row says what it is instead of showing a bare URL.
+      // The style lands in the note, and the song's identity — title,
+      // artist, album, cover — rides along (#51), so the row says what it
+      // is instead of showing a bare URL. The auto-save writes it down.
       update(index, {
         note: analysis.style,
         title: analysis.title,
