@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/base64"
 	"fmt"
 	"io"
 	"os"
@@ -35,6 +36,53 @@ var audioExtensions = map[string]bool{
 // dragged in, or the wrong file picked — and copying it silently would fill a
 // disk answering a misclick.
 const maxTrackFileBytes = 512 << 20
+
+// ImportDroppedTrackFile stores a take that arrived as a browser drop (#57).
+//
+// A file dropped onto the window reaches the page as bytes and a name, not a
+// path — the webview does not reveal where it lives — so the bytes land in a
+// temporary file under the dropped file's own name and then take the same
+// road every picked file takes, ImportTrackFile: same validation, same
+// numbered copy into the album folder, same label-from-the-name default.
+func (a *App) ImportDroppedTrackFile(trackID, name, dataURL, label string) (Track, error) {
+	base := filepath.Base(strings.TrimSpace(name))
+	if base == "" || base == "." || base == ".." || base != strings.TrimSpace(name) {
+		return Track{}, fmt.Errorf("that is not a file name")
+	}
+	mime, encoded, err := splitDataURL(dataURL)
+	if err != nil {
+		return Track{}, err
+	}
+	if ext := strings.ToLower(filepath.Ext(base)); !audioExtensions[ext] {
+		// A name without a usable extension is rescued by the MIME the browser
+		// read off the file — a drop from a stream-ripper names files oddly.
+		mimeExt, known := interviewAttachmentKinds[mime]
+		if !known || !audioExtensions[mimeExt] {
+			return Track{}, fmt.Errorf("%s is not an audio file this app knows", base)
+		}
+		base += mimeExt
+	}
+	// Base64 is four characters per three bytes, so this bounds the decode
+	// without doing it.
+	if len(encoded)/4*3 > maxTrackFileBytes {
+		return Track{}, fmt.Errorf("%s is larger than this app will file (%d MB)",
+			base, maxTrackFileBytes>>20)
+	}
+	payload, err := base64.StdEncoding.DecodeString(encoded)
+	if err != nil || len(payload) == 0 {
+		return Track{}, fmt.Errorf("%s could not be read", base)
+	}
+	dir, err := os.MkdirTemp("", "sunomaker-drop-")
+	if err != nil {
+		return Track{}, fmt.Errorf("could not make somewhere to put the drop: %w", err)
+	}
+	defer os.RemoveAll(dir)
+	temp := filepath.Join(dir, base)
+	if err := os.WriteFile(temp, payload, 0o600); err != nil {
+		return Track{}, fmt.Errorf("could not write %s: %w", base, err)
+	}
+	return a.ImportTrackFile(trackID, temp, label)
+}
 
 // ImportTrackFile copies a finished file into the library and records it.
 //
