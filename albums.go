@@ -59,8 +59,8 @@ type Album struct {
 	// "inherited" pane (#40) — the producer sees what combinedStyle will put
 	// before this record's own style without leaving the page.
 	ArtistBaseStyle string `json:"artistBaseStyle"`
-	CreatedAt  string `json:"createdAt"`
-	UpdatedAt  string `json:"updatedAt"`
+	CreatedAt       string `json:"createdAt"`
+	UpdatedAt       string `json:"updatedAt"`
 }
 
 // combinedStyle is what a track prompt is actually written against: the
