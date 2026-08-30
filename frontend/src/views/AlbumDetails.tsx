@@ -1,5 +1,5 @@
 import {useCallback, useEffect, useState} from 'react'
-import {ImagePlus, ListMusic, Loader2, RefreshCw, Sparkles, Trash2, Wand2} from 'lucide-react'
+import {ImagePlus, ListMusic, Loader2, Play, RefreshCw, Sparkles, Trash2, Wand2} from 'lucide-react'
 import {TrackEditor} from './TrackDetails'
 import {
   ClearChat,
@@ -29,6 +29,7 @@ import {useDataChanged} from '../lib/dataChanged'
 import {duration} from '../lib/format'
 import {toMessage} from '../lib/errors'
 import {attachmentPathsByName} from '../lib/files'
+import {usePlayer} from '../player/PlayerProvider'
 
 /**
  * One album: its cover, what is different about this record, its tracks, and the
@@ -74,6 +75,7 @@ export function AlbumDetails({
   // Evolving runs for as long as a big generation call does, so it gets its
   // own busy state like the artwork's (#42).
   const [evolving, setEvolving] = useState(false)
+  const player = usePlayer()
 
   const reload = useCallback(() => {
     Promise.all([GetAlbum(albumId), ListTracks(albumId)])
@@ -165,6 +167,14 @@ export function AlbumDetails({
         subtitle={tracks.length === 1 ? '1 track' : tracks.length + ' tracks'}
         actions={
           <>
+            <button
+              className="sm-button sm-button-quiet"
+              type="button"
+              onClick={() => void player.play('album', albumId)}
+            >
+              <Play size={15} />
+              Play
+            </button>
             <button
               className="sm-button sm-button-danger"
               type="button"
@@ -475,8 +485,25 @@ export function AlbumDetails({
                       type="button"
                       onClick={() => setSelectedId(track.id)}
                     >
-                      <span className="w-5 shrink-0 text-xs tabular-nums text-fg-muted">
-                        {track.position}
+                      <span
+                        className="group/pos flex w-5 shrink-0 items-center justify-center text-xs tabular-nums text-fg-muted"
+                        onClick={(e) => {
+                          if (!track.files?.length) return
+                          e.stopPropagation()
+                          void player.play('track', track.id)
+                        }}
+                      >
+                        {track.files?.length ? (
+                          <>
+                            <span className="group-hover/pos:hidden">{track.position}</span>
+                            <Play
+                              size={13}
+                              className="hidden text-accent group-hover/pos:block"
+                            />
+                          </>
+                        ) : (
+                          track.position
+                        )}
                       </span>
                       <span className="min-w-0 flex-1">
                         <span className="block truncate text-sm font-medium">{track.name}</span>

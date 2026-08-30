@@ -97,6 +97,7 @@ func (a *App) superviseExtensionBridge(ctx context.Context) {
 	mux.HandleFunc("/track/", a.bridgeTrack)
 	mux.HandleFunc("/open", a.bridgeOpen)
 	mux.HandleFunc("/artwork/", a.bridgeArtwork)
+	mux.HandleFunc("/audio/", a.bridgeAudio)
 	mux.HandleFunc("/changed", a.bridgeChanged)
 
 	srv := &http.Server{

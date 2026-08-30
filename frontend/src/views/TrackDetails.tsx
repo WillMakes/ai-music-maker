@@ -1,5 +1,5 @@
 import {useCallback, useEffect, useState} from 'react'
-import {Check, Copy, FolderOpen, Pencil, Plus, Trash2} from 'lucide-react'
+import {Check, Copy, FolderOpen, Pencil, Play, Plus, Trash2} from 'lucide-react'
 import {
   ChooseTrackFile,
   DeleteTrack,
@@ -14,6 +14,7 @@ import {StatusPill} from '../components/StatusPill'
 import {useDataChanged} from '../lib/dataChanged'
 import {duration, fileSize, parseDuration} from '../lib/format'
 import {toMessage} from '../lib/errors'
+import {usePlayer} from '../player/PlayerProvider'
 
 /**
  * One track, edited in place beside the album's track list (#40).
@@ -193,6 +194,7 @@ function TitleCard({
   onSave: (name: string, lengthText: string) => void
   onDelete: () => void
 }) {
+  const player = usePlayer()
   const [name, setName] = useState(track.name)
   const [lengthText, setLengthText] = useState(duration(track.targetSeconds))
   useEffect(() => {
@@ -229,6 +231,17 @@ function TitleCard({
         </>
       ) : (
         <>
+          {(track.files?.length ?? 0) > 0 && (
+            <button
+              className="sm-button sm-button-quiet px-2"
+              type="button"
+              title="Play this track"
+              aria-label="Play this track"
+              onClick={() => void player.play('track', track.id)}
+            >
+              <Play size={15} />
+            </button>
+          )}
           <span className="flex min-w-0 flex-1 items-baseline gap-3">
             <span className="truncate text-base font-semibold">{track.name}</span>
             <span className="shrink-0 text-xs tabular-nums text-fg-muted">

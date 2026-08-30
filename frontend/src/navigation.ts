@@ -24,6 +24,8 @@ export type ViewId =
   | 'artist-new'
   | 'artist-details'
   | 'album-details'
+  | 'queue'
+  | 'now-playing'
   | 'skills'
   | 'skill-details'
   | 'settings-ai'
@@ -40,6 +42,8 @@ export const ROUTE_TITLES: Record<ViewId, string> = {
   'artist-new': 'Create an artist',
   'artist-details': 'Artist',
   'album-details': 'Album',
+  queue: 'Queue',
+  'now-playing': 'Now Playing',
   skills: 'Skills',
   'skill-details': 'Skill',
   'settings-ai': 'Settings — AI',
@@ -63,6 +67,10 @@ export const SECTION_OF: Record<ViewId, ViewId> = {
   'artist-new': 'artists',
   'artist-details': 'artists',
   'album-details': 'artists',
+  // The player's pages belong to no rail section; Home is the least wrong
+  // thing to keep lit while one is open.
+  queue: 'dashboard',
+  'now-playing': 'dashboard',
   skills: 'skills',
   'skill-details': 'skills',
   'settings-ai': 'settings-ai',

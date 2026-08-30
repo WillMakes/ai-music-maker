@@ -1,5 +1,5 @@
 import {useCallback, useEffect, useState} from 'react'
-import {AudioLines, Disc3, ExternalLink, FolderInput, Loader2, Music4, Plus, Sparkles, Trash2, Wand2} from 'lucide-react'
+import {AudioLines, Disc3, ExternalLink, FolderInput, Loader2, Music4, Play, Plus, Sparkles, Trash2, Wand2} from 'lucide-react'
 import {
   AnalyzeMusicURL,
   ClearChat,
@@ -27,6 +27,7 @@ import {Modal} from '../components/Modal'
 import {useDataChanged} from '../lib/dataChanged'
 import {toMessage} from '../lib/errors'
 import {attachmentPathsByName, isAudioPath} from '../lib/files'
+import {usePlayer} from '../player/PlayerProvider'
 
 /**
  * One artist: who they are, what they sound like, what they were listening to,
@@ -57,6 +58,7 @@ export function ArtistDetails({
   const [refining, setRefining] = useState(false)
   // Importing a record that already exists (#36).
   const [importing, setImporting] = useState(false)
+  const player = usePlayer()
 
   const reload = useCallback(() => {
     Promise.all([GetArtist(artistId), ListAlbums(artistId)])
@@ -116,6 +118,14 @@ export function ArtistDetails({
         icon={<Music4 size={26} />}
         actions={
           <>
+            <button
+              className="sm-button sm-button-quiet"
+              type="button"
+              onClick={() => void player.play('artist', artistId)}
+            >
+              <Play size={15} />
+              Play
+            </button>
             {/* The discography's numbers at a glance (#43): albums, tracks,
                 and how many are actually made - a take imported, not just
                 written down. */}
