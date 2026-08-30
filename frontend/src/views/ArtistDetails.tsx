@@ -213,15 +213,19 @@ export function ArtistDetails({
               </span>
             )}
             <button
-              className="sm-button sm-button-danger"
+              // Icon-only (#63): in the hero the word restated what the
+              // trash can and the danger colour already say, and the real
+              // decision happens in the typed-name confirmation (#53) anyway.
+              className="sm-button sm-button-danger px-2"
               type="button"
+              title="Delete this artist"
+              aria-label="Delete this artist"
               onClick={() => {
                 setConfirmName('')
                 setConfirmDelete(true)
               }}
             >
               <Trash2 size={15} />
-              Delete
             </button>
           </>
         }
