@@ -586,15 +586,23 @@ function Inspirations({
     setAnalyzing(index)
     setAnalysisError('')
     try {
-      const breakdown = await AnalyzeMusicURL(inspirations[index].url)
-      // Into the note field of the draft, not the database: the producer reads
-      // it, trims it, and presses Save themselves.
-      update(index, {note: breakdown})
+      const analysis = await AnalyzeMusicURL(inspirations[index].url)
+      // Into the draft, not the database: the producer reads it, trims it,
+      // and presses Save themselves. The style lands in the note, and the
+      // song's identity — title, artist, album, cover — rides along (#51),
+      // so the row says what it is instead of showing a bare URL.
+      update(index, {
+        note: analysis.style,
+        title: analysis.title,
+        artist: analysis.artist,
+        album: analysis.album,
+        artworkUrl: analysis.artworkUrl,
+      })
       // And into the base style beside it (#31) — the reference was added to
       // change how the artist sounds, and the merge is where that lands. Its
       // failure keeps the note: an analysis without a merge is still worth
       // having, and the error says why the style did not move.
-      await onMergeStyle(breakdown)
+      await onMergeStyle(analysis.style)
     } catch (err) {
       setAnalysisError(toMessage(err))
     } finally {
@@ -623,6 +631,9 @@ function Inspirations({
                 id: '',
                 url: '',
                 title: '',
+                artist: '',
+                album: '',
+                artworkUrl: '',
                 note: '',
                 position: inspirations.length,
               }),
@@ -638,29 +649,41 @@ function Inspirations({
 
       {inspirations.length === 0 ? (
         <p className="text-sm text-fg-muted">
-          YouTube or YouTube Music links — specific tracks rather than artists. The note
-          against each is the part that survives; the waveform button fills it with
-          Antigravity&apos;s technical breakdown and folds the song&apos;s traits into
-          the base style above.
+          YouTube or YouTube Music links — specific tracks rather than artists. The
+          waveform button researches the song: it grabs what the track is — title,
+          artist, album, cover — writes the style breakdown against it, and folds the
+          song&apos;s traits into the base style above.
         </p>
       ) : (
         <ul className="space-y-3">
           {inspirations.map((row, index) => (
-            <li key={row.id || index} className="grid gap-2 md:grid-cols-[1fr_1fr_auto]">
-              <TextField
-                label="Link"
-                type="url"
-                value={row.url}
-                placeholder="https://music.youtube.com/watch?v=…"
-                onChange={(url) => update(index, {url})}
-              />
-              <TextField
-                label="What it is here for"
-                value={row.note}
-                placeholder="The drum sound only"
-                onChange={(note) => update(index, {note})}
-              />
-              <div className="flex items-end gap-1 pb-1">
+            <li key={row.id || index} className="space-y-2 rounded-lg border border-edge p-3">
+              {/* What the song is, above how it sounds (#51): the identity the
+                  analysis grabbed, or an invitation to run one. The URL stays
+                  the reference — this is the label a human reads. */}
+              <div className="flex items-center gap-3">
+                {row.artworkUrl && (
+                  <img
+                    src={row.artworkUrl}
+                    alt=""
+                    className="h-12 w-12 shrink-0 rounded-md border border-edge object-cover"
+                  />
+                )}
+                <div className="min-w-0 flex-1">
+                  {row.title || row.artist ? (
+                    <>
+                      <p className="truncate text-sm font-medium">{row.title || row.url}</p>
+                      <p className="truncate text-xs text-fg-muted">
+                        {[row.artist, row.album].filter(Boolean).join(' — ')}
+                      </p>
+                    </>
+                  ) : (
+                    <p className="text-xs text-fg-muted">
+                      Not analyzed yet — the waveform button looks the song up.
+                    </p>
+                  )}
+                </div>
+                <div className="flex gap-1">
                 <button
                   className="sm-button sm-button-quiet px-2"
                   type="button"
@@ -694,7 +717,24 @@ function Inspirations({
                 >
                   <Trash2 size={15} />
                 </button>
+                </div>
               </div>
+              <TextField
+                label="Link"
+                type="url"
+                value={row.url}
+                placeholder="https://music.youtube.com/watch?v=…"
+                onChange={(url) => update(index, {url})}
+              />
+              {/* "Style", and markdown (#51): the analysis writes its whole
+                  breakdown here, and a breakdown is read rendered, not as one
+                  long unwrapped line in a text input. */}
+              <MarkdownField
+                label="Style"
+                placeholder="The drum sound only — or the full breakdown the analysis writes."
+                value={row.note}
+                onChange={(note) => update(index, {note})}
+              />
             </li>
           ))}
         </ul>
