@@ -650,6 +650,20 @@ function ImportAlbumDialog({
   )
 }
 
+/**
+ * The style's first breath as plain text (#58): markdown markers stripped and
+ * lines joined, because a card excerpt is a glance, not a document — the
+ * rendered form lives in the card's modal.
+ */
+const styleBrief = (note: string) =>
+  note
+    .replace(/^#+\s*/gm, '')
+    .replace(/[*_`>]/g, '')
+    .split('\n')
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .join(' · ')
+
 function Inspirations({
   inspirations,
   onChange,
@@ -665,6 +679,9 @@ function Inspirations({
   // agentic CLI, and a second press should wait its turn, not race the first.
   const [analyzing, setAnalyzing] = useState<number | null>(null)
   const [analysisError, setAnalysisError] = useState('')
+  // Which reference's modal is open (#58). The card is a summary; everything
+  // that edits the reference lives behind the click.
+  const [openIndex, setOpenIndex] = useState<number | null>(null)
 
   const analyze = async (index: number) => {
     if (analyzing !== null) return
@@ -708,7 +725,7 @@ function Inspirations({
         <button
           className="sm-button sm-button-quiet"
           type="button"
-          onClick={() =>
+          onClick={() => {
             onChange([
               ...inspirations,
               main.Inspiration.createFrom({
@@ -722,7 +739,10 @@ function Inspirations({
                 position: inspirations.length,
               }),
             ])
-          }
+            // Straight into the modal (#58) — a blank card with no link on it
+            // gives the click nothing to show.
+            setOpenIndex(inspirations.length)
+          }}
         >
           <Plus size={15} />
           Add a reference
@@ -739,13 +759,17 @@ function Inspirations({
           song&apos;s traits into the base style above.
         </p>
       ) : (
-        <ul className="space-y-3">
+        <ul className="grid gap-3 sm:grid-cols-2">
           {inspirations.map((row, index) => (
-            <li key={row.id || index} className="space-y-2 rounded-lg border border-edge p-3">
-              {/* What the song is, above how it sounds (#51): the identity the
-                  analysis grabbed, or an invitation to run one. The URL stays
-                  the reference — this is the label a human reads. */}
-              <div className="flex items-center gap-3">
+            <li key={row.id || index}>
+              {/* The card is the glance (#58): what the song is and the first
+                  breath of its style. The full breakdown, the link and every
+                  control live in the modal the click opens. */}
+              <button
+                className="flex h-full w-full items-start gap-3 rounded-lg border border-edge p-3 text-left hover:border-accent"
+                type="button"
+                onClick={() => setOpenIndex(index)}
+              >
                 {row.artworkUrl && (
                   <img
                     src={row.artworkUrl}
@@ -753,75 +777,115 @@ function Inspirations({
                     className="h-12 w-12 shrink-0 rounded-md border border-edge object-cover"
                   />
                 )}
-                <div className="min-w-0 flex-1">
-                  {row.title || row.artist ? (
-                    <>
-                      <p className="truncate text-sm font-medium">{row.title || row.url}</p>
-                      <p className="truncate text-xs text-fg-muted">
-                        {[row.artist, row.album].filter(Boolean).join(' — ')}
-                      </p>
-                    </>
-                  ) : (
-                    <p className="text-xs text-fg-muted">
-                      Not analyzed yet — the waveform button looks the song up.
-                    </p>
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate text-sm font-medium">
+                    {row.title || row.url || 'New reference'}
+                  </span>
+                  {(row.artist || row.album) && (
+                    <span className="block truncate text-xs text-fg-muted">
+                      {[row.artist, row.album].filter(Boolean).join(' — ')}
+                    </span>
                   )}
-                </div>
-                <div className="flex gap-1">
-                <button
-                  className="sm-button sm-button-quiet px-2"
-                  type="button"
-                  title="Break the song down with Antigravity"
-                  aria-label="Analyze this song"
-                  disabled={!row.url || analyzing !== null}
-                  onClick={() => void analyze(index)}
-                >
-                  {analyzing === index ? (
-                    <Loader2 size={15} className="animate-spin" />
-                  ) : (
-                    <AudioLines size={15} />
-                  )}
-                </button>
-                <button
-                  className="sm-button sm-button-quiet px-2"
-                  type="button"
-                  title="Open"
-                  aria-label="Open the link"
-                  disabled={!row.url}
-                  onClick={() => void OpenURL(row.url).catch(() => {})}
-                >
-                  <ExternalLink size={15} />
-                </button>
-                <button
-                  className="sm-button sm-button-quiet px-2"
-                  type="button"
-                  title="Remove"
-                  aria-label="Remove this reference"
-                  onClick={() => onChange(inspirations.filter((_, i) => i !== index))}
-                >
-                  <Trash2 size={15} />
-                </button>
-                </div>
-              </div>
-              <TextField
-                label="Link"
-                type="url"
-                value={row.url}
-                placeholder="https://music.youtube.com/watch?v=…"
-                onChange={(url) => update(index, {url})}
-              />
-              {/* "Style", and markdown (#51): the analysis writes its whole
-                  breakdown here, and a breakdown is read rendered, not as one
-                  long unwrapped line in a text input. */}
-              <MarkdownField
-                label="Style"
-                placeholder="The drum sound only — or the full breakdown the analysis writes."
-                value={row.note}
-                onChange={(note) => update(index, {note})}
-              />
+                  <span className="mt-1 line-clamp-2 block text-xs text-fg-muted">
+                    {styleBrief(row.note) ||
+                      'No style yet — open the card to write or analyze it.'}
+                  </span>
+                </span>
+                {analyzing === index && (
+                  <Loader2 size={15} className="mt-0.5 shrink-0 animate-spin" aria-hidden />
+                )}
+              </button>
             </li>
           ))}
         </ul>
+      )}
+
+      {openIndex !== null && inspirations[openIndex] && (
+        <Modal
+          title={inspirations[openIndex].title || 'Reference'}
+          onClose={() => setOpenIndex(null)}
+          wide
+          footer={
+            <>
+              <button
+                className="sm-button sm-button-quiet"
+                type="button"
+                onClick={() => {
+                  onChange(inspirations.filter((_, i) => i !== openIndex))
+                  setOpenIndex(null)
+                }}
+              >
+                <Trash2 size={15} />
+                Remove
+              </button>
+              <button
+                className="sm-button sm-button-quiet"
+                type="button"
+                disabled={!inspirations[openIndex].url}
+                onClick={() => void OpenURL(inspirations[openIndex].url).catch(() => {})}
+              >
+                <ExternalLink size={15} />
+                Open the link
+              </button>
+              <button
+                className="sm-button sm-button-primary"
+                type="button"
+                disabled={!inspirations[openIndex].url || analyzing !== null}
+                onClick={() => void analyze(openIndex)}
+              >
+                {analyzing === openIndex ? (
+                  <Loader2 size={15} className="animate-spin" />
+                ) : (
+                  <AudioLines size={15} />
+                )}
+                {analyzing === openIndex ? 'Analyzing…' : 'Analyze'}
+              </button>
+            </>
+          }
+        >
+          <div className="space-y-4">
+            {(inspirations[openIndex].artworkUrl ||
+              inspirations[openIndex].artist ||
+              inspirations[openIndex].album) && (
+              <div className="flex items-center gap-3">
+                {inspirations[openIndex].artworkUrl && (
+                  <img
+                    src={inspirations[openIndex].artworkUrl}
+                    alt=""
+                    className="h-16 w-16 shrink-0 rounded-md border border-edge object-cover"
+                  />
+                )}
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-medium">
+                    {inspirations[openIndex].title || inspirations[openIndex].url}
+                  </p>
+                  <p className="truncate text-xs text-fg-muted">
+                    {[inspirations[openIndex].artist, inspirations[openIndex].album]
+                      .filter(Boolean)
+                      .join(' — ')}
+                  </p>
+                </div>
+              </div>
+            )}
+            {analysisError && <p className="text-sm text-danger">{analysisError}</p>}
+            <TextField
+              label="Link"
+              type="url"
+              value={inspirations[openIndex].url}
+              placeholder="https://music.youtube.com/watch?v=…"
+              onChange={(url) => update(openIndex, {url})}
+            />
+            {/* "Style", and markdown (#51): the analysis writes its whole
+                breakdown here, and a breakdown is read rendered, not as one
+                long unwrapped line in a text input. */}
+            <MarkdownField
+              label="Style"
+              placeholder="The drum sound only — or the full breakdown the analysis writes."
+              value={inspirations[openIndex].note}
+              onChange={(note) => update(openIndex, {note})}
+            />
+          </div>
+        </Modal>
       )}
     </section>
   )
