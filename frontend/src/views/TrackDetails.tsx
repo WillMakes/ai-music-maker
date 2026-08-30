@@ -11,6 +11,7 @@ import {
 } from '../../wailsjs/go/main/App'
 import {main} from '../../wailsjs/go/models'
 import {StatusPill} from '../components/StatusPill'
+import {TabStrip} from '../components/TabStrip'
 import {useDataChanged} from '../lib/dataChanged'
 import {duration, fileSize, parseDuration} from '../lib/format'
 import {toMessage} from '../lib/errors'
@@ -36,6 +37,8 @@ export function TrackEditor({
 }) {
   const [track, setTrack] = useState<main.Track | null>(null)
   const [editing, setEditing] = useState<FieldId | null>(null)
+  // Which of the two Suno fields is showing (#49); the style prompt first.
+  const [fieldTab, setFieldTab] = useState<'prompt' | 'lyrics'>('prompt')
   const [flashed, setFlashed] = useState<FieldId | null>(null)
   const [error, setError] = useState('')
   const [confirmDelete, setConfirmDelete] = useState(false)
@@ -53,6 +56,7 @@ export function TrackEditor({
     // A different track is a fresh pane: whatever edit was open belonged to
     // the previous one.
     setEditing(null)
+    setFieldTab('prompt')
     setFlashed(null)
     setConfirmDelete(false)
     reload()
@@ -123,6 +127,19 @@ export function TrackEditor({
         </div>
       )}
 
+      {/* The two Suno fields behind tabs (#49), the style prompt first —
+          it is the field written before anything exists to sing. Hidden
+          rather than unmounted, so an edit in progress survives a peek at
+          the other tab instead of silently losing its draft. */}
+      <TabStrip
+        tabs={[
+          {id: 'prompt', label: 'Style prompt'},
+          {id: 'lyrics', label: 'Lyrics'},
+        ]}
+        current={fieldTab}
+        onSelect={setFieldTab}
+      />
+      <div className={fieldTab === 'prompt' ? '' : 'hidden'}>
       <TextCard
         field="prompt"
         label="Style prompt"
@@ -137,7 +154,9 @@ export function TrackEditor({
         onCancel={() => setEditing(null)}
         onSave={(prompt) => save({prompt}, 'prompt')}
       />
+      </div>
 
+      <div className={fieldTab === 'lyrics' ? '' : 'hidden'}>
       <TextCard
         field="lyrics"
         label="Lyrics"
@@ -153,6 +172,7 @@ export function TrackEditor({
         onCancel={() => setEditing(null)}
         onSave={(lyrics) => save({lyrics}, 'lyrics')}
       />
+      </div>
 
       <TextCard
         field="notes"
