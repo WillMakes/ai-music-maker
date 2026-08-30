@@ -9,7 +9,6 @@ import {GetSetting, SetSetting} from '../../wailsjs/go/main/App'
  */
 export const SETTING_KEYS = {
   theme: 'theme',
-  navCollapsed: 'nav_collapsed',
   lastRoute: 'last_route',
   musicRoot: 'music_root',
   defaultTrackLength: 'default_track_length',
