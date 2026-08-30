@@ -12,6 +12,7 @@ export function PageHeader({
   actions,
   breadcrumb,
   icon,
+  backdrop,
 }: {
   title: string
   subtitle?: ReactNode
@@ -20,23 +21,40 @@ export function PageHeader({
   breadcrumb?: ReactNode
   /** A leading tile for pages about one thing with a face (#43). */
   icon?: ReactNode
+  /**
+   * A decorative layer behind the header (#56) — the artist page's artwork
+   * collage. The layer must keep itself faint enough to read over (see the
+   * caller's opacity note); the header only positions and clips it.
+   */
+  backdrop?: ReactNode
 }) {
   return (
-    <header className="flex flex-wrap items-start gap-4">
-      {icon && (
-        <span
-          className="flex h-14 w-14 shrink-0 items-center justify-center rounded-lg bg-tile text-fg-muted"
-          aria-hidden="true"
-        >
-          {icon}
-        </span>
+    <header
+      className={
+        'relative' + (backdrop ? ' overflow-hidden rounded-xl border border-edge p-4' : '')
+      }
+    >
+      {backdrop && (
+        <div className="absolute inset-0" aria-hidden="true">
+          {backdrop}
+        </div>
       )}
-      <div className="min-w-0 flex-1">
-        {breadcrumb && <div className="mb-1 text-xs text-fg-muted">{breadcrumb}</div>}
-        <h1 className="truncate text-xl font-semibold">{title}</h1>
-        {subtitle && <div className="mt-1 text-sm text-fg-muted">{subtitle}</div>}
+      <div className="relative flex flex-wrap items-start gap-4">
+        {icon && (
+          <span
+            className="flex h-14 w-14 shrink-0 items-center justify-center rounded-lg bg-tile text-fg-muted"
+            aria-hidden="true"
+          >
+            {icon}
+          </span>
+        )}
+        <div className="min-w-0 flex-1">
+          {breadcrumb && <div className="mb-1 text-xs text-fg-muted">{breadcrumb}</div>}
+          <h1 className="truncate text-xl font-semibold">{title}</h1>
+          {subtitle && <div className="mt-1 text-sm text-fg-muted">{subtitle}</div>}
+        </div>
+        {actions && <div className="flex flex-wrap items-center gap-2">{actions}</div>}
       </div>
-      {actions && <div className="flex flex-wrap items-center gap-2">{actions}</div>}
     </header>
   )
 }

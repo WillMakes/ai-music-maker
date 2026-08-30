@@ -138,6 +138,8 @@ export function ArtistDetails({
     return <p className="text-sm text-fg-muted">{error || 'Loading…'}</p>
   }
 
+  const heroCovers = albums.filter((album) => album.artworkUrl)
+
   return (
     <div className="space-y-5">
       <PageHeader
@@ -145,6 +147,29 @@ export function ArtistDetails({
         breadcrumb="Artists"
         subtitle={artist.summary || 'No description yet.'}
         icon={<Music4 size={26} />}
+        // The discography as the hero's backdrop (#56): every cover the
+        // artist has, tiled edge to edge behind the header. Repeated to fill
+        // the strip when there are only a few, and held at opacity-15 so the
+        // title and stats keep their token contrast over it in both themes —
+        // the page background still does the contrast work, the collage is
+        // atmosphere.
+        backdrop={
+          heroCovers.length > 0 ? (
+            <div className="flex h-full w-full opacity-15">
+              {Array.from(
+                {length: Math.max(heroCovers.length, 12)},
+                (_, i) => heroCovers[i % heroCovers.length],
+              ).map((album, i) => (
+                <img
+                  key={i}
+                  src={album.artworkUrl}
+                  alt=""
+                  className="h-full w-auto shrink-0 object-cover"
+                />
+              ))}
+            </div>
+          ) : undefined
+        }
         actions={
           <>
             <button
