@@ -1,4 +1,5 @@
-import {Disc3, Music4, Sparkles} from 'lucide-react'
+import {Disc3, Music4, Play, Sparkles} from 'lucide-react'
+import {usePlayer} from '../player/PlayerProvider'
 import {useLibrary} from '../library/LibraryProvider'
 import type {Route} from '../App'
 
@@ -12,6 +13,7 @@ import type {Route} from '../App'
  */
 export function Dashboard({onGo}: {onGo: (route: Route) => void}) {
   const {tree} = useLibrary()
+  const player = usePlayer()
 
   // The records to pick back up: every album, most recently touched first,
   // four at most — a way back into work, not a second library.
@@ -28,11 +30,24 @@ export function Dashboard({onGo}: {onGo: (route: Route) => void}) {
 
   return (
     <div className="mx-auto flex max-w-4xl flex-col gap-6">
-      <header>
-        <h1 className="text-xl font-semibold">{greeting()}.</h1>
-        <p className="mt-1 text-sm text-fg-muted">
-          Plan the record, make it in Suno, keep what comes back.
-        </p>
+      <header className="flex items-start gap-3">
+        <div className="flex-1">
+          <h1 className="text-xl font-semibold">{greeting()}.</h1>
+          <p className="mt-1 text-sm text-fg-muted">
+            Plan the record, make it in Suno, keep what comes back.
+          </p>
+        </div>
+        {/* All the music in the system (#45), oldest artist to newest. */}
+        {tree.length > 0 && (
+          <button
+            className="sm-button sm-button-quiet"
+            type="button"
+            onClick={() => void player.play('all', '')}
+          >
+            <Play size={15} />
+            Play everything
+          </button>
+        )}
       </header>
 
       {resume.length > 0 && (

@@ -3,6 +3,7 @@ import {createRoot} from 'react-dom/client'
 import App from './App'
 import {ArtistsProvider} from './artists/ArtistsProvider'
 import {LibraryProvider} from './library/LibraryProvider'
+import {PlayerProvider} from './player/PlayerProvider'
 import {BugsProvider} from './bugs/BugsProvider'
 import {ThemeProvider} from './theme/ThemeProvider'
 import './style.css'
@@ -31,7 +32,9 @@ createRoot(container).render(
       <BugsProvider>
         <ArtistsProvider>
           <LibraryProvider>
-            <App />
+            <PlayerProvider>
+              <App />
+            </PlayerProvider>
           </LibraryProvider>
         </ArtistsProvider>
       </BugsProvider>

@@ -20,6 +20,9 @@ import {AlbumDetails} from './views/AlbumDetails'
 import {ArtistDetails} from './views/ArtistDetails'
 import {Artists} from './views/Artists'
 import {Dashboard} from './views/Dashboard'
+import {NowPlaying} from './views/NowPlaying'
+import {PlayerBar} from './components/PlayerBar'
+import {Queue} from './views/Queue'
 import {NewArtist} from './views/NewArtist'
 import {Settings} from './views/Settings'
 import {SkillDetails} from './views/SkillDetails'
@@ -236,7 +239,8 @@ export default function App() {
         : {kind: '', id: ''}
 
   return (
-    <div className="flex h-full">
+    <div className="flex h-full flex-col">
+    <div className="flex min-h-0 flex-1">
       <Sidebar
         current={current}
         collapsed={collapsed}
@@ -265,6 +269,12 @@ export default function App() {
             className="content-fade-in mx-auto max-w-6xl px-6 py-6"
           >
             {current.view === 'dashboard' && <Dashboard onGo={go} />}
+
+            {current.view === 'queue' && <Queue />}
+
+            {current.view === 'now-playing' && (
+              <NowPlaying onOpenQueue={() => go({view: 'queue'})} />
+            )}
 
             {current.view === 'artists' && (
               <Artists
@@ -342,6 +352,14 @@ export default function App() {
           onClose={() => setReporting(false)}
         />
       )}
+    </div>
+
+    {/* Anchored to the bottom of the application (#45), under the sidebar
+        and the content alike; renders nothing while the queue is empty. */}
+    <PlayerBar
+      onOpenNowPlaying={() => go({view: 'now-playing'})}
+      onOpenQueue={() => go({view: 'queue'})}
+    />
     </div>
   )
 }
