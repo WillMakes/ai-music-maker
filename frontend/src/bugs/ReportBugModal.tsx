@@ -2,6 +2,7 @@ import {useEffect, useRef, useState, type ClipboardEvent, type DragEvent} from '
 import {ChevronRight, FileArchive, Film, Paperclip, X} from 'lucide-react'
 import {AttachBugMedia, FileBugReport, ReadBugImage} from '../../wailsjs/go/main/App'
 import {main} from '../../wailsjs/go/models'
+import {MarkdownField} from '../components/MarkdownField'
 import {Modal} from '../components/Modal'
 import {toMessage} from '../lib/errors'
 import {routeTrail} from '../navigation'
@@ -226,22 +227,18 @@ export function ReportBugModal({
         }}
       >
         <div className="flex flex-col gap-1">
-          <label className="text-sm font-medium" htmlFor="bug-description">
-            What went wrong?
-          </label>
-          <textarea
-            id="bug-description"
-            className="sm-input resize-y"
-            rows={6}
+          {/* Markdown with a preview (#46): a report is read by whoever works
+              it, and a list or a code fence survives the trip to GitHub and
+              Jax as written. Paste and Ctrl/Cmd+Enter live on the container
+              and keep working inside the editor. */}
+          <MarkdownField
+            label="What went wrong?"
             autoFocus
             value={description}
             placeholder="What you did, what happened, and what you expected instead."
-            onChange={(event) => setDescription(event.target.value)}
+            hint="Paste, drop, or attach a screenshot, a recording, or a .zip. Ctrl/Cmd+Enter files it."
+            onChange={setDescription}
           />
-          <p className="text-xs text-fg-muted">
-            Paste, drop, or attach a screenshot, a recording, or a .zip.
-            Ctrl/Cmd+Enter files it.
-          </p>
         </div>
 
         {/* The attached files. Every report here is worked by an agent reading
