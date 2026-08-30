@@ -16,7 +16,7 @@ import {
 import {main} from '../../wailsjs/go/models'
 import {EmptyState} from '../components/EmptyState'
 import {PageHeader} from '../components/PageHeader'
-import {TextAreaField, TextField} from '../components/Field'
+import {TextField} from '../components/Field'
 import {InterviewDialog} from '../chat/InterviewDialog'
 import {TabStrip} from '../components/TabStrip'
 import {Cover} from './ArtistDetails'
@@ -285,18 +285,10 @@ export function AlbumDetails({
               value={draft.name}
               onChange={(name) => update({name})}
             />
-            <TextAreaField
-              label="Technical style"
-              mono
-              rows={8}
-              hint={
-                'Only what differs from ' +
-                album.artistName +
-                "'s base style — the two are joined when a track prompt is written."
-              }
-              value={draft.technicalStyle}
-              onChange={(technicalStyle) => update({technicalStyle})}
-            />
+            {/* No technical style here (#37): the style lives on the artist,
+                where #30–#32 built the tools for it. combinedStyle still
+                honours an album style already written, so nothing made before
+                this changes sound — there is just no field writing new ones. */}
           </section>
         </div>
       )}
