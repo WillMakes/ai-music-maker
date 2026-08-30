@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"time"
 )
@@ -301,6 +302,22 @@ func chatViaCLI(ctx context.Context, id, model, system string, turns []chatMsg) 
 
 	prompt := flattenForCLI(system, turns)
 
+	// agy has had releases where -p drops stdout under a pipe (#50). So agy
+	// runs in a private working directory and is asked to also write its
+	// answer to a file there; when stdout comes back empty the file is read
+	// instead. On a healthy release stdout wins and the file is ignored — the
+	// known failure mode becomes a fallback rather than an error.
+	answerFile := ""
+	if id == serviceAntigravity {
+		if dir, err := os.MkdirTemp("", "sunomaker-agy-"); err == nil {
+			defer os.RemoveAll(dir)
+			answerFile = filepath.Join(dir, "answer.md")
+			prompt += "\n\nAfter printing your answer, also write the complete " +
+				"answer to a file named answer.md in the current working " +
+				"directory, exactly as printed."
+		}
+	}
+
 	var cmd *exec.Cmd
 	switch id {
 	case serviceAnthropic:
@@ -340,8 +357,12 @@ func chatViaCLI(ctx context.Context, id, model, system string, turns []chatMsg) 
 
 	// A neutral working directory: without one the CLI picks up whatever project
 	// it happens to be launched inside and starts answering about that repository
-	// instead of about the question.
+	// instead of about the question. agy gets its own folder so the answer
+	// file above has somewhere unambiguous to land.
 	cmd.Dir = os.TempDir()
+	if answerFile != "" {
+		cmd.Dir = filepath.Dir(answerFile)
+	}
 	// An account-mode run must not inherit an API key — the CLIs prefer one over
 	// the subscription login, and would quietly bill the wrong thing.
 	cmd.Env = envWithout("ANTHROPIC_API_KEY", "OPENAI_API_KEY", "GEMINI_API_KEY", "GOOGLE_API_KEY")
@@ -358,8 +379,14 @@ func chatViaCLI(ctx context.Context, id, model, system string, turns []chatMsg) 
 		return "", fmt.Errorf("%s could not answer: %s", cli, detail)
 	}
 	answer := strings.TrimSpace(stdout.String())
+	if answer == "" && answerFile != "" {
+		if written, err := os.ReadFile(answerFile); err == nil {
+			answer = strings.TrimSpace(string(written))
+		}
+	}
 	if answer == "" {
-		return "", fmt.Errorf("%s returned nothing", cli)
+		return "", fmt.Errorf("%s returned nothing — updating the %s CLI usually fixes this",
+			cli, cli)
 	}
 	return answer, nil
 }
