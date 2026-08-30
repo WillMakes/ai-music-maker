@@ -239,9 +239,14 @@ func (s *Store) saveArtist(artist Artist) (Artist, error) {
 		return Artist{}, err
 	}
 	for n, insp := range artist.Inspirations {
-		if strings.TrimSpace(insp.URL) == "" {
-			// An empty row is the one the producer started and abandoned. Saving
-			// it would put a reference to nothing on the record.
+		if strings.TrimSpace(insp.URL) == "" && strings.TrimSpace(insp.Note) == "" &&
+			strings.TrimSpace(insp.Title) == "" {
+			// A row with nothing on it at all is the one the producer started
+			// and abandoned. But only a fully blank one: since #51 the note
+			// can carry a whole style breakdown, and the auto-save (#52) runs
+			// mid-writing — dropping a row because the link had not been
+			// pasted yet was eating real work under the producer's cursor
+			// (#61).
 			continue
 		}
 		if insp.ID == "" {
