@@ -660,18 +660,20 @@ function ImportAlbumDialog({
 }
 
 /**
- * The style's first breath as plain text (#58): markdown markers stripped and
- * lines joined, because a card excerpt is a glance, not a document — the
- * rendered form lives in the card's modal.
+ * The style's first breath as plain text (#58): markdown markers stripped,
+ * lines joined, and capped at 150 characters (#62), because a card excerpt is
+ * a glance, not a document — the full rendered form lives in the card's modal.
  */
-const styleBrief = (note: string) =>
-  note
+const styleBrief = (note: string) => {
+  const flat = note
     .replace(/^#+\s*/gm, '')
     .replace(/[*_`>]/g, '')
     .split('\n')
     .map((line) => line.trim())
     .filter(Boolean)
     .join(' · ')
+  return flat.length > 150 ? flat.slice(0, 150).trimEnd() + '…' : flat
+}
 
 function Inspirations({
   inspirations,
@@ -819,7 +821,7 @@ function Inspirations({
                       {[row.artist, row.album].filter(Boolean).join(' — ')}
                     </span>
                   )}
-                  <span className="mt-1 line-clamp-2 block text-xs text-fg-muted">
+                  <span className="mt-1 block text-xs text-fg-muted">
                     {styleBrief(row.note) ||
                       'No style yet — open the card to write or analyze it.'}
                   </span>
