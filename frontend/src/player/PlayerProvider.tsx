@@ -31,6 +31,8 @@ export type PlayerState = {
   error: string
   /** Builds a queue on the backend and starts it from the top. */
   play: (kind: 'track' | 'album' | 'artist' | 'all', id: string) => Promise<void>
+  /** Appends to the queue instead of replacing it (#60); starts an idle player. */
+  enqueue: (kind: 'track' | 'album' | 'artist' | 'all', id: string) => Promise<void>
   toggle: () => void
   next: () => void
   previous: () => void
@@ -137,6 +139,36 @@ export function PlayerProvider({children}: {children: React.ReactNode}) {
     }
   }, [])
 
+  // Add rather than replace (#60): the same backend queue-building as play,
+  // appended behind what is already lined up. One deliberate difference from
+  // play: enqueueing a track adds just that track, not its whole record — the
+  // producer is composing a queue, and the record is one press away if they
+  // want it. An idle player has nothing to add behind, so enqueue starts it.
+  const enqueue = useCallback(
+    async (kind: 'track' | 'album' | 'artist' | 'all', id: string) => {
+      setError('')
+      try {
+        let tracks = await Playlist(kind, id)
+        if (kind === 'track') {
+          tracks = (tracks ?? []).filter((t) => t.trackId === id)
+        }
+        if (!tracks?.length) {
+          setError('Nothing here has a take to play yet.')
+          return
+        }
+        if (queueRef.current.length === 0) {
+          setQueue(tracks)
+          setIndex(0)
+          return
+        }
+        setQueue((current) => [...current, ...tracks])
+      } catch (err) {
+        setError(toMessage(err))
+      }
+    },
+    [],
+  )
+
   const toggle = useCallback(() => {
     const el = audio()
     if (el.paused) {
@@ -211,6 +243,7 @@ export function PlayerProvider({children}: {children: React.ReactNode}) {
       duration,
       error,
       play,
+      enqueue,
       toggle,
       next,
       previous,
@@ -218,7 +251,7 @@ export function PlayerProvider({children}: {children: React.ReactNode}) {
       seek,
       clear,
     }),
-    [queue, index, playing, position, duration, error, play, toggle, next, previous, jumpTo, seek, clear],
+    [queue, index, playing, position, duration, error, play, enqueue, toggle, next, previous, jumpTo, seek, clear],
   )
 
   return <PlayerContext.Provider value={value}>{children}</PlayerContext.Provider>

@@ -1,5 +1,5 @@
 import {useCallback, useEffect, useState} from 'react'
-import {Check, Copy, FolderOpen, Pencil, Play, Plus, Trash2} from 'lucide-react'
+import {Check, Copy, FolderOpen, ListPlus, Pencil, Play, Plus, Trash2} from 'lucide-react'
 import {
   ChooseTrackFile,
   DeleteTrack,
@@ -254,15 +254,28 @@ function TitleCard({
       ) : (
         <>
           {(track.files?.length ?? 0) > 0 && (
-            <button
-              className="sm-button sm-button-quiet px-2"
-              type="button"
-              title="Play this track"
-              aria-label="Play this track"
-              onClick={() => void player.play('track', track.id)}
-            >
-              <Play size={15} />
-            </button>
+            <>
+              <button
+                className="sm-button sm-button-quiet px-2"
+                type="button"
+                title="Play this track"
+                aria-label="Play this track"
+                onClick={() => void player.play('track', track.id)}
+              >
+                <Play size={15} />
+              </button>
+              {/* Just this track, behind the queue (#60) — play here queues
+                  the whole record (#55); adding composes one song at a time. */}
+              <button
+                className="sm-button sm-button-quiet px-2"
+                type="button"
+                title="Add this track to the queue"
+                aria-label="Add this track to the queue"
+                onClick={() => void player.enqueue('track', track.id)}
+              >
+                <ListPlus size={15} />
+              </button>
+            </>
           )}
           <span className="flex min-w-0 flex-1 items-baseline gap-3">
             <span className="truncate text-base font-semibold">{track.name}</span>

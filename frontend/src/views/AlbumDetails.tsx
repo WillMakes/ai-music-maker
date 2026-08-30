@@ -1,5 +1,5 @@
 import {useCallback, useEffect, useState} from 'react'
-import {ImagePlus, ListMusic, Loader2, Play, RefreshCw, Sparkles, Trash2, Wand2} from 'lucide-react'
+import {ImagePlus, ListMusic, ListPlus, Loader2, Play, RefreshCw, Sparkles, Trash2, Wand2} from 'lucide-react'
 import {TrackEditor} from './TrackDetails'
 import {
   ClearChat,
@@ -177,6 +177,15 @@ export function AlbumDetails({
             >
               <Play size={15} />
               Play
+            </button>
+            {/* Behind what is already playing rather than over it (#60). */}
+            <button
+              className="sm-button sm-button-quiet"
+              type="button"
+              onClick={() => void player.enqueue('album', albumId)}
+            >
+              <ListPlus size={15} />
+              Queue
             </button>
             <button
               className="sm-button sm-button-danger"

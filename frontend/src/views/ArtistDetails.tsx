@@ -1,5 +1,5 @@
 import {useCallback, useEffect, useRef, useState} from 'react'
-import {AudioLines, Disc3, ExternalLink, FolderInput, Loader2, Music4, Play, Plus, Sparkles, Trash2, Wand2} from 'lucide-react'
+import {AudioLines, Disc3, ExternalLink, FolderInput, ListPlus, Loader2, Music4, Play, Plus, Sparkles, Trash2, Wand2} from 'lucide-react'
 import {
   AnalyzeMusicURL,
   ClearChat,
@@ -179,6 +179,15 @@ export function ArtistDetails({
             >
               <Play size={15} />
               Play
+            </button>
+            {/* Behind what is already playing rather than over it (#60). */}
+            <button
+              className="sm-button sm-button-quiet"
+              type="button"
+              onClick={() => void player.enqueue('artist', artistId)}
+            >
+              <ListPlus size={15} />
+              Queue
             </button>
             {/* The discography's numbers at a glance (#43): albums, tracks,
                 and how many are actually made - a take imported, not just

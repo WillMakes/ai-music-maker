@@ -1,4 +1,4 @@
-import {Disc3, Music4, Play, Sparkles} from 'lucide-react'
+import {Disc3, ListPlus, Music4, Play, Sparkles} from 'lucide-react'
 import {usePlayer} from '../player/PlayerProvider'
 import {useLibrary} from '../library/LibraryProvider'
 import type {Route} from '../App'
@@ -39,14 +39,25 @@ export function Dashboard({onGo}: {onGo: (route: Route) => void}) {
         </div>
         {/* All the music in the system (#45), oldest artist to newest. */}
         {tree.length > 0 && (
-          <button
-            className="sm-button sm-button-quiet"
-            type="button"
-            onClick={() => void player.play('all', '')}
-          >
-            <Play size={15} />
-            Play everything
-          </button>
+          <>
+            <button
+              className="sm-button sm-button-quiet"
+              type="button"
+              onClick={() => void player.play('all', '')}
+            >
+              <Play size={15} />
+              Play everything
+            </button>
+            {/* Behind what is already playing rather than over it (#60). */}
+            <button
+              className="sm-button sm-button-quiet"
+              type="button"
+              onClick={() => void player.enqueue('all', '')}
+            >
+              <ListPlus size={15} />
+              Queue
+            </button>
+          </>
         )}
       </header>
 
