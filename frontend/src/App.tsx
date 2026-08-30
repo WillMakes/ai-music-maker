@@ -24,7 +24,6 @@ import {NewArtist} from './views/NewArtist'
 import {Settings} from './views/Settings'
 import {SkillDetails} from './views/SkillDetails'
 import {Skills} from './views/Skills'
-import {TrackDetails} from './views/TrackDetails'
 
 /**
  * A place in the app: the view, plus whatever that view needs to know which
@@ -81,22 +80,6 @@ function buildCrumbs(current: Route, tree: main.LibraryArtist[]): Crumb[] {
           ? {label: found.artist.name, route: {view: 'artist-details', artistId: found.artist.id}}
           : {label: 'Artist'},
         {label: found?.album.name ?? 'Album'},
-      ]
-    }
-    case 'track-details': {
-      const found = albumOf(current.albumId)
-      return [
-        home,
-        found
-          ? {label: found.artist.name, route: {view: 'artist-details', artistId: found.artist.id}}
-          : {label: 'Artist'},
-        found
-          ? {
-              label: found.album.name,
-              route: {view: 'album-details', albumId: found.album.id, artistId: found.artist.id},
-            }
-          : {label: 'Album'},
-        {label: 'Track'},
       ]
     }
     case 'skill-details':
@@ -310,26 +293,9 @@ export default function App() {
             {current.view === 'album-details' && current.albumId && (
               <AlbumDetails
                 albumId={current.albumId}
-                onOpenTrack={(trackId) =>
-                  go({
-                    view: 'track-details',
-                    trackId,
-                    albumId: current.albumId,
-                    artistId: current.artistId,
-                  })
-                }
+                trackId={current.trackId}
                 onOpenArtist={(artistId) => go({view: 'artist-details', artistId})}
                 onDeleted={(artistId) => go({view: 'artist-details', artistId})}
-              />
-            )}
-
-            {current.view === 'track-details' && current.trackId && (
-              <TrackDetails
-                trackId={current.trackId}
-                onOpenAlbum={(albumId) =>
-                  go({view: 'album-details', albumId, artistId: current.artistId})
-                }
-                onDeleted={(albumId) => go({view: 'album-details', albumId})}
               />
             )}
 

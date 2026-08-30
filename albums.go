@@ -50,6 +50,10 @@ type Album struct {
 	// ArtistName is joined at read time rather than copied onto the row, so an
 	// artist renamed today is renamed on every album of theirs.
 	ArtistName string `json:"artistName"`
+	// ArtistBaseStyle is joined the same way, for the Record tab's read-only
+	// "inherited" pane (#40) — the producer sees what combinedStyle will put
+	// before this record's own style without leaving the page.
+	ArtistBaseStyle string `json:"artistBaseStyle"`
 	CreatedAt  string `json:"createdAt"`
 	UpdatedAt  string `json:"updatedAt"`
 }
@@ -151,13 +155,14 @@ const albumColumns = `al.id, al.artist_id, al.name, al.slug, al.artwork_file,
 	al.artwork_prompt, al.technical_style, al.apple_music_url, al.spotify_url,
 	al.youtube_url, al.created_at, al.updated_at,
 	(SELECT COUNT(*) FROM tracks WHERE tracks.album_id = al.id),
-	COALESCE(ar.name, '')`
+	COALESCE(ar.name, ''), COALESCE(ar.base_style, '')`
 
 func scanAlbum(scan func(...any) error) (Album, error) {
 	var al Album
 	err := scan(&al.ID, &al.ArtistID, &al.Name, &al.Slug, &al.ArtworkFile,
 		&al.ArtworkPrompt, &al.TechnicalStyle, &al.AppleMusicURL, &al.SpotifyURL,
-		&al.YouTubeURL, &al.CreatedAt, &al.UpdatedAt, &al.TrackCount, &al.ArtistName)
+		&al.YouTubeURL, &al.CreatedAt, &al.UpdatedAt, &al.TrackCount, &al.ArtistName,
+		&al.ArtistBaseStyle)
 	return al, err
 }
 
