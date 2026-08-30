@@ -18,9 +18,11 @@ func TestSaveArtistReturnsTheStoredRecord(t *testing.T) {
 		BaseStyle: "Instruments: analogue polysynth pads",
 		Inspirations: []Inspiration{
 			{URL: "https://music.youtube.com/watch?v=one", Note: "the drum sound only"},
-			// An empty row is one the producer started and abandoned; saving it
-			// would put a reference to nothing on the record.
-			{URL: "   ", Note: "nothing"},
+			// A fully blank row is one the producer started and abandoned;
+			// saving it would put a reference to nothing on the record. (A row
+			// with a note but no link survives since #61 — see
+			// TestInspirationWithOnlyAStyleSurvives.)
+			{URL: "   ", Note: "   "},
 		},
 	})
 	if err != nil {
@@ -171,5 +173,30 @@ func TestInspirationCarriesTheSongsIdentity(t *testing.T) {
 	if got.Artist != "Kavinsky" || got.Album != "OutRun" ||
 		got.ArtworkURL != "https://img.example/a.jpg" || got.Title != "Night Drive" {
 		t.Fatalf("the identity did not round-trip: %+v", got)
+	}
+}
+
+// TestInspirationWithOnlyAStyleSurvives is #61's backend half: since #51 the
+// note can carry a whole breakdown, and the auto-save (#52) runs mid-writing.
+// A row with a style but no link yet must survive the save; only a row with
+// nothing on it at all is the abandoned Add worth dropping.
+func TestInspirationWithOnlyAStyleSurvives(t *testing.T) {
+	app := newTestApp(t)
+	artist, err := app.SaveArtist(Artist{
+		Name: "Cassette Motel",
+		Inspirations: []Inspiration{
+			{Note: "**Genre** — synthwave, half-written"},
+			{},
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(artist.Inspirations) != 1 {
+		t.Fatalf("want the styled row kept and the blank one dropped, got %d rows",
+			len(artist.Inspirations))
+	}
+	if artist.Inspirations[0].Note == "" {
+		t.Fatalf("the style was lost: %+v", artist.Inspirations[0])
 	}
 }

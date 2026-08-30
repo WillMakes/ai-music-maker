@@ -691,6 +691,32 @@ function Inspirations({
   // Which reference's modal is open (#58). The card is a summary; everything
   // that edits the reference lives behind the click.
   const [openIndex, setOpenIndex] = useState<number | null>(null)
+  // A reference being written that is not yet in the draft (#61). A blank row
+  // put straight into the draft was dropped by the store the moment the
+  // auto-save (#52) fired, and the modal — keyed by index into the draft —
+  // closed itself under the producer's cursor. The row joins the draft on its
+  // first real content instead.
+  const [pending, setPending] = useState<main.Inspiration | null>(null)
+
+  const openRow = pending ?? (openIndex !== null ? inspirations[openIndex] : null)
+  const closeModal = () => {
+    setPending(null)
+    setOpenIndex(null)
+  }
+  const editOpen = (patch: Partial<main.Inspiration>) => {
+    if (pending) {
+      const next = main.Inspiration.createFrom({...pending, ...patch})
+      if (next.url.trim() || next.note.trim()) {
+        onChange([...inspirations, next])
+        setPending(null)
+        setOpenIndex(inspirations.length)
+      } else {
+        setPending(next)
+      }
+      return
+    }
+    if (openIndex !== null) update(openIndex, patch)
+  }
 
   const analyze = async (index: number) => {
     if (analyzing !== null) return
@@ -734,9 +760,10 @@ function Inspirations({
         <button
           className="sm-button sm-button-quiet"
           type="button"
-          onClick={() => {
-            onChange([
-              ...inspirations,
+          onClick={() =>
+            // Straight into the modal (#58), but as a pending row (#61) — it
+            // only enters the draft once something is written on it.
+            setPending(
               main.Inspiration.createFrom({
                 id: '',
                 url: '',
@@ -747,11 +774,8 @@ function Inspirations({
                 note: '',
                 position: inspirations.length,
               }),
-            ])
-            // Straight into the modal (#58) — a blank card with no link on it
-            // gives the click nothing to show.
-            setOpenIndex(inspirations.length)
-          }}
+            )
+          }
         >
           <Plus size={15} />
           Add a reference
@@ -809,10 +833,10 @@ function Inspirations({
         </ul>
       )}
 
-      {openIndex !== null && inspirations[openIndex] && (
+      {openRow && (
         <Modal
-          title={inspirations[openIndex].title || 'Reference'}
-          onClose={() => setOpenIndex(null)}
+          title={openRow.title || 'Reference'}
+          onClose={closeModal}
           wide
           footer={
             <>
@@ -820,8 +844,10 @@ function Inspirations({
                 className="sm-button sm-button-quiet"
                 type="button"
                 onClick={() => {
-                  onChange(inspirations.filter((_, i) => i !== openIndex))
-                  setOpenIndex(null)
+                  if (openIndex !== null) {
+                    onChange(inspirations.filter((_, i) => i !== openIndex))
+                  }
+                  closeModal()
                 }}
               >
                 <Trash2 size={15} />
@@ -830,8 +856,8 @@ function Inspirations({
               <button
                 className="sm-button sm-button-quiet"
                 type="button"
-                disabled={!inspirations[openIndex].url}
-                onClick={() => void OpenURL(inspirations[openIndex].url).catch(() => {})}
+                disabled={!openRow.url}
+                onClick={() => void OpenURL(openRow.url).catch(() => {})}
               >
                 <ExternalLink size={15} />
                 Open the link
@@ -839,8 +865,8 @@ function Inspirations({
               <button
                 className="sm-button sm-button-primary"
                 type="button"
-                disabled={!inspirations[openIndex].url || analyzing !== null}
-                onClick={() => void analyze(openIndex)}
+                disabled={openIndex === null || !openRow.url || analyzing !== null}
+                onClick={() => openIndex !== null && void analyze(openIndex)}
               >
                 {analyzing === openIndex ? (
                   <Loader2 size={15} className="animate-spin" />
@@ -853,25 +879,21 @@ function Inspirations({
           }
         >
           <div className="space-y-4">
-            {(inspirations[openIndex].artworkUrl ||
-              inspirations[openIndex].artist ||
-              inspirations[openIndex].album) && (
+            {(openRow.artworkUrl || openRow.artist || openRow.album) && (
               <div className="flex items-center gap-3">
-                {inspirations[openIndex].artworkUrl && (
+                {openRow.artworkUrl && (
                   <img
-                    src={inspirations[openIndex].artworkUrl}
+                    src={openRow.artworkUrl}
                     alt=""
                     className="h-16 w-16 shrink-0 rounded-md border border-edge object-cover"
                   />
                 )}
                 <div className="min-w-0">
                   <p className="truncate text-sm font-medium">
-                    {inspirations[openIndex].title || inspirations[openIndex].url}
+                    {openRow.title || openRow.url}
                   </p>
                   <p className="truncate text-xs text-fg-muted">
-                    {[inspirations[openIndex].artist, inspirations[openIndex].album]
-                      .filter(Boolean)
-                      .join(' — ')}
+                    {[openRow.artist, openRow.album].filter(Boolean).join(' — ')}
                   </p>
                 </div>
               </div>
@@ -880,9 +902,9 @@ function Inspirations({
             <TextField
               label="Link"
               type="url"
-              value={inspirations[openIndex].url}
+              value={openRow.url}
               placeholder="https://music.youtube.com/watch?v=…"
-              onChange={(url) => update(openIndex, {url})}
+              onChange={(url) => editOpen({url})}
             />
             {/* "Style", and markdown (#51): the analysis writes its whole
                 breakdown here, and a breakdown is read rendered, not as one
@@ -890,8 +912,8 @@ function Inspirations({
             <MarkdownField
               label="Style"
               placeholder="The drum sound only — or the full breakdown the analysis writes."
-              value={inspirations[openIndex].note}
-              onChange={(note) => update(openIndex, {note})}
+              value={openRow.note}
+              onChange={(note) => editOpen({note})}
             />
           </div>
         </Modal>
