@@ -1,5 +1,4 @@
-import {ArrowLeft, ArrowRight, Bug, Monitor, Moon, Sun} from 'lucide-react'
-import {useTheme, type ThemePreference} from '../theme/ThemeProvider'
+import {ArrowLeft, ArrowRight, Bug} from 'lucide-react'
 import type {Route} from '../App'
 
 /**
@@ -69,8 +68,6 @@ export function TopBar({
         ))}
       </nav>
 
-      <ThemeToggle />
-
       <button
         className="sm-button sm-button-quiet relative"
         type="button"
@@ -119,46 +116,3 @@ function IconButton({
   )
 }
 
-/**
- * The three theme states as a segmented control rather than a toggle.
- *
- * A toggle can only express two, and "follow the system" is the third and the
- * default — a producer whose machine switches at sunset wants that, and a toggle
- * would silently take it away the first time they pressed it.
- */
-function ThemeToggle() {
-  const {preference, setPreference} = useTheme()
-  const options: {value: ThemePreference; label: string; icon: typeof Sun}[] = [
-    {value: 'light', label: 'Light', icon: Sun},
-    {value: 'dark', label: 'Dark', icon: Moon},
-    {value: 'system', label: 'System', icon: Monitor},
-  ]
-  return (
-    <div
-      className="flex items-center gap-0.5 rounded-md border border-edge p-0.5"
-      role="group"
-      aria-label="Theme"
-    >
-      {options.map((option) => {
-        const Icon = option.icon
-        const on = preference === option.value
-        return (
-          <button
-            key={option.value}
-            className={
-              'rounded px-1.5 py-1 ' +
-              (on ? 'bg-active text-active-fg' : 'text-fg-muted hover:bg-surface-hover')
-            }
-            type="button"
-            title={option.label}
-            aria-label={option.label}
-            aria-pressed={on}
-            onClick={() => setPreference(option.value)}
-          >
-            <Icon size={15} />
-          </button>
-        )
-      })}
-    </div>
-  )
-}
