@@ -1,5 +1,5 @@
-import {useEffect} from 'react'
-import {ExternalLink} from 'lucide-react'
+import {useEffect, useState} from 'react'
+import {ChevronLeft, ChevronRight, ExternalLink} from 'lucide-react'
 import {MarkFixesSeen, OpenURL} from '../../wailsjs/go/main/App'
 import {useBugs} from '../bugs/BugsProvider'
 import {StatusPill} from '../components/StatusPill'
@@ -16,8 +16,18 @@ import {when} from '../lib/format'
  * notice — the producer has now been shown them, which is the whole claim the
  * flag makes.
  */
+// How many fixed reports one page shows (#54). Ten keeps the section a
+// screen tall; the archive is the pager, not the scrollbar.
+const FIXED_PAGE_SIZE = 10
+
 export function BugsPanel() {
   const {reports, resolved, counts, loading, error, reload} = useBugs()
+  const [page, setPage] = useState(0)
+  // Clamp rather than store-and-trust: a background resolve can change the
+  // page count under an open pager, and page state pointing past the end
+  // would render an empty list with rows still there to show.
+  const pageCount = Math.max(1, Math.ceil(resolved.length / FIXED_PAGE_SIZE))
+  const current = Math.min(page, pageCount - 1)
 
   useEffect(() => {
     reload()
@@ -96,14 +106,18 @@ export function BugsPanel() {
       </section>
 
       <section className="space-y-2">
-        <h3 className="text-sm font-semibold">Fixed</h3>
+        <h3 className="text-sm font-semibold">
+          Fixed{resolved.length > 0 ? ' — ' + resolved.length : ''}
+        </h3>
         {resolved.length === 0 ? (
           <p className="sm-panel px-4 py-6 text-center text-sm text-fg-muted">
             Nothing yet.
           </p>
         ) : (
           <ul className="sm-panel divide-y divide-edge overflow-hidden">
-            {resolved.slice(0, 25).map((report) => (
+            {resolved
+              .slice(current * FIXED_PAGE_SIZE, (current + 1) * FIXED_PAGE_SIZE)
+              .map((report) => (
               <li key={report.id} className="flex items-start gap-3 px-4 py-3">
                 <span className="min-w-0 flex-1">
                   <span className="block whitespace-pre-wrap text-sm">
@@ -132,6 +146,31 @@ export function BugsPanel() {
               </li>
             ))}
           </ul>
+        )}
+        {pageCount > 1 && (
+          <div className="flex items-center justify-end gap-2 text-xs text-fg-muted">
+            <button
+              className="sm-button sm-button-quiet px-2"
+              type="button"
+              aria-label="Previous page"
+              disabled={current === 0}
+              onClick={() => setPage(current - 1)}
+            >
+              <ChevronLeft size={14} />
+            </button>
+            <span>
+              Page {current + 1} of {pageCount}
+            </span>
+            <button
+              className="sm-button sm-button-quiet px-2"
+              type="button"
+              aria-label="Next page"
+              disabled={current >= pageCount - 1}
+              onClick={() => setPage(current + 1)}
+            >
+              <ChevronRight size={14} />
+            </button>
+          </div>
         )}
       </section>
     </div>
