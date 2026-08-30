@@ -159,7 +159,6 @@ export default function App() {
     stack: [HOME],
     index: 0,
   })
-  const [collapsed, setCollapsed] = useState(false)
   const [reporting, setReporting] = useState(false)
 
   const current = nav.stack[nav.index]
@@ -211,17 +210,6 @@ export default function App() {
     return () => document.removeEventListener('mouseup', onMouseUp)
   }, [back, forward])
 
-  // The collapsed rail, remembered.
-  useEffect(() => {
-    loadSetting(SETTING_KEYS.navCollapsed).then((value) => setCollapsed(value === 'true'))
-  }, [])
-  const toggleRail = useCallback(() => {
-    setCollapsed((on) => {
-      void saveSetting(SETTING_KEYS.navCollapsed, String(!on))
-      return !on
-    })
-  }, [])
-
   // Where the app was when it was last closed, put back on opening.
   //
   // Two things gate it. The setting is read once, before anything is written, or
@@ -261,12 +249,7 @@ export default function App() {
   return (
     <div className="flex h-full flex-col">
     <div className="flex min-h-0 flex-1">
-      <Sidebar
-        current={current}
-        collapsed={collapsed}
-        onGo={go}
-        onToggle={toggleRail}
-      />
+      <Sidebar current={current} onGo={go} />
 
       <div className="flex min-w-0 flex-1 flex-col">
         <TopBar

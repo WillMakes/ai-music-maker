@@ -1,7 +1,5 @@
 import {useState} from 'react'
 import {
-  ChevronLeft,
-  ChevronRight,
   Disc3,
   Music4,
   Plus,
@@ -21,21 +19,18 @@ import {SECTION_OF} from './../navigation'
  * them, searchable, always one click from anywhere. The two pages that are not
  * records, Skills and Settings, keep their place at the foot below a rule.
  *
- * Collapsible as before, because the content is wide; collapsed, the tree
- * gives way to icons for the fixed destinations — a tree squeezed to 56px
- * would be a column of truncated mysteries.
+ * Not collapsible (#64): the rail earned its width by being the library, and
+ * a tree squeezed to 56px was a column of truncated mysteries nobody used —
+ * the option cost a persistent setting and a foot-row to answer a question no
+ * one was asking.
  */
 export function Sidebar({
   current,
-  collapsed,
   onGo,
-  onToggle,
 }: {
   /** The whole route, so the row for the open record is the lit one. */
   current: Route
-  collapsed: boolean
   onGo: (route: Route) => void
-  onToggle: () => void
 }) {
   const {tree} = useLibrary()
   const [query, setQuery] = useState('')
@@ -60,29 +55,21 @@ export function Sidebar({
 
   return (
     <nav
-      className={
-        'flex shrink-0 flex-col border-r border-edge bg-surface transition-[width] duration-150 ' +
-        (collapsed ? 'w-14' : 'w-60')
-      }
+      className="flex w-60 shrink-0 flex-col border-r border-edge bg-surface"
       aria-label="Library"
     >
       <button
-        className={
-          'flex items-center gap-2 px-3 py-3 transition-opacity hover:opacity-80 ' +
-          (collapsed ? 'justify-center' : '')
-        }
+        className="flex items-center gap-2 px-3 py-3 transition-opacity hover:opacity-80"
         type="button"
         title="Home"
         aria-label="Go home"
         onClick={() => onGo({view: 'dashboard'})}
       >
         <img src={logoMark} alt="" className="size-8 shrink-0" aria-hidden="true" />
-        {!collapsed && <span className="truncate font-semibold">SunoMaker</span>}
+        <span className="truncate font-semibold">SunoMaker</span>
       </button>
 
-      {!collapsed && (
-        <>
-          <div className="px-3 pb-2">
+      <div className="px-3 pb-2">
             <input
               className="sm-input w-full px-2.5 py-1.5 text-xs"
               value={query}
@@ -156,34 +143,19 @@ export function Sidebar({
               )
             })}
           </div>
-        </>
-      )}
-      {collapsed && <div className="flex-1" />}
-
       <div className="flex flex-col gap-0.5 border-t border-edge p-2">
         <FootRow
           icon={<Sparkles size={14} aria-hidden />}
           label="Skills"
-          collapsed={collapsed}
           active={section === 'skills'}
           onClick={() => onGo({view: 'skills'})}
         />
         <FootRow
           icon={<SettingsIcon size={14} aria-hidden />}
           label="Settings"
-          collapsed={collapsed}
           active={section === 'settings-ai'}
           onClick={() => onGo({view: 'settings-ai'})}
         />
-        <button
-          className="mt-1 flex items-center gap-2 rounded px-2 py-1.5 text-xs text-fg-muted hover:bg-surface-hover hover:text-fg"
-          type="button"
-          onClick={onToggle}
-          aria-label={collapsed ? 'Expand the sidebar' : 'Collapse the sidebar'}
-        >
-          {collapsed ? <ChevronRight size={14} /> : <ChevronLeft size={14} />}
-          {!collapsed && 'Collapse'}
-        </button>
       </div>
     </nav>
   )
@@ -236,13 +208,11 @@ function TreeRow({
 function FootRow({
   icon,
   label,
-  collapsed,
   active,
   onClick,
 }: {
   icon: React.ReactNode
   label: string
-  collapsed: boolean
   active: boolean
   onClick: () => void
 }) {
@@ -250,7 +220,6 @@ function FootRow({
     <button
       className={
         'flex items-center gap-2 rounded px-2 py-1.5 text-sm transition-colors ' +
-        (collapsed ? 'justify-center ' : '') +
         (active ? 'bg-active text-active-fg' : 'text-fg hover:bg-surface-hover')
       }
       type="button"
@@ -259,7 +228,7 @@ function FootRow({
       onClick={onClick}
     >
       <span className={active ? 'text-nav-icon' : 'text-fg-muted'}>{icon}</span>
-      {!collapsed && label}
+      {label}
     </button>
   )
 }
