@@ -24,7 +24,6 @@ export type ViewId =
   | 'artist-new'
   | 'artist-details'
   | 'album-details'
-  | 'track-details'
   | 'skills'
   | 'skill-details'
   | 'settings-ai'
@@ -41,7 +40,6 @@ export const ROUTE_TITLES: Record<ViewId, string> = {
   'artist-new': 'Create an artist',
   'artist-details': 'Artist',
   'album-details': 'Album',
-  'track-details': 'Track',
   skills: 'Skills',
   'skill-details': 'Skill',
   'settings-ai': 'Settings — AI',
@@ -65,7 +63,6 @@ export const SECTION_OF: Record<ViewId, ViewId> = {
   'artist-new': 'artists',
   'artist-details': 'artists',
   'album-details': 'artists',
-  'track-details': 'artists',
   skills: 'skills',
   'skill-details': 'skills',
   'settings-ai': 'settings-ai',
@@ -133,6 +130,9 @@ export const RETIRED_ROUTES: Record<string, ViewId> = {
   // The redesign (#34) moved the skills list to the Skills page it always
   // duplicated, and the tab's two preferences to Settings — Library.
   'settings-skills': 'skills',
+  // The track page folded into the album's Tracks tab (#40); the route keeps
+  // its trackId, which the album page uses to select the same track.
+  'track-details': 'album-details',
 }
 
 /**

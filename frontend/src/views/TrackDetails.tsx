@@ -1,5 +1,5 @@
 import {useCallback, useEffect, useState} from 'react'
-import {Check, Copy, FolderOpen, Plus, Trash2} from 'lucide-react'
+import {Check, Copy, FolderOpen, Pencil, Plus, Trash2} from 'lucide-react'
 import {
   ChooseTrackFile,
   DeleteTrack,
@@ -10,34 +10,32 @@ import {
   SaveTrack,
 } from '../../wailsjs/go/main/App'
 import {main} from '../../wailsjs/go/models'
-import {PageHeader} from '../components/PageHeader'
-import {TextAreaField, TextField} from '../components/Field'
 import {StatusPill} from '../components/StatusPill'
 import {useDataChanged} from '../lib/dataChanged'
 import {duration, fileSize, parseDuration} from '../lib/format'
 import {toMessage} from '../lib/errors'
 
 /**
- * One track: the three fields Suno's form asks for, and the takes that came
- * back.
+ * One track, edited in place beside the album's track list (#40).
  *
- * The prompt and the lyrics have Copy buttons as well as the browser extension,
- * because the extension only helps on suno.com — a producer on the mobile app,
- * or pasting into a note, still needs the text.
+ * No page-wide draft and no Save-changes button: each field is read-only until
+ * its Edit is pressed, saves alone, and flashes "Saved ✓" when it lands. The
+ * old page's whole-form draft made sense when the track was a destination;
+ * embedded in the album it meant clicking another track could silently drop
+ * edits. A field that is either saved or visibly mid-edit cannot.
  */
-export function TrackDetails({
+type FieldId = 'title' | 'prompt' | 'lyrics' | 'notes'
+
+export function TrackEditor({
   trackId,
-  onOpenAlbum,
   onDeleted,
 }: {
   trackId: string
-  onOpenAlbum: (albumId: string) => void
-  onDeleted: (albumId: string) => void
+  onDeleted: () => void
 }) {
   const [track, setTrack] = useState<main.Track | null>(null)
-  const [draft, setDraft] = useState<main.Track | null>(null)
-  const [lengthText, setLengthText] = useState('')
-  const [saving, setSaving] = useState(false)
+  const [editing, setEditing] = useState<FieldId | null>(null)
+  const [flashed, setFlashed] = useState<FieldId | null>(null)
   const [error, setError] = useState('')
   const [confirmDelete, setConfirmDelete] = useState(false)
 
@@ -45,85 +43,52 @@ export function TrackDetails({
     GetTrack(trackId)
       .then((found) => {
         setTrack(found)
-        setDraft((current) => {
-          if (current) return current
-          setLengthText(duration(found.targetSeconds))
-          return main.Track.createFrom(found)
-        })
         setError('')
       })
       .catch((err) => setError(toMessage(err)))
   }, [trackId])
 
-  useEffect(reload, [reload])
+  useEffect(() => {
+    // A different track is a fresh pane: whatever edit was open belonged to
+    // the previous one.
+    setEditing(null)
+    setFlashed(null)
+    setConfirmDelete(false)
+    reload()
+  }, [reload])
   useDataChanged(['tracks'], reload)
 
-  const update = (patch: Partial<main.Track>) =>
-    setDraft((current) => (current ? main.Track.createFrom({...current, ...patch}) : current))
-
-  const save = async () => {
-    if (!draft) return
-    setSaving(true)
+  const save = async (patch: Partial<main.Track>, field: FieldId) => {
+    if (!track) return
     setError('')
     try {
-      const saved = await SaveTrack(
-        main.Track.createFrom({...draft, targetSeconds: parseDuration(lengthText)}),
-      )
-      setTrack(saved)
-      setDraft(main.Track.createFrom(saved))
-      setLengthText(duration(saved.targetSeconds))
+      setTrack(await SaveTrack(main.Track.createFrom({...track, ...patch})))
+      setEditing(null)
+      setFlashed(field)
+      setTimeout(() => setFlashed((f) => (f === field ? null : f)), 1600)
     } catch (err) {
       setError(toMessage(err))
-    } finally {
-      setSaving(false)
     }
   }
 
-  if (!track || !draft) {
+  if (!track) {
     return <p className="text-sm text-fg-muted">{error || 'Loading…'}</p>
   }
 
-  const dirty =
-    JSON.stringify({...draft, targetSeconds: parseDuration(lengthText)}) !==
-    JSON.stringify(track)
-
   return (
-    <div className="space-y-5">
-      <PageHeader
-        title={track.name}
-        breadcrumb={
-          <button
-            className="hover:text-fg hover:underline"
-            type="button"
-            onClick={() => onOpenAlbum(track.albumId)}
-          >
-            {track.artistName} — {track.albumName}
-          </button>
-        }
-        subtitle={'Track ' + track.position}
-        actions={
-          <>
-            <button
-              className="sm-button sm-button-danger"
-              type="button"
-              onClick={() => setConfirmDelete(true)}
-            >
-              <Trash2 size={15} />
-              Delete
-            </button>
-            <button
-              className="sm-button sm-button-primary"
-              type="button"
-              onClick={save}
-              disabled={!dirty || saving}
-            >
-              {saving ? 'Saving…' : dirty ? 'Save changes' : 'Saved'}
-            </button>
-          </>
-        }
-      />
-
+    <div className="flex flex-col gap-3">
       {error && <p className="text-sm text-danger">{error}</p>}
+
+      <TitleCard
+        track={track}
+        editing={editing === 'title'}
+        onEdit={() => setEditing('title')}
+        onCancel={() => setEditing(null)}
+        onSave={(name, lengthText) =>
+          save({name, targetSeconds: parseDuration(lengthText)}, 'title')
+        }
+        onDelete={() => setConfirmDelete(true)}
+      />
 
       {confirmDelete && (
         <div className="sm-panel space-y-3 border-danger p-4">
@@ -138,7 +103,7 @@ export function TrackDetails({
               onClick={async () => {
                 try {
                   await DeleteTrack(trackId)
-                  onDeleted(track.albumId)
+                  onDeleted()
                 } catch (err) {
                   setError(toMessage(err))
                 }
@@ -157,54 +122,51 @@ export function TrackDetails({
         </div>
       )}
 
-      <section className="sm-panel space-y-4 p-4">
-        <h2 className="text-sm font-semibold">For Suno</h2>
-        <p className="text-xs text-fg-muted">
-          These are the three fields Suno's create form asks for. With the extension
-          installed, its buttons fill them from here.
-        </p>
-        <div className="grid gap-4 md:grid-cols-[1fr_9rem]">
-          <TextField
-            label="Title"
-            required
-            value={draft.name}
-            onChange={(name) => update({name})}
-          />
-          <TextField
-            label="Target length"
-            hint="m:ss or seconds"
-            value={lengthText}
-            onChange={setLengthText}
-          />
-        </div>
-        <Copyable label="Style prompt" value={draft.prompt}>
-          <TextAreaField
-            label="Style prompt"
-            mono
-            rows={9}
-            hint="Comma-led and concrete, most important terms first, ending with what to avoid."
-            value={draft.prompt}
-            onChange={(prompt) => update({prompt})}
-          />
-        </Copyable>
-        <Copyable label="Lyrics" value={draft.lyrics}>
-          <TextAreaField
-            label="Lyrics"
-            mono
-            rows={16}
-            hint="With [Section] tags. For an instrumental, the tags alone."
-            value={draft.lyrics}
-            onChange={(lyrics) => update({lyrics})}
-          />
-        </Copyable>
-        <TextAreaField
-          label="Notes"
-          rows={3}
-          hint="Anything else worth remembering about this track. Not sent to Suno."
-          value={draft.notes}
-          onChange={(notes) => update({notes})}
-        />
-      </section>
+      <TextCard
+        field="prompt"
+        label="Style prompt"
+        value={track.prompt}
+        emptyText="No prompt written yet."
+        placeholder="Comma-led and concrete, most important terms first, ending with what to avoid."
+        rows={5}
+        mono
+        editing={editing === 'prompt'}
+        flashed={flashed === 'prompt'}
+        onEdit={() => setEditing('prompt')}
+        onCancel={() => setEditing(null)}
+        onSave={(prompt) => save({prompt}, 'prompt')}
+      />
+
+      <TextCard
+        field="lyrics"
+        label="Lyrics"
+        value={track.lyrics}
+        emptyText="No lyrics yet."
+        placeholder="With [Section] tags. For an instrumental, the tags alone."
+        rows={12}
+        mono
+        pre
+        editing={editing === 'lyrics'}
+        flashed={flashed === 'lyrics'}
+        onEdit={() => setEditing('lyrics')}
+        onCancel={() => setEditing(null)}
+        onSave={(lyrics) => save({lyrics}, 'lyrics')}
+      />
+
+      <TextCard
+        field="notes"
+        label="Notes"
+        value={track.notes}
+        emptyText="Anything else worth remembering about this track. Not sent to Suno."
+        placeholder=""
+        rows={3}
+        copyable={false}
+        editing={editing === 'notes'}
+        flashed={flashed === 'notes'}
+        onEdit={() => setEditing('notes')}
+        onCancel={() => setEditing(null)}
+        onSave={(notes) => save({notes}, 'notes')}
+      />
 
       <Takes track={track} onChanged={setTrack} onError={setError} />
     </div>
@@ -212,42 +174,206 @@ export function TrackDetails({
 }
 
 /**
- * A field with a Copy button over it.
- *
- * The button sits above rather than inside the textarea: inside, it covers the
- * first line of a lyric sheet, which is the line most worth reading.
+ * The name and target length share a card and an edit: they read as one line
+ * ("Neon Rain · 3:20") and a producer renaming a track is usually re-aiming
+ * its length in the same breath.
  */
-function Copyable({
+function TitleCard({
+  track,
+  editing,
+  onEdit,
+  onCancel,
+  onSave,
+  onDelete,
+}: {
+  track: main.Track
+  editing: boolean
+  onEdit: () => void
+  onCancel: () => void
+  onSave: (name: string, lengthText: string) => void
+  onDelete: () => void
+}) {
+  const [name, setName] = useState(track.name)
+  const [lengthText, setLengthText] = useState(duration(track.targetSeconds))
+  useEffect(() => {
+    setName(track.name)
+    setLengthText(duration(track.targetSeconds))
+  }, [track.id, track.name, track.targetSeconds, editing])
+
+  return (
+    <div className="group flex items-center gap-3 rounded-lg border border-edge p-3 hover:bg-surface-hover">
+      {editing ? (
+        <>
+          <input
+            className="sm-input min-w-0 flex-1"
+            value={name}
+            autoFocus
+            onChange={(e) => setName(e.target.value)}
+          />
+          <input
+            className="sm-input w-24 tabular-nums"
+            title="Target length — m:ss or seconds"
+            value={lengthText}
+            onChange={(e) => setLengthText(e.target.value)}
+          />
+          <button
+            className="sm-button sm-button-primary"
+            type="button"
+            onClick={() => onSave(name, lengthText)}
+          >
+            Save
+          </button>
+          <button className="sm-button sm-button-quiet" type="button" onClick={onCancel}>
+            Cancel
+          </button>
+        </>
+      ) : (
+        <>
+          <span className="flex min-w-0 flex-1 items-baseline gap-3">
+            <span className="truncate text-base font-semibold">{track.name}</span>
+            <span className="shrink-0 text-xs tabular-nums text-fg-muted">
+              {duration(track.targetSeconds)}
+            </span>
+          </span>
+          <span className="flex shrink-0 gap-1 opacity-0 transition-opacity group-focus-within:opacity-100 group-hover:opacity-100">
+            <button
+              className="sm-button sm-button-quiet px-2 py-1 text-xs"
+              type="button"
+              onClick={onEdit}
+            >
+              <Pencil size={12} />
+              Edit
+            </button>
+            <button
+              className="sm-button sm-button-quiet px-2 py-1 text-xs"
+              type="button"
+              title="Delete this track"
+              aria-label="Delete this track"
+              onClick={onDelete}
+            >
+              <Trash2 size={12} />
+            </button>
+          </span>
+        </>
+      )}
+    </div>
+  )
+}
+
+/**
+ * One editable text field as the design's card: label, hover-revealed Edit and
+ * Copy, a read view until Edit is pressed, and a "Saved ✓" that flashes when a
+ * save lands and fades on its own.
+ */
+function TextCard({
+  field,
   label,
   value,
-  children,
+  emptyText,
+  placeholder,
+  rows,
+  mono = false,
+  pre = false,
+  copyable = true,
+  editing,
+  flashed,
+  onEdit,
+  onCancel,
+  onSave,
 }: {
+  field: FieldId
   label: string
   value: string
-  children: React.ReactNode
+  emptyText: string
+  placeholder: string
+  rows: number
+  mono?: boolean
+  pre?: boolean
+  copyable?: boolean
+  editing: boolean
+  flashed: boolean
+  onEdit: () => void
+  onCancel: () => void
+  onSave: (next: string) => void
 }) {
+  const [draft, setDraft] = useState(value)
   const [copied, setCopied] = useState(false)
+  useEffect(() => setDraft(value), [value, editing])
+
+  const bodyClass =
+    'whitespace-pre-wrap text-sm leading-relaxed' + (mono ? ' font-mono text-xs' : '')
+
   return (
-    <div className="space-y-1">
-      <div className="flex justify-end">
-        <button
-          className="sm-button sm-button-quiet px-2 py-1 text-xs"
-          type="button"
-          disabled={!value}
-          onClick={() => {
-            void navigator.clipboard.writeText(value).then(() => {
-              setCopied(true)
-              // Reverts on its own: a button stuck reading "Copied" is a button
-              // that stops saying anything about the next press.
-              setTimeout(() => setCopied(false), 1600)
-            })
-          }}
-        >
-          {copied ? <Check size={13} /> : <Copy size={13} />}
-          {copied ? 'Copied' : 'Copy ' + label.toLowerCase()}
-        </button>
+    <div className="group flex flex-col gap-2 rounded-lg border border-edge p-3 hover:bg-surface-hover">
+      <div className="flex items-center gap-2">
+        <span className="flex-1 text-xs font-semibold uppercase tracking-wide text-fg-muted">
+          {label}
+        </span>
+        {flashed && <span className="text-xs text-ok">Saved ✓</span>}
+        {!editing && (
+          <span className="flex gap-1 opacity-0 transition-opacity group-focus-within:opacity-100 group-hover:opacity-100">
+            <button
+              className="sm-button sm-button-quiet px-2 py-1 text-xs"
+              type="button"
+              onClick={onEdit}
+            >
+              <Pencil size={12} />
+              Edit
+            </button>
+            {copyable && (
+              <button
+                className="sm-button sm-button-quiet px-2 py-1 text-xs"
+                type="button"
+                disabled={!value}
+                onClick={() => {
+                  void navigator.clipboard.writeText(value).then(() => {
+                    setCopied(true)
+                    // Reverts on its own: a button stuck reading "Copied" is a
+                    // button that stops saying anything about the next press.
+                    setTimeout(() => setCopied(false), 1600)
+                  })
+                }}
+              >
+                {copied ? <Check size={12} /> : <Copy size={12} />}
+                {copied ? 'Copied' : 'Copy'}
+              </button>
+            )}
+          </span>
+        )}
       </div>
-      {children}
+
+      {editing ? (
+        <>
+          <textarea
+            className={'sm-input resize-y' + (mono ? ' font-mono text-xs' : '')}
+            rows={rows}
+            value={draft}
+            autoFocus
+            placeholder={placeholder}
+            onChange={(e) => setDraft(e.target.value)}
+          />
+          <div className="flex justify-end gap-2">
+            <button className="sm-button sm-button-quiet" type="button" onClick={onCancel}>
+              Cancel
+            </button>
+            <button
+              className="sm-button sm-button-primary"
+              type="button"
+              onClick={() => onSave(draft)}
+            >
+              Save {field === 'title' ? '' : field}
+            </button>
+          </div>
+        </>
+      ) : value ? (
+        pre ? (
+          <pre className={bodyClass + ' font-mono'}>{value}</pre>
+        ) : (
+          <p className={bodyClass}>{value}</p>
+        )
+      ) : (
+        <p className="text-sm text-fg-muted">{emptyText}</p>
+      )}
     </div>
   )
 }

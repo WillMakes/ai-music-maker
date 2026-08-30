@@ -1,5 +1,6 @@
 import {useCallback, useEffect, useState} from 'react'
 import {ImagePlus, ListMusic, Loader2, RefreshCw, Sparkles, Trash2, Wand2} from 'lucide-react'
+import {TrackEditor} from './TrackDetails'
 import {
   ClearChat,
   DeleteAlbum,
@@ -37,12 +38,15 @@ import {attachmentPathsByName} from '../lib/files'
  */
 export function AlbumDetails({
   albumId,
-  onOpenTrack,
+  trackId,
   onOpenArtist,
   onDeleted,
 }: {
   albumId: string
-  onOpenTrack: (trackId: string) => void
+  // A track carried on the route — an old track-details link, a bug report's
+  // subject — selects that track in the Tracks tab rather than opening a page
+  // of its own (#40).
+  trackId?: string
   onOpenArtist: (artistId: string) => void
   onDeleted: (artistId: string) => void
 }) {
@@ -60,6 +64,9 @@ export function AlbumDetails({
   const [tab, setTab] = useState<'record' | 'tracks' | 'artwork' | 'release'>('record')
   // The style distillation (#38) has its own busy state, like the artwork's.
   const [generating, setGenerating] = useState(false)
+  // Which track the detail pane shows (#40). Local state like the tab itself:
+  // the album is the place, the selection is a drawer within it.
+  const [selectedId, setSelectedId] = useState(trackId ?? '')
 
   const reload = useCallback(() => {
     Promise.all([GetAlbum(albumId), ListTracks(albumId)])
@@ -74,6 +81,13 @@ export function AlbumDetails({
 
   useEffect(reload, [reload])
   useDataChanged(['albums', 'tracks'], reload)
+
+  useEffect(() => {
+    if (trackId) {
+      setSelectedId(trackId)
+      setTab('tracks')
+    }
+  }, [trackId])
 
   const update = (patch: Partial<main.Album>) =>
     setDraft((current) => (current ? main.Album.createFrom({...current, ...patch}) : current))
@@ -124,6 +138,9 @@ export function AlbumDetails({
   }
 
   const dirty = JSON.stringify(draft) !== JSON.stringify(album)
+  // The selection falls back to the first track, so the pane is never blank
+  // while the record has songs - and heals when the selected one is deleted.
+  const selected = tracks.find((t) => t.id === selectedId) ?? tracks[0]
 
   return (
     <div className="space-y-5">
@@ -279,7 +296,7 @@ export function AlbumDetails({
       </div>
 
       {tab === 'record' && (
-        <div className="max-w-2xl space-y-4">
+        <div className="max-w-4xl space-y-4">
           <section className="sm-panel space-y-4 p-4">
             <h2 className="text-sm font-semibold">The record</h2>
             <TextField
@@ -288,6 +305,8 @@ export function AlbumDetails({
               value={draft.name}
               onChange={(name) => update({name})}
             />
+            <div className="grid gap-4 md:grid-cols-2">
+            <div className="space-y-2">
             {/* Back by request (#38, reversing #37), with the button that
                 earns its place: Generate distils the tracks' own style prompts
                 into the record's shared core. Into the draft, not the database
@@ -326,6 +345,18 @@ export function AlbumDetails({
               value={draft.technicalStyle}
               onChange={(technicalStyle) => update({technicalStyle})}
             />
+            </div>
+            {/* The other half of combinedStyle, shown where the joining
+                happens (#40). Read-only: the base style belongs to the
+                artist, and two editable copies of it would drift. */}
+            <div className="space-y-1">
+              <span className="text-sm font-medium">Inherited from {album.artistName}</span>
+              <pre className="max-h-56 overflow-auto whitespace-pre-wrap rounded-md border border-edge bg-surface px-3 py-2 font-mono text-xs leading-relaxed text-fg-muted">
+                {album.artistBaseStyle || 'No base style written yet.'}
+              </pre>
+              <p className="text-xs text-fg-muted">Read-only here — edit it on the artist.</p>
+            </div>
+            </div>
           </section>
         </div>
       )}
@@ -362,59 +393,87 @@ export function AlbumDetails({
         </div>
       )}
 
-      {tab === 'tracks' && (
-      <section className="space-y-3">
-        <div className="flex items-center gap-3">
-          <h2 className="flex-1 text-sm font-semibold">Tracks</h2>
-          <button
-            className="sm-button sm-button-primary"
-            type="button"
-            onClick={() => setInterviewing(true)}
-          >
-            <Sparkles size={15} />
-            Write tracks
-          </button>
-        </div>
-
-        {tracks.length === 0 ? (
-          <EmptyState
-            icon={ListMusic}
-            title="No tracks yet"
-            body="The interview knows this album's combined style and what is already on it. Ask for one track or for five."
-          />
+      {tab === 'tracks' &&
+        (tracks.length === 0 ? (
+          <div className="space-y-3">
+            <EmptyState
+              icon={ListMusic}
+              title="No tracks yet"
+              body="The interview knows this album's combined style and what is already on it. Ask for one track or for five."
+            />
+            <div className="flex justify-center">
+              <button
+                className="sm-button sm-button-primary"
+                type="button"
+                onClick={() => setInterviewing(true)}
+              >
+                <Sparkles size={15} />
+                Write tracks
+              </button>
+            </div>
+          </div>
         ) : (
-          <ul className="sm-panel divide-y divide-edge overflow-hidden">
-            {tracks.map((track) => (
-              <li key={track.id}>
+          /* Master-detail (#40): the running order on the left, the selected
+             track edited in place on the right. The track stopped being a
+             destination - clicking through a record's songs no longer walks
+             the history stack. */
+          <div className="grid items-start gap-4 md:grid-cols-[280px_minmax(0,1fr)]">
+            <div className="sm-panel overflow-hidden">
+              <ul className="divide-y divide-edge">
+                {tracks.map((track) => (
+                  <li key={track.id}>
+                    <button
+                      className={
+                        'flex w-full items-center gap-2 px-3 py-2 text-left ' +
+                        (track.id === selected?.id
+                          ? 'bg-surface-hover'
+                          : 'hover:bg-surface-hover')
+                      }
+                      type="button"
+                      onClick={() => setSelectedId(track.id)}
+                    >
+                      <span className="w-5 shrink-0 text-xs tabular-nums text-fg-muted">
+                        {track.position}
+                      </span>
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate text-sm font-medium">{track.name}</span>
+                        <span className="block text-xs text-fg-muted">
+                          {track.files?.length
+                            ? track.files.length +
+                              (track.files.length === 1 ? ' take' : ' takes')
+                            : 'not made'}
+                        </span>
+                      </span>
+                      <span className="shrink-0 text-xs tabular-nums text-fg-muted">
+                        {duration(track.targetSeconds)}
+                      </span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+              <div className="p-2">
                 <button
-                  className="flex w-full items-center gap-3 px-4 py-3 text-left hover:bg-surface-hover"
+                  className="flex w-full items-center justify-center gap-2 rounded-md border border-dashed border-edge py-1.5 text-xs text-fg-muted hover:border-accent hover:text-accent"
                   type="button"
-                  onClick={() => onOpenTrack(track.id)}
+                  onClick={() => setInterviewing(true)}
                 >
-                  <span className="w-6 shrink-0 text-sm tabular-nums text-fg-muted">
-                    {track.position}
-                  </span>
-                  <span className="min-w-0 flex-1">
-                    <span className="block truncate font-medium">{track.name}</span>
-                    <span className="block truncate text-xs text-fg-muted">
-                      {track.prompt ? track.prompt.slice(0, 90) : 'No prompt written yet'}
-                    </span>
-                  </span>
-                  <span className="shrink-0 text-xs tabular-nums text-fg-muted">
-                    {duration(track.targetSeconds)}
-                  </span>
-                  <span className="shrink-0 text-xs text-fg-muted">
-                    {track.files?.length
-                      ? track.files.length + (track.files.length === 1 ? ' take' : ' takes')
-                      : 'not made'}
-                  </span>
+                  <Sparkles size={13} />
+                  Write more tracks
                 </button>
-              </li>
-            ))}
-          </ul>
-        )}
-      </section>
-      )}
+              </div>
+            </div>
+            {selected && (
+              <TrackEditor
+                key={selected.id}
+                trackId={selected.id}
+                onDeleted={() => {
+                  setSelectedId('')
+                  reload()
+                }}
+              />
+            )}
+          </div>
+        ))}
 
       {interviewing && (
         <InterviewDialog
