@@ -191,6 +191,26 @@ export default function App() {
     [],
   )
 
+  // The thumb buttons (#59): mouse 4 and 5 are back and forward in every
+  // browser and file manager on the machine, so they are here too. mouseup
+  // rather than click, because browsers do not deliver click for the
+  // auxiliary buttons; the default is suppressed so the webview cannot try a
+  // navigation of its own — this app's history is the stack above. back and
+  // forward already clamp at the ends, so no can-checks are needed.
+  useEffect(() => {
+    const onMouseUp = (event: MouseEvent) => {
+      if (event.button === 3) {
+        event.preventDefault()
+        back()
+      } else if (event.button === 4) {
+        event.preventDefault()
+        forward()
+      }
+    }
+    document.addEventListener('mouseup', onMouseUp)
+    return () => document.removeEventListener('mouseup', onMouseUp)
+  }, [back, forward])
+
   // The collapsed rail, remembered.
   useEffect(() => {
     loadSetting(SETTING_KEYS.navCollapsed).then((value) => setCollapsed(value === 'true'))
