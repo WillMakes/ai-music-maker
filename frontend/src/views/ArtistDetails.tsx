@@ -1,5 +1,5 @@
 import {useCallback, useEffect, useState} from 'react'
-import {AudioLines, Disc3, ExternalLink, FolderInput, Loader2, Plus, Sparkles, Trash2, Wand2} from 'lucide-react'
+import {AudioLines, Disc3, ExternalLink, FolderInput, Loader2, Music4, Plus, Sparkles, Trash2, Wand2} from 'lucide-react'
 import {
   AnalyzeMusicURL,
   ClearChat,
@@ -113,8 +113,24 @@ export function ArtistDetails({
         title={artist.name}
         breadcrumb="Artists"
         subtitle={artist.summary || 'No description yet.'}
+        icon={<Music4 size={26} />}
         actions={
           <>
+            {/* The discography's numbers at a glance (#43): albums, tracks,
+                and how many are actually made - a take imported, not just
+                written down. */}
+            <div className="mr-2 flex items-center gap-4">
+              <Stat value={albums.length} label={albums.length === 1 ? 'album' : 'albums'} />
+              <Stat
+                value={albums.reduce((n, album) => n + album.trackCount, 0)}
+                label="tracks"
+              />
+              <Stat
+                value={albums.reduce((n, album) => n + album.madeCount, 0)}
+                label="made"
+                ok
+              />
+            </div>
             <button
               className="sm-button sm-button-danger"
               type="button"
@@ -158,6 +174,58 @@ export function ArtistDetails({
           </div>
         </div>
       )}
+
+      <section className="space-y-3">
+        <div className="flex items-center gap-3">
+          <h2 className="flex-1 text-sm font-semibold">Albums</h2>
+          <button
+            className="sm-button sm-button-quiet"
+            type="button"
+            onClick={() => setImporting(true)}
+          >
+            <FolderInput size={15} />
+            Import an album
+          </button>
+        </div>
+
+        {albums.length === 0 ? (
+          <div className="space-y-3">
+            <EmptyState
+              icon={Disc3}
+              title="No albums yet"
+              body="An album carries what is different about one record — the artist's base style is already inherited."
+            />
+            <div className="flex justify-center">
+              <button
+                className="sm-button sm-button-primary"
+                type="button"
+                onClick={() => setInterviewing(true)}
+              >
+                <Sparkles size={15} />
+                Create an album
+              </button>
+            </div>
+          </div>
+        ) : (
+          <ul className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+            {albums.map((album) => (
+              <li key={album.id}>
+                <AlbumCard album={album} onOpen={() => onOpenAlbum(album.id)} />
+              </li>
+            ))}
+            <li>
+              <button
+                className="flex h-full min-h-[7rem] w-full flex-col items-center justify-center gap-1.5 rounded-lg border border-dashed border-edge text-xs font-medium text-fg-muted hover:border-accent hover:text-accent"
+                type="button"
+                onClick={() => setInterviewing(true)}
+              >
+                <Sparkles size={16} />
+                Create an album
+              </button>
+            </li>
+          </ul>
+        )}
+      </section>
 
       <section className="sm-panel space-y-4 p-4">
         <div className="flex items-center gap-3">
@@ -212,56 +280,6 @@ export function ArtistDetails({
           update({baseStyle: merged})
         }}
       />
-
-      <section className="space-y-3">
-        <div className="flex items-center gap-3">
-          <h2 className="flex-1 text-sm font-semibold">Albums</h2>
-          <button
-            className="sm-button sm-button-quiet"
-            type="button"
-            onClick={() => setImporting(true)}
-          >
-            <FolderInput size={15} />
-            Import an album
-          </button>
-          <button
-            className="sm-button sm-button-primary"
-            type="button"
-            onClick={() => setInterviewing(true)}
-          >
-            <Sparkles size={15} />
-            Create an album
-          </button>
-        </div>
-
-        {albums.length === 0 ? (
-          <EmptyState
-            icon={Disc3}
-            title="No albums yet"
-            body="An album carries what is different about one record — the artist's base style is already inherited."
-          />
-        ) : (
-          <ul className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-            {albums.map((album) => (
-              <li key={album.id}>
-                <button
-                  className="sm-panel flex w-full items-center gap-3 p-3 text-left hover:bg-surface-hover"
-                  type="button"
-                  onClick={() => onOpenAlbum(album.id)}
-                >
-                  <Cover url={album.artworkUrl} name={album.name} />
-                  <span className="min-w-0 flex-1">
-                    <span className="block truncate font-medium">{album.name}</span>
-                    <span className="block text-xs text-fg-muted">
-                      {album.trackCount === 1 ? '1 track' : album.trackCount + ' tracks'}
-                    </span>
-                  </span>
-                </button>
-              </li>
-            ))}
-          </ul>
-        )}
-      </section>
 
       {importing && (
         <ImportAlbumDialog
@@ -348,6 +366,80 @@ export function ArtistDetails({
         />
       )}
     </div>
+  )
+}
+
+/** One number of the header's cluster (#43). */
+function Stat({value, label, ok = false}: {value: number; label: string; ok?: boolean}) {
+  return (
+    <span className="text-right">
+      <span
+        className={
+          'block text-base font-semibold tabular-nums' + (ok ? ' text-ok' : '')
+        }
+      >
+        {value}
+      </span>
+      <span className="block text-[11px] text-fg-muted">{label}</span>
+    </span>
+  )
+}
+
+/**
+ * One record as a pipeline stage (#43): its counts, how much of it is made,
+ * and the next step by name. "Written" is a track with a style prompt, "made"
+ * one with a take imported - the two gates every song passes in order.
+ */
+function AlbumCard({album, onOpen}: {album: main.Album; onOpen: () => void}) {
+  const total = album.trackCount
+  const written = album.writtenCount
+  const made = album.madeCount
+  const released = Boolean(album.appleMusicUrl || album.spotifyUrl || album.youtubeUrl)
+  const next =
+    total === 0
+      ? 'Next: write tracks \u2192'
+      : written < total
+        ? 'Next: write ' +
+          (total - written) +
+          (total - written === 1 ? ' prompt' : ' prompts') +
+          ' \u2192'
+        : made < total
+          ? 'Next: make ' + (total - made) + ' in Suno \u2192'
+          : released
+            ? 'Released'
+            : 'Next: add release links \u2192'
+  const pct = total === 0 ? 0 : Math.round((made / total) * 100)
+
+  return (
+    <button
+      className="sm-panel flex h-full w-full flex-col gap-2.5 p-3 text-left hover:bg-surface-hover"
+      type="button"
+      onClick={onOpen}
+    >
+      <span className="flex w-full items-center gap-3">
+        <Cover url={album.artworkUrl} name={album.name} size={40} />
+        <span className="min-w-0 flex-1">
+          <span className="block truncate font-medium">{album.name}</span>
+          <span className="block text-xs text-fg-muted">
+            {total === 0
+              ? 'No tracks yet'
+              : (total === 1 ? '1 track' : total + ' tracks') +
+                ' \u00b7 ' +
+                written +
+                ' written \u00b7 ' +
+                made +
+                ' made'}
+          </span>
+        </span>
+      </span>
+      <span className="block h-1 w-full rounded-full bg-edge">
+        <span
+          className="block h-1 rounded-full bg-accent"
+          style={{width: pct + '%'}}
+        />
+      </span>
+      <span className="text-xs font-medium text-accent">{next}</span>
+    </button>
   )
 }
 

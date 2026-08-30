@@ -47,6 +47,11 @@ type Album struct {
 	YouTubeURL     string `json:"youtubeUrl"`
 	// TrackCount is joined for the card, for listArtists' reason.
 	TrackCount int `json:"trackCount"`
+	// WrittenCount and MadeCount are the card's progress (#43): tracks with a
+	// style prompt, and tracks with at least one take. Joined like TrackCount —
+	// the pipeline reads them far more often than anything writes them.
+	WrittenCount int `json:"writtenCount"`
+	MadeCount    int `json:"madeCount"`
 	// ArtistName is joined at read time rather than copied onto the row, so an
 	// artist renamed today is renamed on every album of theirs.
 	ArtistName string `json:"artistName"`
@@ -155,14 +160,18 @@ const albumColumns = `al.id, al.artist_id, al.name, al.slug, al.artwork_file,
 	al.artwork_prompt, al.technical_style, al.apple_music_url, al.spotify_url,
 	al.youtube_url, al.created_at, al.updated_at,
 	(SELECT COUNT(*) FROM tracks WHERE tracks.album_id = al.id),
+	(SELECT COUNT(*) FROM tracks WHERE tracks.album_id = al.id
+	   AND TRIM(tracks.prompt) <> ''),
+	(SELECT COUNT(*) FROM tracks WHERE tracks.album_id = al.id
+	   AND EXISTS (SELECT 1 FROM track_files WHERE track_files.track_id = tracks.id)),
 	COALESCE(ar.name, ''), COALESCE(ar.base_style, '')`
 
 func scanAlbum(scan func(...any) error) (Album, error) {
 	var al Album
 	err := scan(&al.ID, &al.ArtistID, &al.Name, &al.Slug, &al.ArtworkFile,
 		&al.ArtworkPrompt, &al.TechnicalStyle, &al.AppleMusicURL, &al.SpotifyURL,
-		&al.YouTubeURL, &al.CreatedAt, &al.UpdatedAt, &al.TrackCount, &al.ArtistName,
-		&al.ArtistBaseStyle)
+		&al.YouTubeURL, &al.CreatedAt, &al.UpdatedAt, &al.TrackCount,
+		&al.WrittenCount, &al.MadeCount, &al.ArtistName, &al.ArtistBaseStyle)
 	return al, err
 }
 
