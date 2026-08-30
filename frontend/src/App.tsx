@@ -294,6 +294,9 @@ export default function App() {
               <AlbumDetails
                 albumId={current.albumId}
                 trackId={current.trackId}
+                onOpenAlbum={(albumId) =>
+                  go({view: 'album-details', albumId, artistId: current.artistId})
+                }
                 onOpenArtist={(artistId) => go({view: 'artist-details', artistId})}
                 onDeleted={(artistId) => go({view: 'artist-details', artistId})}
               />
