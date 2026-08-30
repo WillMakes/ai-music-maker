@@ -304,7 +304,9 @@ export function ArtistDetails({
                 main.Album.createFrom({
                   artistId: artist.id,
                   name: albumDraft.name || 'New album',
-                  technicalStyle: albumDraft.technicalStyle,
+                  // No technicalStyle (#37): the record page has no field for
+                  // it any more, and a value nothing can show or edit would
+                  // shape every prompt invisibly.
                   artworkPrompt: albumDraft.artworkPrompt,
                 }),
               )
