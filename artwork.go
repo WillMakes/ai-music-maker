@@ -15,6 +15,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	wruntime "github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
 // ---------------------------------------------------------------------------
@@ -67,6 +69,24 @@ const maxUploadedArtwork = 10 << 20
 // artworkExtensions are the image formats a cover may be imported from.
 var artworkExtensions = map[string]bool{
 	".png": true, ".jpg": true, ".jpeg": true, ".webp": true,
+}
+
+// PickImageFile opens the OS's own file dialog, filtered to the formats above,
+// and returns the chosen path — empty when the producer cancels, which is not
+// an error (#39). The dialog hangs off the window's context, which only the
+// desktop app has; the MCP server and the bug CLI run windowless and refuse
+// rather than block forever on a dialog nobody can see.
+func (a *App) PickImageFile() (string, error) {
+	if a.ctx == nil {
+		return "", fmt.Errorf("there is no window to open a file dialog from")
+	}
+	return wruntime.OpenFileDialog(a.ctx, wruntime.OpenDialogOptions{
+		Title: "Choose a cover image",
+		Filters: []wruntime.FileFilter{{
+			DisplayName: "Images (*.png, *.jpg, *.jpeg, *.webp)",
+			Pattern:     "*.png;*.jpg;*.jpeg;*.webp",
+		}},
+	})
 }
 
 // artworkURL is where the window loads a cover from: the bridge, with the

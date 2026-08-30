@@ -8,6 +8,7 @@ import {
   GenerateAlbumStyle,
   GetAlbum,
   ImportAlbumArtwork,
+  PickImageFile,
   ImportTrackFile,
   ListTracks,
   RemoveAlbumArtwork,
@@ -241,13 +242,12 @@ export function AlbumDetails({
               type="button"
               disabled={drawing}
               onClick={async () => {
-                // The path comes from the producer typing or pasting one. A file
-                // picker would be better and Wails' dialog needs the window's
-                // context, which this component does not have — so the binding
-                // takes a path and the field says so.
-                const path = window.prompt('Path to an image file')
-                if (!path) return
+                // The OS's own picker (#39): the binding owns the window
+                // context the dialog needs, so the producer browses instead
+                // of pasting a path. An empty path is a cancel, not an error.
                 try {
+                  const path = await PickImageFile()
+                  if (!path) return
                   setAlbum(await ImportAlbumArtwork(albumId, path))
                 } catch (err) {
                   setError(toMessage(err))
