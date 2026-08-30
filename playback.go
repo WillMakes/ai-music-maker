@@ -49,6 +49,10 @@ func (a *App) Playlist(kind, id string) ([]PlayerTrack, error) {
 	}
 	switch kind {
 	case "track":
+		// One track queues its whole record (#55): a single-entry queue is a
+		// player whose next and previous buttons do nothing. The frontend
+		// starts playback at the pressed track; from there the record plays
+		// on, the way it does everywhere music is played.
 		track, err := a.GetTrack(id)
 		if err != nil {
 			return nil, err
@@ -57,7 +61,11 @@ func (a *App) Playlist(kind, id string) ([]PlayerTrack, error) {
 		if err != nil {
 			return nil, err
 		}
-		return a.appendPlayable(out, album, []Track{track}), nil
+		tracks, err := a.ListTracks(album.ID)
+		if err != nil {
+			return nil, err
+		}
+		return a.appendPlayable(out, album, tracks), nil
 	case "album":
 		album, err := a.GetAlbum(id)
 		if err != nil {

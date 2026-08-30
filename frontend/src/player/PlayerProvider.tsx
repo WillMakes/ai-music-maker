@@ -104,9 +104,12 @@ export function PlayerProvider({children}: {children: React.ReactNode}) {
   }, [])
 
   // 'ended' fires from a listener registered once, so it reads the queue
-  // through a ref rather than a stale closure.
+  // through a ref rather than a stale closure; previous reads the index the
+  // same way.
   const queueRef = useRef(queue)
   queueRef.current = queue
+  const indexRef = useRef(index)
+  indexRef.current = index
 
   const play = useCallback(async (kind: 'track' | 'album' | 'artist' | 'all', id: string) => {
     setError('')
@@ -116,8 +119,19 @@ export function PlayerProvider({children}: {children: React.ReactNode}) {
         setError('Nothing here has a take to play yet.')
         return
       }
+      // Playing one track queues its whole record (#55), started at the
+      // track that was pressed — a single-entry queue left next and previous
+      // with nowhere to go.
+      let start = 0
+      if (kind === 'track') {
+        start = tracks.findIndex((t) => t.trackId === id)
+        if (start < 0) {
+          setError('This track has no take to play yet.')
+          return
+        }
+      }
       setQueue(tracks)
-      setIndex(0)
+      setIndex(start)
     } catch (err) {
       setError(toMessage(err))
     }
@@ -138,9 +152,11 @@ export function PlayerProvider({children}: {children: React.ReactNode}) {
   )
   const previous = useCallback(() => {
     // The universal convention: early in a song, previous means the previous
-    // song; later, it means the top of this one.
+    // song; later, it means the top of this one. On the first song there is
+    // no previous one, so early presses restart it too — a button that does
+    // nothing at all reads as broken (#55).
     const el = audio()
-    if (el.currentTime > 3) {
+    if (el.currentTime > 3 || indexRef.current === 0) {
       el.currentTime = 0
       return
     }
