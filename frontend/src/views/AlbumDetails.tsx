@@ -4,6 +4,7 @@ import {TrackEditor} from './TrackDetails'
 import {
   ClearChat,
   DeleteAlbum,
+  EvolveAlbum,
   ExtractTracks,
   GenerateAlbumArtwork,
   GenerateAlbumStyle,
@@ -39,6 +40,7 @@ import {attachmentPathsByName} from '../lib/files'
 export function AlbumDetails({
   albumId,
   trackId,
+  onOpenAlbum,
   onOpenArtist,
   onDeleted,
 }: {
@@ -47,6 +49,7 @@ export function AlbumDetails({
   // subject — selects that track in the Tracks tab rather than opening a page
   // of its own (#40).
   trackId?: string
+  onOpenAlbum: (albumId: string) => void
   onOpenArtist: (artistId: string) => void
   onDeleted: (artistId: string) => void
 }) {
@@ -67,6 +70,9 @@ export function AlbumDetails({
   // Which track the detail pane shows (#40). Local state like the tab itself:
   // the album is the place, the selection is a drawer within it.
   const [selectedId, setSelectedId] = useState(trackId ?? '')
+  // Evolving runs for as long as a big generation call does, so it gets its
+  // own busy state like the artwork's (#42).
+  const [evolving, setEvolving] = useState(false)
 
   const reload = useCallback(() => {
     Promise.all([GetAlbum(albumId), ListTracks(albumId)])
@@ -357,6 +363,40 @@ export function AlbumDetails({
               <p className="text-xs text-fg-muted">Read-only here — edit it on the artist.</p>
             </div>
             </div>
+          </section>
+
+          {/* The successor (#42): a new record under the same artist, the
+              technical style evolved one step and a fresh track list written
+              to flow. Navigation happens only once the album exists — a
+              failure leaves the producer here, with the message. */}
+          <section className="sm-panel space-y-3 p-4">
+            <h2 className="text-sm font-semibold">The next record</h2>
+            <p className="text-xs text-fg-muted">
+              Create a new album that evolves this one: the technical style moved a
+              step forward, and a whole new track list styled so each song flows into
+              the next. Lyrics stay yours — write them per track, or through the
+              interview on the new record.
+            </p>
+            <button
+              className="sm-button sm-button-primary"
+              type="button"
+              disabled={evolving}
+              onClick={async () => {
+                setEvolving(true)
+                setError('')
+                try {
+                  const next = await EvolveAlbum(albumId)
+                  onOpenAlbum(next.id)
+                } catch (err) {
+                  setError(toMessage(err))
+                } finally {
+                  setEvolving(false)
+                }
+              }}
+            >
+              {evolving ? <Loader2 size={15} className="animate-spin" /> : <Sparkles size={15} />}
+              {evolving ? 'Evolving…' : 'Create the next record'}
+            </button>
           </section>
         </div>
       )}
