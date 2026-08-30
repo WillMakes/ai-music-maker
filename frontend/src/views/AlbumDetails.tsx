@@ -20,7 +20,8 @@ import {
 import {main} from '../../wailsjs/go/models'
 import {EmptyState} from '../components/EmptyState'
 import {PageHeader} from '../components/PageHeader'
-import {TextAreaField, TextField} from '../components/Field'
+import {TextField} from '../components/Field'
+import {MarkdownField} from '../components/MarkdownField'
 import {InterviewDialog} from '../chat/InterviewDialog'
 import {TabStrip} from '../components/TabStrip'
 import {Cover} from './ArtistDetails'
@@ -343,11 +344,13 @@ export function AlbumDetails({
                 {generating ? 'Distilling…' : 'Generate from the tracks'}
               </button>
             </div>
-            <TextAreaField
+            {/* Markdown with a preview (#44), matching the artist's base
+                style: the style is read far more often than written, and the
+                rendered form is what it is read in. */}
+            <MarkdownField
               label=""
-              mono
-              rows={8}
               hint="The record's central style, distilled from its tracks — or written by hand. Joined with the artist's base style when a track prompt is written."
+              placeholder="Analog synths, colder mix than the debut, 100-110 BPM…"
               value={draft.technicalStyle}
               onChange={(technicalStyle) => update({technicalStyle})}
             />
