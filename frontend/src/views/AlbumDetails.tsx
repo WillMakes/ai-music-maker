@@ -1,10 +1,11 @@
 import {useCallback, useEffect, useState} from 'react'
-import {ImagePlus, ListMusic, RefreshCw, Sparkles, Trash2, Wand2} from 'lucide-react'
+import {ImagePlus, ListMusic, Loader2, RefreshCw, Sparkles, Trash2, Wand2} from 'lucide-react'
 import {
   ClearChat,
   DeleteAlbum,
   ExtractTracks,
   GenerateAlbumArtwork,
+  GenerateAlbumStyle,
   GetAlbum,
   ImportAlbumArtwork,
   ImportTrackFile,
@@ -16,7 +17,7 @@ import {
 import {main} from '../../wailsjs/go/models'
 import {EmptyState} from '../components/EmptyState'
 import {PageHeader} from '../components/PageHeader'
-import {TextField} from '../components/Field'
+import {TextAreaField, TextField} from '../components/Field'
 import {InterviewDialog} from '../chat/InterviewDialog'
 import {TabStrip} from '../components/TabStrip'
 import {Cover} from './ArtistDetails'
@@ -56,6 +57,8 @@ export function AlbumDetails({
   // The page as tabs (#34): Record, Tracks, Artwork, Release. Local state
   // rather than routes — the album is the place, these are its drawers.
   const [tab, setTab] = useState<'record' | 'tracks' | 'artwork' | 'release'>('record')
+  // The style distillation (#38) has its own busy state, like the artwork's.
+  const [generating, setGenerating] = useState(false)
 
   const reload = useCallback(() => {
     Promise.all([GetAlbum(albumId), ListTracks(albumId)])
@@ -285,10 +288,44 @@ export function AlbumDetails({
               value={draft.name}
               onChange={(name) => update({name})}
             />
-            {/* No technical style here (#37): the style lives on the artist,
-                where #30–#32 built the tools for it. combinedStyle still
-                honours an album style already written, so nothing made before
-                this changes sound — there is just no field writing new ones. */}
+            {/* Back by request (#38, reversing #37), with the button that
+                earns its place: Generate distils the tracks' own style prompts
+                into the record's shared core. Into the draft, not the database
+                — the producer edits and saves. */}
+            <div className="flex items-end justify-between gap-3">
+              <span className="text-sm font-medium">Technical style</span>
+              <button
+                className="sm-button sm-button-quiet"
+                type="button"
+                disabled={generating}
+                onClick={async () => {
+                  setGenerating(true)
+                  setError('')
+                  try {
+                    update({technicalStyle: await GenerateAlbumStyle(albumId)})
+                  } catch (err) {
+                    setError(toMessage(err))
+                  } finally {
+                    setGenerating(false)
+                  }
+                }}
+              >
+                {generating ? (
+                  <Loader2 size={15} className="animate-spin" />
+                ) : (
+                  <Wand2 size={15} />
+                )}
+                {generating ? 'Distilling…' : 'Generate from the tracks'}
+              </button>
+            </div>
+            <TextAreaField
+              label=""
+              mono
+              rows={8}
+              hint="The record's central style, distilled from its tracks — or written by hand. Joined with the artist's base style when a track prompt is written."
+              value={draft.technicalStyle}
+              onChange={(technicalStyle) => update({technicalStyle})}
+            />
           </section>
         </div>
       )}
