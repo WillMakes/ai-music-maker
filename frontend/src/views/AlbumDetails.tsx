@@ -69,6 +69,9 @@ export function AlbumDetails({
   const [tab, setTab] = useState<'record' | 'tracks' | 'artwork' | 'release'>('record')
   // The style distillation (#38) has its own busy state, like the artwork's.
   const [generating, setGenerating] = useState(false)
+  // The Record tab's two style panes as tabs (#48), this record's own style
+  // the default — it is the editable half.
+  const [styleTab, setStyleTab] = useState<'style' | 'inherited'>('style')
   // Which track the detail pane shows (#40). Local state like the tab itself:
   // the album is the place, the selection is a drawer within it.
   const [selectedId, setSelectedId] = useState(trackId ?? '')
@@ -322,60 +325,72 @@ export function AlbumDetails({
               value={draft.name}
               onChange={(name) => update({name})}
             />
-            <div className="grid gap-4 md:grid-cols-2">
-            <div className="space-y-2">
-            {/* Back by request (#38, reversing #37), with the button that
-                earns its place: Generate distils the tracks' own style prompts
-                into the record's shared core. Into the draft, not the database
-                — the producer edits and saves. */}
-            <div className="flex items-end justify-between gap-3">
-              <span className="text-sm font-medium">Technical style</span>
-              <button
-                className="sm-button sm-button-quiet"
-                type="button"
-                disabled={generating}
-                onClick={async () => {
-                  setGenerating(true)
-                  setError('')
-                  try {
-                    update({technicalStyle: await GenerateAlbumStyle(albumId)})
-                  } catch (err) {
-                    setError(toMessage(err))
-                  } finally {
-                    setGenerating(false)
-                  }
-                }}
-              >
-                {generating ? (
-                  <Loader2 size={15} className="animate-spin" />
-                ) : (
-                  <Wand2 size={15} />
-                )}
-                {generating ? 'Distilling…' : 'Generate from the tracks'}
-              </button>
-            </div>
-            {/* Markdown with a preview (#44), matching the artist's base
-                style: the style is read far more often than written, and the
-                rendered form is what it is read in. */}
-            <MarkdownField
-              label=""
-              hint="The record's central style, distilled from its tracks — or written by hand. Joined with the artist's base style when a track prompt is written."
-              placeholder="Analog synths, colder mix than the debut, 100-110 BPM…"
-              value={draft.technicalStyle}
-              onChange={(technicalStyle) => update({technicalStyle})}
+            {/* Tabs rather than the old two-column grid (#48): the two
+                halves of combinedStyle are read one at a time, and side by
+                side they halved the room the style is actually written in.
+                This record's own style is the default — the editable half. */}
+            <TabStrip
+              tabs={[
+                {id: 'style', label: 'Technical style'},
+                {id: 'inherited', label: 'Inherited from ' + album.artistName},
+              ]}
+              current={styleTab}
+              onSelect={setStyleTab}
             />
-            </div>
-            {/* The other half of combinedStyle, shown where the joining
-                happens (#40). Read-only: the base style belongs to the
-                artist, and two editable copies of it would drift. */}
-            <div className="space-y-1">
-              <span className="text-sm font-medium">Inherited from {album.artistName}</span>
-              <pre className="max-h-56 overflow-auto whitespace-pre-wrap rounded-md border border-edge bg-surface px-3 py-2 font-mono text-xs leading-relaxed text-fg-muted">
-                {album.artistBaseStyle || 'No base style written yet.'}
-              </pre>
-              <p className="text-xs text-fg-muted">Read-only here — edit it on the artist.</p>
-            </div>
-            </div>
+            {styleTab === 'style' && (
+              <div className="space-y-2">
+                {/* Back by request (#38, reversing #37), with the button that
+                    earns its place: Generate distils the tracks' own style
+                    prompts into the record's shared core. Into the draft, not
+                    the database — the producer edits and saves. */}
+                <div className="flex justify-end">
+                  <button
+                    className="sm-button sm-button-quiet"
+                    type="button"
+                    disabled={generating}
+                    onClick={async () => {
+                      setGenerating(true)
+                      setError('')
+                      try {
+                        update({technicalStyle: await GenerateAlbumStyle(albumId)})
+                      } catch (err) {
+                        setError(toMessage(err))
+                      } finally {
+                        setGenerating(false)
+                      }
+                    }}
+                  >
+                    {generating ? (
+                      <Loader2 size={15} className="animate-spin" />
+                    ) : (
+                      <Wand2 size={15} />
+                    )}
+                    {generating ? 'Distilling…' : 'Generate from the tracks'}
+                  </button>
+                </div>
+                {/* Markdown with a preview (#44), matching the artist's base
+                    style: the style is read far more often than written, and
+                    the rendered form is what it is read in. */}
+                <MarkdownField
+                  label=""
+                  hint="The record's central style, distilled from its tracks — or written by hand. Joined with the artist's base style when a track prompt is written."
+                  placeholder="Analog synths, colder mix than the debut, 100-110 BPM…"
+                  value={draft.technicalStyle}
+                  onChange={(technicalStyle) => update({technicalStyle})}
+                />
+              </div>
+            )}
+            {styleTab === 'inherited' && (
+              /* The other half of combinedStyle, shown where the joining
+                 happens (#40). Read-only: the base style belongs to the
+                 artist, and two editable copies of it would drift. */
+              <div className="space-y-1">
+                <pre className="max-h-72 overflow-auto whitespace-pre-wrap rounded-md border border-edge bg-surface px-3 py-2 font-mono text-xs leading-relaxed text-fg-muted">
+                  {album.artistBaseStyle || 'No base style written yet.'}
+                </pre>
+                <p className="text-xs text-fg-muted">Read-only here — edit it on the artist.</p>
+              </div>
+            )}
           </section>
 
           {/* The successor (#42): a new record under the same artist, the
