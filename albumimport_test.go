@@ -99,3 +99,36 @@ func TestTrackNameFromFileReadsTheCommonShapes(t *testing.T) {
 		}
 	}
 }
+
+// TestGenerateAlbumStyleRefusals is #38's plumbing: an album with no prompts
+// has nothing to amalgamate, and no connected provider fails with the message
+// rather than a half-written style.
+func TestGenerateAlbumStyleRefusals(t *testing.T) {
+	app := newTestApp(t)
+	artist, err := app.SaveArtist(Artist{Name: "Cassette Motel", Inspirations: []Inspiration{}})
+	if err != nil {
+		t.Fatalf("artist: %v", err)
+	}
+	album, err := app.SaveAlbum(Album{ArtistID: artist.ID, Name: "Night Drive"})
+	if err != nil {
+		t.Fatalf("album: %v", err)
+	}
+
+	// Tracks with no prompts do not count as material.
+	if _, err := app.SaveTrack(Track{AlbumID: album.ID, Name: "Untitled"}); err != nil {
+		t.Fatalf("track: %v", err)
+	}
+	if _, err := app.GenerateAlbumStyle(album.ID); err == nil {
+		t.Fatal("a promptless album was amalgamated")
+	}
+
+	// With a prompt but no provider, the failure is the provider's absence.
+	if _, err := app.SaveTrack(Track{
+		AlbumID: album.ID, Name: "Neon Rain", Prompt: "synthwave, 110 BPM",
+	}); err != nil {
+		t.Fatalf("track: %v", err)
+	}
+	if _, err := app.GenerateAlbumStyle(album.ID); err == nil {
+		t.Fatal("a style was generated with no provider connected")
+	}
+}
