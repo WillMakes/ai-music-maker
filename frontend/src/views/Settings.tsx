@@ -7,6 +7,7 @@ import {AboutPanel} from '../settings/AboutPanel'
 import {BugsPanel} from '../settings/BugsPanel'
 import {ExtensionPanel} from '../settings/ExtensionPanel'
 import {LibraryPanel} from '../settings/LibraryPanel'
+import {PreferencesPanel} from '../settings/PreferencesPanel'
 
 /**
  * The settings shell.
@@ -42,6 +43,7 @@ export function Settings({
         {view === 'settings-library' && <LibraryPanel />}
         {view === 'settings-extension' && <ExtensionPanel />}
         {view === 'settings-bugs' && <BugsPanel />}
+        {view === 'settings-preferences' && <PreferencesPanel />}
         {view === 'settings-about' && <AboutPanel />}
       </div>
     </div>

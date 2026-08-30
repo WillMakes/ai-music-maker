@@ -33,6 +33,7 @@ export type ViewId =
   | 'settings-library'
   | 'settings-extension'
   | 'settings-bugs'
+  | 'settings-preferences'
   | 'settings-about'
 
 /** What the top bar calls each view. Also what a bug report records as `route`. */
@@ -51,6 +52,7 @@ export const ROUTE_TITLES: Record<ViewId, string> = {
   'settings-library': 'Settings — Library',
   'settings-extension': 'Settings — Chrome extension',
   'settings-bugs': 'Settings — Bug reports',
+  'settings-preferences': 'Settings — Preferences',
   'settings-about': 'Settings — About',
 }
 
@@ -78,6 +80,7 @@ export const SECTION_OF: Record<ViewId, ViewId> = {
   'settings-library': 'settings-ai',
   'settings-extension': 'settings-ai',
   'settings-bugs': 'settings-ai',
+  'settings-preferences': 'settings-ai',
   'settings-about': 'settings-ai',
 }
 
@@ -120,6 +123,7 @@ export const SETTINGS_TABS: {id: ViewId; label: string}[] = [
   {id: 'settings-library', label: 'Library'},
   {id: 'settings-extension', label: 'Chrome extension'},
   {id: 'settings-bugs', label: 'Bug reports'},
+  {id: 'settings-preferences', label: 'Preferences'},
   {id: 'settings-about', label: 'About'},
 ]
 
