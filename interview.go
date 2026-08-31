@@ -416,6 +416,109 @@ Return ONLY a JSON object, no prose and no code fence, with these keys:
 	return draft, err
 }
 
+// AlbumPlan is the whole record an album interview described (#70): the
+// album's fields and its full track list in one answer.
+type AlbumPlan struct {
+	Name           string       `json:"name"`
+	TechnicalStyle string       `json:"technicalStyle"`
+	ArtworkPrompt  string       `json:"artworkPrompt"`
+	Tracks         []TrackDraft `json:"tracks"`
+}
+
+// PlanAlbum writes the record an album interview described.
+//
+// A writing pass, not a reading one — the distinction #70 turned on.
+// ExtractTracks returns "every track the conversation settled", and an album
+// interview usually settles a theme, an arc and a count rather than eleven
+// individual songs, so extraction faithfully returned nothing and the new
+// album opened empty. This pass keeps what was agreed and writes the rest:
+// the full track list, and a complete technical style built from the artist's
+// own configuration — base style and reference breakdowns — moved to the
+// sound the conversation asked for, the way EvolveAlbum (#42) writes a
+// successor from what made the source itself.
+func (a *App) PlanAlbum(artistID string, messages []InterviewMessage) (AlbumPlan, error) {
+	empty := AlbumPlan{Tracks: []TrackDraft{}}
+	artist, err := a.GetArtist(artistID)
+	if err != nil {
+		return empty, err
+	}
+
+	instruction := `Read the conversation and write the complete record it asks for.
+
+Return ONLY a JSON object, no prose and no code fence, with these keys:
+  "name"            the album name the conversation chose, or your best
+                    candidate from it
+  "technicalStyle"  this record's COMPLETE technical style: start from the
+                    artist's base style and references below, and move them to
+                    the desired sound the conversation describes. Dense,
+                    comma-led, concrete, six to twelve lines — instrumentation,
+                    production, tempo range, vocal treatment, mix character,
+                    what to avoid.
+  "artworkPrompt"   what the cover should look like, as an image brief; an
+                    empty string if it was never described
+  "tracks"          the record's full track list, in running order. Keep every
+                    track the conversation settled exactly as agreed; where it
+                    only planned — a count, a theme, an arc — write the rest
+                    yourself on the technical style above, sequenced so each
+                    track hands off into the next. Each entry has "name",
+                    "prompt" (the Suno style prompt: comma-led, concrete,
+                    under about 200 words, most important terms first, ending
+                    with what to avoid), "lyrics" (the full lyrics with
+                    [Section] tags; the tags alone for an instrumental) and
+                    "targetSeconds".`
+
+	// Attached audio is assigned the way ExtractTracks assigns it (#24): by
+	// the conversation's own words, never a filename heuristic.
+	if names := attachedAudioNames(messages); len(names) > 0 {
+		instruction += `
+Each track entry also has "files": which of the attached audio files are
+takes of that track, by exact filename — the conversation marks them with
+[Attached files: …]. Assign each file to at most one track and leave out any
+that belongs to none. The attached audio files are: ` +
+			strings.Join(names, ", ")
+	}
+
+	// The artist's configuration is the ground the style is built on (#70):
+	// the base style, and every reference's breakdown — since #51 a note can
+	// carry a whole analyzed style, which is exactly what "match the desired
+	// sound" needs in hand.
+	var ground []string
+	if base := strings.TrimSpace(artist.BaseStyle); base != "" {
+		ground = append(ground, "The artist's base technical style:\n"+base)
+	}
+	for _, insp := range artist.Inspirations {
+		note := strings.TrimSpace(insp.Note)
+		if note == "" {
+			continue
+		}
+		label := strings.TrimSpace(insp.Title)
+		if label == "" {
+			label = strings.TrimSpace(insp.URL)
+		}
+		ground = append(ground, "Reference — "+label+":\n"+note)
+	}
+	if len(ground) > 0 {
+		instruction += "\n\nThe artist this record belongs to, " + artist.Name +
+			":\n\n" + strings.Join(ground, "\n\n")
+	}
+
+	var plan AlbumPlan
+	if err := a.extract(messages, instruction, &plan); err != nil {
+		return empty, err
+	}
+	if strings.TrimSpace(plan.Name) == "" || len(plan.Tracks) == 0 {
+		// Surfaced rather than shrugged off: a silent empty plan is exactly
+		// the "still not creating the tracks" this exists to end.
+		return empty, fmt.Errorf("the plan came back incomplete — try again")
+	}
+	for i := range plan.Tracks {
+		if plan.Tracks[i].Files == nil {
+			plan.Tracks[i].Files = []string{}
+		}
+	}
+	return plan, nil
+}
+
 // ExtractTracks reads the tracks out of a finished conversation.
 func (a *App) ExtractTracks(messages []InterviewMessage) ([]TrackDraft, error) {
 	var wrapper struct {

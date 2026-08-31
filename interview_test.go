@@ -190,3 +190,26 @@ func TestAIReadinessSaysWhyNot(t *testing.T) {
 		t.Error("the refusal says nothing about how to fix it")
 	}
 }
+
+// TestPlanAlbumRefusals pins what must hold on either side of the model call
+// (#70): an artist that does not exist is an error, and with no provider
+// connected the failure is loud — never a silently empty plan, which is the
+// "still not creating the tracks" the report was about.
+func TestPlanAlbumRefusals(t *testing.T) {
+	app := newTestApp(t)
+	if _, err := app.PlanAlbum("art_missing", []InterviewMessage{
+		{Role: "user", Text: "a synthwave record"},
+	}); err == nil {
+		t.Fatal("a plan was written for an artist that does not exist")
+	}
+
+	artist, err := app.SaveArtist(Artist{Name: "Cassette Motel", Inspirations: []Inspiration{}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := app.PlanAlbum(artist.ID, []InterviewMessage{
+		{Role: "user", Text: "a synthwave record"},
+	}); err == nil {
+		t.Fatal("a plan ran with no provider connected")
+	}
+}
