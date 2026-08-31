@@ -67,6 +67,26 @@
       ],
       match: /title|song name/i,
     },
+    {
+      key: 'duration',
+      label: 'Duration',
+      // m:ss, the way a person reads a length. The selectors are best-effort:
+      // not every Suno layout has a duration input, and a field that is not
+      // found is simply not decorated — the list is the maintenance story
+      // above (#77).
+      value: (track) =>
+        track.targetSeconds
+          ? `${Math.floor(track.targetSeconds / 60)}:${String(track.targetSeconds % 60).padStart(2, '0')}`
+          : '',
+      selectors: [
+        'input[data-testid="duration-input"]',
+        'input[placeholder*="duration" i]',
+        'input[aria-label*="duration" i]',
+        'input[placeholder*="length" i]',
+        'input[aria-label*="length" i]',
+      ],
+      match: /duration|song length/i,
+    },
   ]
 
   // ---- Talking to the app ----
@@ -129,6 +149,17 @@
     element.focus()
   }
 
+  // One click, the whole form (#77): every field this page has and the track
+  // has an answer for is filled together — three picks per track was this
+  // extension's own version of the round trip it exists to end.
+  const fillAll = (track, mode) => {
+    FIELDS.forEach((field) => {
+      const target = findField(field)
+      const value = field.value(track) || ''
+      if (target && value) fill(target, value, mode)
+    })
+  }
+
   // ---- The picker ----
 
   let openPicker = null
@@ -163,7 +194,14 @@
     // filled stays visible while a track is chosen — the producer is comparing
     // the two.
     const box = anchor.getBoundingClientRect()
-    panel.style.top = `${window.scrollY + box.bottom + 6}px`
+    if (anchor.classList && anchor.classList.contains('sm-dock')) {
+      // The dock sits at the bottom of the window, so the picker opens
+      // upwards from it instead of off the bottom edge.
+      panel.style.top = `${window.scrollY + box.top - 6}px`
+      panel.style.transform = 'translateY(-100%)'
+    } else {
+      panel.style.top = `${window.scrollY + box.bottom + 6}px`
+    }
     panel.style.left = `${Math.max(8, window.scrollX + box.right - 360)}px`
 
     const head = el('div', 'sm-picker-head')
@@ -171,7 +209,9 @@
     brand.src = ICON
     brand.alt = ''
     head.appendChild(brand)
-    head.appendChild(el('span', 'sm-picker-title', `Insert ${field.label}`))
+    head.appendChild(
+      el('span', 'sm-picker-title', field ? `Insert ${field.label}` : 'Fill the form'),
+    )
     const close = el('button', 'sm-picker-close', '×')
     close.type = 'button'
     close.setAttribute('aria-label', 'Close')
@@ -237,24 +277,38 @@
             el('div', 'sm-picker-group', `${artist.name} — ${album.name}`),
           )
           tracks.forEach((track) => {
-            const value = field.value(track) || ''
             const row = el('button', 'sm-picker-row')
             row.type = 'button'
             row.appendChild(el('span', 'sm-picker-row-name', `${track.position}. ${track.name}`))
-            // What the field would receive, so the choice is not blind — an
-            // empty one is the case worth seeing before it overwrites something.
-            row.appendChild(
-              el(
-                'span',
-                value ? 'sm-picker-row-hint' : 'sm-picker-row-hint sm-picker-row-empty',
-                value ? preview(value) : `no ${field.label.toLowerCase()} written yet`,
-              ),
-            )
-            if (!value) row.disabled = true
-            row.addEventListener('click', () => {
-              fill(target, value, panel.dataset.mode || 'replace')
-              closePicker()
-            })
+            if (field) {
+              const value = field.value(track) || ''
+              // What the field would receive, so the choice is not blind — an
+              // empty one is the case worth seeing before it overwrites
+              // something.
+              row.appendChild(
+                el(
+                  'span',
+                  value ? 'sm-picker-row-hint' : 'sm-picker-row-hint sm-picker-row-empty',
+                  value ? preview(value) : `no ${field.label.toLowerCase()} written yet`,
+                ),
+              )
+              if (!value) row.disabled = true
+              row.addEventListener('click', () => {
+                fill(target, value, panel.dataset.mode || 'replace')
+                closePicker()
+              })
+            } else {
+              // Fill-all (#77): the hint says which fields this track can
+              // fill, since that is what the click is about to do.
+              const parts = FIELDS.filter((f) => f.value(track)).map((f) => f.label)
+              row.appendChild(
+                el('span', 'sm-picker-row-hint', parts.join(', ') || 'title only'),
+              )
+              row.addEventListener('click', () => {
+                fillAll(track, panel.dataset.mode || 'replace')
+                closePicker()
+              })
+            }
             list.appendChild(row)
           })
         })
@@ -319,8 +373,32 @@
     return null
   }
 
+  // The dock is the one element that does not depend on finding Suno's
+  // fields (#77): a fixed pill in the window's corner, so the extension
+  // visibly shows up whenever the app is running — even on a layout where
+  // the per-field buttons found nothing to decorate. One press opens the
+  // fill-all picker.
+  const attachDock = () => {
+    if (document.querySelector('.sm-dock')) return
+    const dock = el('button', 'sm-dock')
+    dock.type = 'button'
+    dock.title = "Fill Suno's form from a SunoMaker track"
+    const logo = el('img', 'sm-button-logo')
+    logo.src = ICON
+    logo.alt = ''
+    dock.appendChild(logo)
+    dock.appendChild(el('span', null, 'Fill from SunoMaker'))
+    dock.addEventListener('click', (event) => {
+      event.preventDefault()
+      event.stopPropagation()
+      showPicker(null, null, dock)
+    })
+    document.body.appendChild(dock)
+  }
+
   const attach = () => {
     if (!appIsUp) return
+    attachDock()
     FIELDS.forEach((field) => {
       const target = findField(field)
       if (!target) return

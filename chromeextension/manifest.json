@@ -22,7 +22,7 @@
   "permissions": ["storage"],
   "content_scripts": [
     {
-      "matches": ["https://suno.com/*"],
+      "matches": ["https://suno.com/*", "https://*.suno.com/*", "https://app.suno.ai/*"],
       "js": ["config.js", "content.js"],
       "css": ["panel.css"],
       "run_at": "document_idle"
@@ -30,6 +30,6 @@
   ],
   "host_permissions": ["http://127.0.0.1/*"],
   "web_accessible_resources": [
-    {"resources": ["logo.png"], "matches": ["https://suno.com/*"]}
+    {"resources": ["logo.png"], "matches": ["https://suno.com/*", "https://*.suno.com/*", "https://app.suno.ai/*"]}
   ]
 }
