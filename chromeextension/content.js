@@ -40,6 +40,10 @@
         'textarea[data-testid="lyrics-input-textarea"]',
         'textarea[placeholder*="lyric" i]',
         'textarea[aria-label*="lyric" i]',
+        // Suno's current form (#79) names nothing: the lyrics box is the one
+        // textarea with a 3000-character limit, an example song as its
+        // placeholder, and no label near it.
+        'textarea[maxlength="3000"]',
       ],
       match: /lyric/i,
     },
@@ -48,6 +52,9 @@
       label: 'Style',
       value: (track) => track.prompt,
       selectors: [
+        // Suno's current form (#79): the styles box lives inside the one
+        // wrapper that still carries a testid.
+        '[data-testid="create-form-styles-wrapper"] textarea',
         'textarea[data-testid="tag-input-textarea"]',
         'textarea[placeholder*="style" i]',
         'textarea[aria-label*="style" i]',
@@ -70,15 +77,13 @@
     {
       key: 'duration',
       label: 'Duration',
-      // m:ss, the way a person reads a length. The selectors are best-effort:
-      // not every Suno layout has a duration input, and a field that is not
-      // found is simply not decorated — the list is the maintenance story
-      // above (#77).
-      value: (track) =>
-        track.targetSeconds
-          ? `${Math.floor(track.targetSeconds / 60)}:${String(track.targetSeconds % 60).padStart(2, '0')}`
-          : '',
+      // Plain seconds, not m:ss (#79): Suno's duration control is a number
+      // input capped at 300, so a colon in it is a rejected value. The
+      // selectors stay best-effort — a field that is not found is simply not
+      // decorated (#77).
+      value: (track) => (track.targetSeconds ? String(track.targetSeconds) : ''),
       selectors: [
+        'input[type="number"][min="1"][max="300"]',
         'input[data-testid="duration-input"]',
         'input[placeholder*="duration" i]',
         'input[aria-label*="duration" i]',
@@ -261,8 +266,16 @@
     const draw = (filter) => {
       list.textContent = ''
       const needle = filter.trim().toLowerCase()
+      // The latest record first (#79): the track being generated right now
+      // is almost always on the album made last, and the picker should open
+      // on it rather than on the discography's history.
+      const groups = []
       tree.forEach((artist) => {
-        ;(artist.albums || []).forEach((album) => {
+        ;(artist.albums || []).forEach((album) => groups.push({artist, album}))
+      })
+      groups.sort((a, b) => (b.album.createdAt || '').localeCompare(a.album.createdAt || ''))
+      groups.forEach(({artist, album}) => {
+        {
           const tracks = (album.tracks || []).filter((track) => {
             if (!needle) return true
             return (
@@ -311,7 +324,7 @@
             }
             list.appendChild(row)
           })
-        })
+        }
       })
       if (!list.children.length) {
         list.appendChild(el('div', 'sm-picker-note', 'Nothing matches that.'))
