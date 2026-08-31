@@ -238,3 +238,38 @@
 .sm-picker-row-empty {
   font-style: italic;
 }
+
+/* The fixed pill in the window's corner (#77): the extension's visible
+   presence, independent of whether Suno's fields were found. Styled as the
+   field buttons are, sized up a step because it stands alone. */
+.sm-dock {
+  position: fixed;
+  right: 16px;
+  bottom: 16px;
+  z-index: 2147483000;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  box-sizing: border-box;
+  margin: 0;
+  padding: 7px 14px 7px 9px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 999px;
+  background: rgba(20, 20, 24, 0.94);
+  color: #f5f5f5;
+  font: 500 12px/1.4 "Segoe UI", system-ui, -apple-system, sans-serif;
+  letter-spacing: 0.01em;
+  cursor: pointer;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.5);
+  transition: background-color 0.15s ease, border-color 0.15s ease;
+}
+
+.sm-dock:hover {
+  background: rgba(38, 38, 44, 0.96);
+  border-color: rgba(255, 255, 255, 0.32);
+}
+
+.sm-dock:focus-visible {
+  outline: 2px solid #5eead4;
+  outline-offset: 2px;
+}
