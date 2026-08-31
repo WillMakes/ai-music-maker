@@ -2,6 +2,7 @@ import {useCallback, useEffect, useState} from 'react'
 import {Download, FolderOpen} from 'lucide-react'
 import {ExportExtension, GetExtensionStatus, RevealExtension} from '../../wailsjs/go/main/App'
 import {main} from '../../wailsjs/go/models'
+import {CopyButton} from '../components/CopyButton'
 import {StatusPill} from '../components/StatusPill'
 import {toMessage} from '../lib/errors'
 
@@ -85,9 +86,15 @@ export function ExtensionPanel() {
         </div>
 
         {status.exported && (
-          <p className="overflow-x-auto whitespace-nowrap rounded bg-surface-hover px-3 py-2 font-mono text-xs">
-            {status.dir}
-          </p>
+          <div className="flex items-center gap-1 rounded bg-surface-hover px-3 py-2">
+            {/* Copyable (#78): Chrome's Load-unpacked dialog wants this path
+                typed or pasted, and the quick copy beats retyping a deep
+                AppData path character by character. */}
+            <p className="min-w-0 flex-1 overflow-x-auto whitespace-nowrap font-mono text-xs">
+              {status.dir}
+            </p>
+            <CopyButton text={status.dir} label="Copy the extension folder path" />
+          </div>
         )}
       </section>
 
