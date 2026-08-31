@@ -19,6 +19,7 @@ import {
   WriteAlbumTracks,
 } from '../../wailsjs/go/main/App'
 import {main} from '../../wailsjs/go/models'
+import {CopyButton} from '../components/CopyButton'
 import {EmptyState} from '../components/EmptyState'
 import {PageHeader} from '../components/PageHeader'
 import {TextField} from '../components/Field'
@@ -171,6 +172,10 @@ export function AlbumDetails({
           </button>
         }
         subtitle={tracks.length === 1 ? '1 track' : tracks.length + ' tracks'}
+        // The quick copy beside the name (#74): the album title is what gets
+        // typed into Suno's playlist field, and retyping a name that is
+        // already on screen is the kind of friction that adds up.
+        titleAccessory={<CopyButton text={album.name} label="Copy the album name" />}
         actions={
           <>
             <button

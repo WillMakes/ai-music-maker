@@ -11,6 +11,7 @@ import {
   SaveTrack,
 } from '../../wailsjs/go/main/App'
 import {main} from '../../wailsjs/go/models'
+import {CopyButton} from '../components/CopyButton'
 import {StatusPill} from '../components/StatusPill'
 import {TabStrip} from '../components/TabStrip'
 import {useDataChanged} from '../lib/dataChanged'
@@ -277,8 +278,11 @@ function TitleCard({
               </button>
             </>
           )}
-          <span className="flex min-w-0 flex-1 items-baseline gap-3">
+          <span className="flex min-w-0 flex-1 items-center gap-2">
             <span className="truncate text-base font-semibold">{track.name}</span>
+            {/* The title is the third thing Suno asks for beside the prompt
+                and lyrics, and those two already have Copy (#74). */}
+            <CopyButton text={track.name} label="Copy the track title" />
             <span className="shrink-0 text-xs tabular-nums text-fg-muted">
               {duration(track.targetSeconds)}
             </span>
