@@ -180,9 +180,12 @@ type BridgeArtist struct {
 }
 
 type BridgeAlbum struct {
-	ID     string        `json:"id"`
-	Name   string        `json:"name"`
-	Tracks []BridgeTrack `json:"tracks"`
+	ID   string `json:"id"`
+	Name string `json:"name"`
+	// CreatedAt lets the picker put the latest record first (#79): the track
+	// being generated right now is almost always on the album made last.
+	CreatedAt string        `json:"createdAt"`
+	Tracks    []BridgeTrack `json:"tracks"`
 }
 
 // BridgeTrack is what the extension can put into Suno's fields: the title, the
@@ -234,7 +237,10 @@ func (a *App) BridgeLibrary() ([]BridgeArtist, error) {
 			return out, err
 		}
 		for _, album := range albums {
-			albumEntry := BridgeAlbum{ID: album.ID, Name: album.Name, Tracks: []BridgeTrack{}}
+			albumEntry := BridgeAlbum{
+				ID: album.ID, Name: album.Name,
+				CreatedAt: album.CreatedAt, Tracks: []BridgeTrack{},
+			}
 			tracks, err := a.store.listTracks(album.ID)
 			if err != nil {
 				return out, err
