@@ -13,6 +13,7 @@ export function PageHeader({
   breadcrumb,
   icon,
   backdrop,
+  titleAccessory,
 }: {
   title: string
   subtitle?: ReactNode
@@ -27,6 +28,8 @@ export function PageHeader({
    * caller's opacity note); the header only positions and clips it.
    */
   backdrop?: ReactNode
+  /** A small control right beside the title (#74) — the album's quick copy. */
+  titleAccessory?: ReactNode
 }) {
   return (
     <header
@@ -50,7 +53,10 @@ export function PageHeader({
         )}
         <div className="min-w-0 flex-1">
           {breadcrumb && <div className="mb-1 text-xs text-fg-muted">{breadcrumb}</div>}
-          <h1 className="truncate text-xl font-semibold">{title}</h1>
+          <div className="flex min-w-0 items-center gap-1">
+            <h1 className="truncate text-xl font-semibold">{title}</h1>
+            {titleAccessory}
+          </div>
           {subtitle && <div className="mt-1 text-sm text-fg-muted">{subtitle}</div>}
         </div>
         {actions && <div className="flex flex-wrap items-center gap-2">{actions}</div>}
