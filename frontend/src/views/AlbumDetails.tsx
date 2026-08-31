@@ -16,6 +16,7 @@ import {
   RemoveAlbumArtwork,
   SaveAlbum,
   SaveTrack,
+  WriteAlbumTracks,
 } from '../../wailsjs/go/main/App'
 import {main} from '../../wailsjs/go/models'
 import {EmptyState} from '../components/EmptyState'
@@ -72,6 +73,8 @@ export function AlbumDetails({
   // The Record tab's two style panes as tabs (#48), this record's own style
   // the default — it is the editable half.
   const [styleTab, setStyleTab] = useState<'style' | 'inherited'>('style')
+  // The empty Tracks tab's one-press list writer (#71).
+  const [writingTracks, setWritingTracks] = useState(false)
   // Which track the detail pane shows (#40). Local state like the tab itself:
   // the album is the place, the selection is a drawer within it.
   const [selectedId, setSelectedId] = useState(trackId ?? '')
@@ -476,16 +479,44 @@ export function AlbumDetails({
             <EmptyState
               icon={ListMusic}
               title="No tracks yet"
-              body="The interview knows this album's combined style and what is already on it. Ask for one track or for five."
+              body="Write the whole list from this record's style in one press, or talk it through — the interview knows the combined style and takes requests."
             />
-            <div className="flex justify-center">
+            <div className="flex justify-center gap-2">
+              {/* The one-press repair (#71): a record with a style but no
+                  tracks — an album created before the interview wrote them
+                  (#70) — gets its list written directly, no second
+                  conversation required. */}
               <button
                 className="sm-button sm-button-primary"
+                type="button"
+                disabled={writingTracks}
+                onClick={async () => {
+                  setWritingTracks(true)
+                  setError('')
+                  try {
+                    await WriteAlbumTracks(albumId)
+                    await reload()
+                  } catch (err) {
+                    setError(toMessage(err))
+                  } finally {
+                    setWritingTracks(false)
+                  }
+                }}
+              >
+                {writingTracks ? (
+                  <Loader2 size={15} className="animate-spin" />
+                ) : (
+                  <Wand2 size={15} />
+                )}
+                {writingTracks ? 'Writing…' : 'Write the track list'}
+              </button>
+              <button
+                className="sm-button sm-button-quiet"
                 type="button"
                 onClick={() => setInterviewing(true)}
               >
                 <Sparkles size={15} />
-                Write tracks
+                Talk it through
               </button>
             </div>
           </div>
