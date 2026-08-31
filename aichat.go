@@ -5,11 +5,9 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io/fs"
 	"net/http"
 	"os"
 	"os/exec"
-	"path/filepath"
 	"strings"
 	"time"
 )
@@ -303,30 +301,6 @@ func chatViaCLI(ctx context.Context, id, model, system string, turns []chatMsg) 
 
 	prompt := flattenForCLI(system, turns)
 
-	// agy has had releases where -p drops stdout under a pipe (#50). So agy
-	// runs in a private working directory and is asked to also write its
-	// answer to a file there; when stdout comes back empty the file is read
-	// instead. On a healthy release stdout wins and the file is ignored — the
-	// known failure mode becomes a fallback rather than an error.
-	//
-	// The path in the instruction is absolute (#65): "the current working
-	// directory" was relative to whatever agy considers its workspace, and on
-	// releases that hand the run to the spawned application — the window a
-	// producer sees flash open and closed — that is not the directory this
-	// process set. Forward slashes because a model asked to write to a
-	// backslashed path tends to escape it into something else.
-	answerFile := ""
-	if id == serviceAntigravity {
-		if dir, err := os.MkdirTemp("", "sunomaker-agy-"); err == nil {
-			defer os.RemoveAll(dir)
-			answerFile = filepath.Join(dir, "answer.md")
-			prompt += "\n\nAfter printing your answer, also write the complete " +
-				"answer, exactly as printed, to the file " +
-				filepath.ToSlash(answerFile) + " — create the file if it does " +
-				"not exist."
-		}
-	}
-
 	var cmd *exec.Cmd
 	switch id {
 	case serviceAnthropic:
@@ -366,12 +340,8 @@ func chatViaCLI(ctx context.Context, id, model, system string, turns []chatMsg) 
 
 	// A neutral working directory: without one the CLI picks up whatever project
 	// it happens to be launched inside and starts answering about that repository
-	// instead of about the question. agy gets its own folder so the answer
-	// file above has somewhere unambiguous to land.
+	// instead of about the question.
 	cmd.Dir = os.TempDir()
-	if answerFile != "" {
-		cmd.Dir = filepath.Dir(answerFile)
-	}
 	// An account-mode run must not inherit an API key — the CLIs prefer one over
 	// the subscription login, and would quietly bill the wrong thing.
 	cmd.Env = envWithout("ANTHROPIC_API_KEY", "OPENAI_API_KEY", "GEMINI_API_KEY", "GOOGLE_API_KEY")
@@ -388,50 +358,20 @@ func chatViaCLI(ctx context.Context, id, model, system string, turns []chatMsg) 
 		return "", fmt.Errorf("%s could not answer: %s", cli, detail)
 	}
 	answer := strings.TrimSpace(stdout.String())
-	if answer == "" && answerFile != "" {
-		if written, err := os.ReadFile(answerFile); err == nil {
-			answer = strings.TrimSpace(string(written))
-		}
-		if answer == "" {
-			answer = strings.TrimSpace(rescueAnswerFile(filepath.Dir(answerFile)))
-		}
-	}
 	if answer == "" {
-		// Not "update the CLI" any more — #65 was filed from an up-to-date
-		// one. What is known for sure: the run finished cleanly and nothing
-		// came back on any channel this process can see.
+		// A clean exit with nothing on stdout. The reason, when there is one,
+		// is on stderr: agy's engine explains itself there — "a tool required
+		// the command permission that headless mode cannot prompt for" was
+		// exactly the line this app used to swallow (#67). Surfaced, the
+		// producer can act on it; swallowed, it was "returned nothing".
+		if detail := strings.TrimSpace(stderr.String()); detail != "" {
+			return "", fmt.Errorf("%s printed no answer: %s", cli, detail)
+		}
 		return "", fmt.Errorf(
 			"%s ran but its answer never reached this app — run `%s -p \"hello\"` in a terminal to see whether answers print there",
 			cli, cli)
 	}
 	return answer, nil
-}
-
-// rescueAnswerFile is the last resort of the agy fallback chain (#50, #65):
-// the CLI was asked to write answer.md at an absolute path, but releases that
-// hand the run to the spawned application have written relative to their own
-// workspace notion, or picked their own file name. The run's directory is
-// private to it, so anything at all left in there is the answer.
-func rescueAnswerFile(dir string) string {
-	best := ""
-	var bestSize int64
-	_ = filepath.WalkDir(dir, func(path string, d fs.DirEntry, err error) error {
-		if err != nil || d.IsDir() {
-			return nil
-		}
-		if info, err := d.Info(); err == nil && info.Size() > bestSize {
-			best, bestSize = path, info.Size()
-		}
-		return nil
-	})
-	if best == "" {
-		return ""
-	}
-	data, err := os.ReadFile(best)
-	if err != nil {
-		return ""
-	}
-	return string(data)
 }
 
 // flattenForCLI renders a brief and a transcript as one prompt.
