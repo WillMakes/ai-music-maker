@@ -39,6 +39,12 @@ export type PlayerState = {
   jumpTo: (index: number) => void
   seek: (seconds: number) => void
   clear: () => void
+  /** Loop the queue when it ends (#66); off means play once and stop. */
+  repeat: boolean
+  toggleRepeat: () => void
+  /** Pick the next song at random instead of in order (#66). */
+  shuffle: boolean
+  toggleShuffle: () => void
 }
 
 const PlayerContext = createContext<PlayerState | null>(null)
@@ -51,6 +57,8 @@ export function PlayerProvider({children}: {children: React.ReactNode}) {
   const [position, setPosition] = useState(0)
   const [duration, setDuration] = useState(0)
   const [error, setError] = useState('')
+  const [repeat, setRepeat] = useState(false)
+  const [shuffle, setShuffle] = useState(false)
 
   const audio = () => {
     if (!audioRef.current) {
@@ -87,7 +95,30 @@ export function PlayerProvider({children}: {children: React.ReactNode}) {
     const onMeta = () => setDuration(el.duration || 0)
     const onPlay = () => setPlaying(true)
     const onPause = () => setPlaying(false)
-    const onEnded = () => setIndex((i) => (i + 1 < queueRef.current.length ? i + 1 : i))
+    // What happens when a song runs out (#66): in order by default, at
+    // random under shuffle, back to the top under repeat, and quiet at the
+    // end otherwise. When the answer is "the same song again" — repeat with
+    // one entry — the index does not change and the load effect will not
+    // re-run, so the restart happens by hand on the element.
+    const onEnded = () => {
+      const len = queueRef.current.length
+      const i = indexRef.current
+      let next = i + 1
+      if (shuffleRef.current && len > 1) {
+        next = Math.floor(Math.random() * (len - 1))
+        if (next >= i) next++
+      } else if (next >= len) {
+        next = repeatRef.current ? 0 : i
+      }
+      if (next === i) {
+        if (repeatRef.current || shuffleRef.current) {
+          el.currentTime = 0
+          void el.play().catch(() => {})
+        }
+        return
+      }
+      setIndex(next)
+    }
     const onError = () => setError('This take could not be played.')
     el.addEventListener('timeupdate', onTime)
     el.addEventListener('loadedmetadata', onMeta)
@@ -112,6 +143,10 @@ export function PlayerProvider({children}: {children: React.ReactNode}) {
   queueRef.current = queue
   const indexRef = useRef(index)
   indexRef.current = index
+  const repeatRef = useRef(repeat)
+  repeatRef.current = repeat
+  const shuffleRef = useRef(shuffle)
+  shuffleRef.current = shuffle
 
   const play = useCallback(async (kind: 'track' | 'album' | 'artist' | 'all', id: string) => {
     setError('')
@@ -202,6 +237,8 @@ export function PlayerProvider({children}: {children: React.ReactNode}) {
     setQueue([])
     setIndex(0)
   }, [])
+  const toggleRepeat = useCallback(() => setRepeat((on) => !on), [])
+  const toggleShuffle = useCallback(() => setShuffle((on) => !on), [])
 
   // The OS's own controls (#45): metadata for the overlay, handlers for the
   // media keys. WebView2 forwards both through the Media Session API.
@@ -250,8 +287,12 @@ export function PlayerProvider({children}: {children: React.ReactNode}) {
       jumpTo,
       seek,
       clear,
+      repeat,
+      toggleRepeat,
+      shuffle,
+      toggleShuffle,
     }),
-    [queue, index, playing, position, duration, error, play, enqueue, toggle, next, previous, jumpTo, seek, clear],
+    [queue, index, playing, position, duration, error, play, enqueue, toggle, next, previous, jumpTo, seek, clear, repeat, toggleRepeat, shuffle, toggleShuffle],
   )
 
   return <PlayerContext.Provider value={value}>{children}</PlayerContext.Provider>

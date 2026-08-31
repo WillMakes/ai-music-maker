@@ -1,4 +1,4 @@
-import {ListMusic, Pause, Play, SkipBack, SkipForward} from 'lucide-react'
+import {ListMusic, Pause, Play, Repeat, Shuffle, SkipBack, SkipForward} from 'lucide-react'
 import {usePlayer} from '../player/PlayerProvider'
 import {Cover} from '../views/ArtistDetails'
 import {duration as fmtDuration} from '../lib/format'
@@ -65,6 +65,28 @@ export function PlayerBar({
           onClick={player.next}
         >
           <SkipForward size={15} />
+        </button>
+        {/* The two ways the queue keeps going (#66). Accent when on — an
+            invisible mode is a player that skips "randomly". */}
+        <button
+          className={'sm-button sm-button-quiet px-2' + (player.shuffle ? ' text-accent' : '')}
+          type="button"
+          title={player.shuffle ? 'Shuffle is on' : 'Shuffle'}
+          aria-label="Shuffle"
+          aria-pressed={player.shuffle}
+          onClick={player.toggleShuffle}
+        >
+          <Shuffle size={15} />
+        </button>
+        <button
+          className={'sm-button sm-button-quiet px-2' + (player.repeat ? ' text-accent' : '')}
+          type="button"
+          title={player.repeat ? 'Repeating the queue' : 'Repeat the queue'}
+          aria-label="Repeat the queue"
+          aria-pressed={player.repeat}
+          onClick={player.toggleRepeat}
+        >
+          <Repeat size={15} />
         </button>
       </div>
 
