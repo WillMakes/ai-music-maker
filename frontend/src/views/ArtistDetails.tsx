@@ -7,11 +7,13 @@ import {
   DeleteArtist,
   ExtractAlbum,
   ExtractTracks,
+  GenerateAlbumArtwork,
   GetArtist,
+  ImportAlbum,
+  ImportAlbumArtwork,
+  ImportTrackFile,
   ListAlbums,
   OpenURL,
-  ImportAlbum,
-  ImportTrackFile,
   SaveAlbum,
   SaveTrack,
   SaveArtist,
@@ -26,7 +28,7 @@ import {StyleEditAssistant} from '../artists/StyleEditAssistant'
 import {Modal} from '../components/Modal'
 import {useDataChanged} from '../lib/dataChanged'
 import {toMessage} from '../lib/errors'
-import {attachmentPathsByName, isAudioPath} from '../lib/files'
+import {attachmentPathsByName, isImagePath} from '../lib/files'
 import {usePlayer} from '../player/PlayerProvider'
 
 /**
@@ -430,37 +432,53 @@ export function ArtistDetails({
                 main.Album.createFrom({
                   artistId: artist.id,
                   name: albumDraft.name || 'New album',
-                  // No technicalStyle (#37): the record page has no field for
-                  // it any more, and a value nothing can show or edit would
-                  // shape every prompt invisibly.
+                  // The record's own style is back on the page since #38, so
+                  // the style the interview decided is kept (#69) — dropping
+                  // it made the producer re-derive what was just discussed.
+                  technicalStyle: albumDraft.technicalStyle,
                   artworkPrompt: albumDraft.artworkPrompt,
                 }),
               )
-              // Audio dropped into this chat is finished tracks (#24): run the
-              // track extraction over the same conversation and create them on
-              // the album that now exists, each with its file imported. Only
-              // when there is audio — an album interview with no files has not
-              // discussed a running order, and extracting tracks from it would
-              // invent one.
+              // The whole record, not a shell (#69): the track extraction
+              // runs over the conversation whether or not audio was attached
+              // — the interview planned the record, and the plan's tracks
+              // should exist when it opens. Attached audio (#24) is imported
+              // onto whichever track the extraction assigned it to. A chat
+              // that truly discussed no tracks extracts none, and the catch
+              // keeps a flaky extraction from failing the album.
               const attached = attachmentPathsByName(messages)
-              if (Object.keys(attached).some(isAudioPath)) {
-                const drafts = await ExtractTracks(messages).catch(() => [])
-                for (const track of drafts ?? []) {
-                  const saved = await SaveTrack(
-                    main.Track.createFrom({
-                      albumId: album.id,
-                      name: track.name || 'Untitled',
-                      prompt: track.prompt,
-                      lyrics: track.lyrics,
-                      targetSeconds: track.targetSeconds,
-                      files: [],
-                    }),
-                  )
-                  for (const name of track.files ?? []) {
-                    const path = attached[name]
-                    if (path) await ImportTrackFile(saved.id, path, '')
-                  }
+              const drafts = await ExtractTracks(messages).catch(() => [])
+              for (const track of drafts ?? []) {
+                const saved = await SaveTrack(
+                  main.Track.createFrom({
+                    albumId: album.id,
+                    name: track.name || 'Untitled',
+                    prompt: track.prompt,
+                    lyrics: track.lyrics,
+                    targetSeconds: track.targetSeconds,
+                    files: [],
+                  }),
+                )
+                for (const name of track.files ?? []) {
+                  const path = attached[name]
+                  if (path) await ImportTrackFile(saved.id, path, '')
                 }
+              }
+              // And the artwork (#69). An image handed to the chat is the
+              // cover — the last one attached, matching how a conversation
+              // corrects itself — imported before ClearChat sweeps the
+              // chat's files. With no image but an artwork prompt, a cover
+              // renders in the background: not awaited, because an image
+              // model run is measured in tens of seconds and the album is
+              // already real; if it fails, the album page's own Generate
+              // button is the retry.
+              const images = Object.values(attached).filter(isImagePath)
+              if (images.length > 0) {
+                await ImportAlbumArtwork(album.id, images[images.length - 1]).catch(
+                  () => {},
+                )
+              } else if (albumDraft.artworkPrompt) {
+                void GenerateAlbumArtwork(album.id, '').catch(() => {})
               }
               await ClearChat('album', artist.id).catch(() => {})
               setInterviewing(false)
