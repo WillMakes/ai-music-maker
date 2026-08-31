@@ -1,5 +1,5 @@
 import {useCallback, useEffect, useRef, useState} from 'react'
-import {ImagePlus, ListMusic, ListPlus, Loader2, Play, RefreshCw, Sparkles, Trash2, Wand2} from 'lucide-react'
+import {FolderInput, ImagePlus, ListMusic, ListPlus, Loader2, Play, RefreshCw, Sparkles, Trash2, Wand2} from 'lucide-react'
 import {TrackEditor} from './TrackDetails'
 import {
   ClearChat,
@@ -11,9 +11,12 @@ import {
   GetAlbum,
   ImportAlbumArtwork,
   PickImageFile,
+  ImportAlbumTakeDrop,
+  ImportAlbumTakeFile,
   ImportTrackFile,
   ListTracks,
   RemoveAlbumArtwork,
+  PickAudioFiles,
   SaveAlbum,
   SaveTrack,
   WriteAlbumTracks,
@@ -30,7 +33,7 @@ import {Cover} from './ArtistDetails'
 import {useDataChanged} from '../lib/dataChanged'
 import {duration} from '../lib/format'
 import {toMessage} from '../lib/errors'
-import {attachmentPathsByName} from '../lib/files'
+import {attachmentPathsByName, isAudioPath, readAsDataURL} from '../lib/files'
 import {usePlayer} from '../player/PlayerProvider'
 
 /**
@@ -80,6 +83,8 @@ export function AlbumDetails({
   const [styleTab, setStyleTab] = useState<'style' | 'inherited'>('style')
   // The empty Tracks tab's one-press list writer (#71).
   const [writingTracks, setWritingTracks] = useState(false)
+  // Whether a drag is hovering the track list (#76) — the batch drop zone.
+  const [droppingTakes, setDroppingTakes] = useState(false)
   // Which track the detail pane shows (#40). Local state like the tab itself:
   // the album is the place, the selection is a drawer within it.
   const [selectedId, setSelectedId] = useState(trackId ?? '')
@@ -87,6 +92,43 @@ export function AlbumDetails({
   // own busy state like the artwork's (#42).
   const [evolving, setEvolving] = useState(false)
   const player = usePlayer()
+
+  // The whole batch at once (#76): each file is routed to its track by name
+  // on the backend, and every file that could not be routed or imported is
+  // reported together — one stranger must not hide the nine that landed.
+  const importTakeErrors = async (imports: (() => Promise<unknown>)[]) => {
+    const problems: string[] = []
+    for (const run of imports) {
+      try {
+        await run()
+      } catch (err) {
+        problems.push(toMessage(err))
+      }
+    }
+    setError(problems.join(' '))
+  }
+
+  const importDroppedTakes = (dropped: FileList) =>
+    importTakeErrors(
+      Array.from(dropped).map((file) => async () => {
+        if (!isAudioPath(file.name) && !file.type.startsWith('audio/')) {
+          throw new Error(file.name + ' is not an audio file this app knows.')
+        }
+        await ImportAlbumTakeDrop(albumId, file.name, await readAsDataURL(file))
+      }),
+    )
+
+  const pickTakes = async () => {
+    try {
+      const paths = await PickAudioFiles()
+      if (!paths?.length) return
+      await importTakeErrors(
+        paths.map((path) => () => ImportAlbumTakeFile(albumId, path)),
+      )
+    } catch (err) {
+      setError(toMessage(err))
+    }
+  }
 
   const reload = useCallback(() => {
     Promise.all([GetAlbum(albumId), ListTracks(albumId)])
@@ -547,10 +589,42 @@ export function AlbumDetails({
             </div>
           </div>
         ) : (
-          /* Master-detail (#40): the running order on the left, the selected
+          /* The whole tab is the batch drop zone (#76): a folder of Suno
+             downloads lands here in one gesture, each file routed to its
+             track by name. */
+          <div
+            className={'space-y-3' + (droppingTakes ? ' rounded-lg ring-2 ring-accent' : '')}
+            onDragOver={(event) => {
+              event.preventDefault()
+              setDroppingTakes(true)
+            }}
+            onDragLeave={() => setDroppingTakes(false)}
+            onDrop={(event) => {
+              event.preventDefault()
+              setDroppingTakes(false)
+              if (event.dataTransfer.files.length) {
+                void importDroppedTakes(event.dataTransfer.files)
+              }
+            }}
+          >
+            <div className="flex items-center gap-3">
+              <p className="flex-1 text-xs text-fg-muted">
+                Drop a batch of takes anywhere here — each file lands on the track it
+                is named after.
+              </p>
+              <button
+                className="sm-button sm-button-quiet"
+                type="button"
+                onClick={() => void pickTakes()}
+              >
+                <FolderInput size={15} />
+                Import takes
+              </button>
+            </div>
+          {/* Master-detail (#40): the running order on the left, the selected
              track edited in place on the right. The track stopped being a
              destination - clicking through a record's songs no longer walks
-             the history stack. */
+             the history stack. */}
           <div className="grid items-start gap-4 md:grid-cols-[280px_minmax(0,1fr)]">
             <div className="sm-panel overflow-hidden">
               <ul className="divide-y divide-edge">
@@ -623,6 +697,7 @@ export function AlbumDetails({
                 }}
               />
             )}
+          </div>
           </div>
         ))}
 
