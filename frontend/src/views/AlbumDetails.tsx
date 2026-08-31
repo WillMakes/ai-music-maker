@@ -1,4 +1,4 @@
-import {useCallback, useEffect, useState} from 'react'
+import {useCallback, useEffect, useRef, useState} from 'react'
 import {ImagePlus, ListMusic, ListPlus, Loader2, Play, RefreshCw, Sparkles, Trash2, Wand2} from 'lucide-react'
 import {TrackEditor} from './TrackDetails'
 import {
@@ -60,7 +60,11 @@ export function AlbumDetails({
   const [album, setAlbum] = useState<main.Album | null>(null)
   const [tracks, setTracks] = useState<main.Track[]>([])
   const [draft, setDraft] = useState<main.Album | null>(null)
-  const [saving, setSaving] = useState(false)
+  const [saveState, setSaveState] = useState<'idle' | 'saving' | 'saved'>('idle')
+  // Only a draft the producer has touched is auto-saved — same guard as the
+  // artist page (#52): without it a background write reloading `album` would
+  // make the untouched draft look dirty and quietly get reverted.
+  const editedRef = useRef(false)
   const [drawing, setDrawing] = useState(false)
   const [feedback, setFeedback] = useState('')
   const [error, setError] = useState('')
@@ -105,23 +109,42 @@ export function AlbumDetails({
     }
   }, [trackId])
 
-  const update = (patch: Partial<main.Album>) =>
+  const update = (patch: Partial<main.Album>) => {
+    editedRef.current = true
     setDraft((current) => (current ? main.Album.createFrom({...current, ...patch}) : current))
-
-  const save = async () => {
-    if (!draft) return
-    setSaving(true)
-    setError('')
-    try {
-      const saved = await SaveAlbum(draft)
-      setAlbum(saved)
-      setDraft(main.Album.createFrom(saved))
-    } catch (err) {
-      setError(toMessage(err))
-    } finally {
-      setSaving(false)
-    }
   }
+
+  // The auto-save, ported whole from the artist page (#52) because renaming
+  // the record was dying to the same forgotten button (#75): a debounce off
+  // the draft, the stored record adopted back only when nothing changed while
+  // the save was in flight, and an empty name waiting rather than flashing a
+  // refusal per deleted character.
+  useEffect(() => {
+    if (!draft || !editedRef.current) return
+    if (!draft.name.trim()) return
+    const sent = JSON.stringify(draft)
+    const timer = setTimeout(async () => {
+      setSaveState('saving')
+      try {
+        const saved = await SaveAlbum(draft)
+        setAlbum(saved)
+        setDraft((current) =>
+          current && JSON.stringify(current) === sent
+            ? main.Album.createFrom(saved)
+            : current,
+        )
+        // A keystroke during the flight re-armed the debounce before this
+        // line runs, so clearing the flag cannot lose an edit.
+        editedRef.current = false
+        setSaveState('saved')
+        setError('')
+      } catch (err) {
+        setSaveState('idle')
+        setError(toMessage(err))
+      }
+    }, 800)
+    return () => clearTimeout(timer)
+  }, [draft])
 
   const draw = async () => {
     setDrawing(true)
@@ -153,7 +176,6 @@ export function AlbumDetails({
     return <p className="text-sm text-fg-muted">{error || 'Loading…'}</p>
   }
 
-  const dirty = JSON.stringify(draft) !== JSON.stringify(album)
   // The selection falls back to the first track, so the pane is never blank
   // while the record has songs - and heals when the selected one is deleted.
   const selected = tracks.find((t) => t.id === selectedId) ?? tracks[0]
@@ -195,6 +217,13 @@ export function AlbumDetails({
               <ListPlus size={15} />
               Queue
             </button>
+            {/* No Save button (#75) — just the word for what the debounce
+                is doing, matching the artist page (#52). */}
+            {saveState !== 'idle' && (
+              <span className="text-xs text-fg-muted" role="status">
+                {saveState === 'saving' ? 'Saving…' : 'Saved'}
+              </span>
+            )}
             <button
               className="sm-button sm-button-danger"
               type="button"
@@ -202,14 +231,6 @@ export function AlbumDetails({
             >
               <Trash2 size={15} />
               Delete
-            </button>
-            <button
-              className="sm-button sm-button-primary"
-              type="button"
-              onClick={save}
-              disabled={!dirty || saving}
-            >
-              {saving ? 'Saving…' : dirty ? 'Save changes' : 'Saved'}
             </button>
           </>
         }
