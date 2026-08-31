@@ -219,6 +219,34 @@ func (a *App) interviewFacts(kind, subjectID string) (string, error) {
 			return "", err
 		}
 		writeArtistFacts(&b, artist)
+		// The discography too (#73): the facts section is the interviews'
+		// window into the application's objects, and a conversation about the
+		// next record that cannot see the previous ones proposes their names
+		// and repeats their ground. Styles whole — they are what a follow-up
+		// record is written against — and track lists as name plus a prompt
+		// excerpt, enough to carry each song's character without a
+		// sixteen-track record eating the conversation's room.
+		albums, err := a.store.listAlbums(artist.ID)
+		if err != nil {
+			return "", err
+		}
+		for _, album := range albums {
+			fmt.Fprintf(&b, "\n**Existing record: %s**\n", album.Name)
+			if style := strings.TrimSpace(album.TechnicalStyle); style != "" {
+				b.WriteString("\nIts technical style:\n\n" + style + "\n")
+			}
+			tracks, err := a.store.listTracks(album.ID)
+			if err != nil {
+				return "", err
+			}
+			for _, t := range tracks {
+				if e := excerpt(t.Prompt, 100); e != "" {
+					fmt.Fprintf(&b, "%d. %s — %s\n", t.Position, t.Name, e)
+				} else {
+					fmt.Fprintf(&b, "%d. %s\n", t.Position, t.Name)
+				}
+			}
+		}
 	case subjectTrack:
 		// subjectID is the album the track is being written for, for the same
 		// reason.
@@ -246,11 +274,30 @@ func (a *App) interviewFacts(kind, subjectID string) (string, error) {
 		} else {
 			b.WriteString("\n**Tracks already on this album** (do not propose these names again):\n\n")
 			for _, t := range tracks {
-				fmt.Fprintf(&b, "%d. %s\n", t.Position, t.Name)
+				// Name plus a prompt excerpt (#73): the name alone prevents
+				// duplicates, but writing a track that flows from its
+				// neighbours needs to know what the neighbours sound like.
+				if e := excerpt(t.Prompt, 100); e != "" {
+					fmt.Fprintf(&b, "%d. %s — %s\n", t.Position, t.Name, e)
+				} else {
+					fmt.Fprintf(&b, "%d. %s\n", t.Position, t.Name)
+				}
 			}
 		}
 	}
 	return b.String(), nil
+}
+
+// excerpt is the head of a prompt for a context list: flattened to one line
+// and cut at a rune boundary, since a comma-led prompt is exactly the kind of
+// text an em-dash lands mid-character in a byte slice.
+func excerpt(s string, max int) string {
+	s = strings.Join(strings.Fields(s), " ")
+	runes := []rune(s)
+	if len(runes) <= max {
+		return s
+	}
+	return strings.TrimSpace(string(runes[:max])) + "…"
 }
 
 func writeArtistFacts(b *strings.Builder, artist Artist) {

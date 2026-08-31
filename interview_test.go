@@ -213,3 +213,53 @@ func TestPlanAlbumRefusals(t *testing.T) {
 		t.Fatal("a plan ran with no provider connected")
 	}
 }
+
+// TestInterviewFactsCarryTheApplicationObjects is #73: the facts section is
+// the embedded sessions' window into the app's objects, and it must serve the
+// graph the conversation is about — an album interview sees the artist's
+// existing records with their styles and track lists, and a track interview's
+// list carries each song's character, not just its name.
+func TestInterviewFactsCarryTheApplicationObjects(t *testing.T) {
+	app := newTestApp(t)
+	artist, err := app.SaveArtist(Artist{
+		Name:         "Cassette Motel",
+		BaseStyle:    "synthwave, analog warmth",
+		Inspirations: []Inspiration{},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	album, err := app.SaveAlbum(Album{
+		ArtistID:       artist.ID,
+		Name:           "Season 1",
+		TechnicalStyle: "colder mix than the debut",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := app.SaveTrack(Track{
+		AlbumID: album.ID,
+		Name:    "Cold Open",
+		Prompt:  "tape hiss, dusk chords, 98 BPM, no drums until the second minute",
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	facts, err := app.interviewFacts(subjectAlbum, artist.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{"Season 1", "colder mix", "Cold Open", "tape hiss"} {
+		if !strings.Contains(facts, want) {
+			t.Fatalf("the album interview cannot see %q:\n%s", want, facts)
+		}
+	}
+
+	facts, err = app.interviewFacts(subjectTrack, album.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(facts, "tape hiss") {
+		t.Fatalf("the track list lost the songs' character:\n%s", facts)
+	}
+}
