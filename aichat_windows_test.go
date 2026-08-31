@@ -1,3 +1,5 @@
+//go:build windows
+
 package main
 
 import (
@@ -7,16 +9,18 @@ import (
 	"testing"
 )
 
-// TestAgyStdoutFallback is #50: agy has had releases where -p drops stdout
-// under a pipe, exiting cleanly with nothing printed. The fix asks agy to
-// also write answer.md into its private working directory and reads that
-// when stdout is empty. The stub here is exactly the broken release: it
-// writes the file and prints nothing.
-func TestAgyStdoutFallback(t *testing.T) {
+// TestAgyEmptyAnswerSurfacesStderr is #67. The #50 answer-file instruction
+// made agy reach for a tool that headless -p auto-denies, which suppressed
+// every byte of stdout — the fallback was causing the failure it guarded
+// against, and the engine's explanation sat unread on stderr while the app
+// said "returned nothing". The instruction is gone; this pins the other half:
+// a clean exit with an empty stdout must hand the producer whatever stderr
+// says, because that is where the actionable reason lives.
+func TestAgyEmptyAnswerSurfacesStderr(t *testing.T) {
 	dir := t.TempDir()
 	stub := filepath.Join(dir, "agy.bat")
 	script := "@echo off\r\n" +
-		"echo synthwave, analog warmth> answer.md\r\n"
+		"echo a tool required the command permission 1>&2\r\n"
 	if err := os.WriteFile(stub, []byte(script), 0o700); err != nil {
 		t.Fatal(err)
 	}
@@ -31,26 +35,26 @@ func TestAgyStdoutFallback(t *testing.T) {
 	t.Cleanup(func() { lookUpCommand = previous })
 
 	app := newTestApp(t)
-	answer, err := chatViaCLI(app.interviewContext(), serviceAntigravity, "",
+	_, err := chatViaCLI(app.interviewContext(), serviceAntigravity, "",
 		"brief", []chatMsg{{Role: "user", Text: "hello"}})
-	if err != nil {
-		t.Fatalf("the fallback did not rescue the answer: %v", err)
+	if err == nil {
+		t.Fatal("an empty answer was accepted")
 	}
-	if !strings.Contains(answer, "synthwave") {
-		t.Fatalf("wrong answer read back: %q", answer)
+	if !strings.Contains(err.Error(), "command permission") {
+		t.Fatalf("stderr's explanation was swallowed: %v", err)
 	}
 }
 
-// TestAgyAnswerFileRescue is #65: releases that hand the -p run to the
-// spawned application have written the answer relative to their own workspace
-// notion or under their own name, never printing to stdout and never touching
-// answer.md. The stub is that release — it drops a differently named file in
-// the working directory, and the rescue pass must still bring the answer home.
-func TestAgyAnswerFileRescue(t *testing.T) {
+// TestAgyPromptCarriesNoFileInstruction pins the removal itself: the prompt
+// handed to agy must be the conversation and nothing else, because the extra
+// file-writing instruction is what tripped the permission denial (#67).
+func TestAgyPromptCarriesNoFileInstruction(t *testing.T) {
 	dir := t.TempDir()
 	stub := filepath.Join(dir, "agy.bat")
+	// The stub echoes its own prompt argument back, so the assertion can see
+	// exactly what agy would have been asked.
 	script := "@echo off\r\n" +
-		"echo tape hiss, dusk chords> reply.txt\r\n"
+		"echo %2\r\n"
 	if err := os.WriteFile(stub, []byte(script), 0o700); err != nil {
 		t.Fatal(err)
 	}
@@ -68,9 +72,9 @@ func TestAgyAnswerFileRescue(t *testing.T) {
 	answer, err := chatViaCLI(app.interviewContext(), serviceAntigravity, "",
 		"brief", []chatMsg{{Role: "user", Text: "hello"}})
 	if err != nil {
-		t.Fatalf("the rescue did not bring the answer home: %v", err)
+		t.Fatal(err)
 	}
-	if !strings.Contains(answer, "tape hiss") {
-		t.Fatalf("wrong answer read back: %q", answer)
+	if strings.Contains(answer, "answer.md") || strings.Contains(answer, "write the complete") {
+		t.Fatalf("the prompt still asks for a file: %q", answer)
 	}
 }
