@@ -5,8 +5,6 @@ import {
   ClearChat,
   MergeStyleWithAnalysis,
   DeleteArtist,
-  ExtractAlbum,
-  ExtractTracks,
   GenerateAlbumArtwork,
   GetArtist,
   ImportAlbum,
@@ -14,6 +12,7 @@ import {
   ImportTrackFile,
   ListAlbums,
   OpenURL,
+  PlanAlbum,
   SaveAlbum,
   SaveTrack,
   SaveArtist,
@@ -427,28 +426,26 @@ export function ArtistDetails({
           finishLabel="Create album"
           onFinish={async (messages) => {
             try {
-              const albumDraft: main.AlbumDraft = await ExtractAlbum(messages)
+              // One writing pass rather than two readers (#70): extraction
+              // returned "every track the conversation settled", and an album
+              // chat settles a theme and a count, not eleven songs — so the
+              // album kept opening empty. PlanAlbum keeps what was agreed and
+              // writes the rest, with the style built on the artist's base
+              // style and references. Its failure is the dialog's error, not
+              // a silently trackless record.
+              const plan: main.AlbumPlan = await PlanAlbum(artist.id, messages)
               const album = await SaveAlbum(
                 main.Album.createFrom({
                   artistId: artist.id,
-                  name: albumDraft.name || 'New album',
-                  // The record's own style is back on the page since #38, so
-                  // the style the interview decided is kept (#69) — dropping
-                  // it made the producer re-derive what was just discussed.
-                  technicalStyle: albumDraft.technicalStyle,
-                  artworkPrompt: albumDraft.artworkPrompt,
+                  name: plan.name || 'New album',
+                  technicalStyle: plan.technicalStyle,
+                  artworkPrompt: plan.artworkPrompt,
                 }),
               )
-              // The whole record, not a shell (#69): the track extraction
-              // runs over the conversation whether or not audio was attached
-              // — the interview planned the record, and the plan's tracks
-              // should exist when it opens. Attached audio (#24) is imported
-              // onto whichever track the extraction assigned it to. A chat
-              // that truly discussed no tracks extracts none, and the catch
-              // keeps a flaky extraction from failing the album.
+              // Attached audio (#24) still lands on whichever track the plan
+              // assigned it to.
               const attached = attachmentPathsByName(messages)
-              const drafts = await ExtractTracks(messages).catch(() => [])
-              for (const track of drafts ?? []) {
+              for (const track of plan.tracks ?? []) {
                 const saved = await SaveTrack(
                   main.Track.createFrom({
                     albumId: album.id,
@@ -477,7 +474,7 @@ export function ArtistDetails({
                 await ImportAlbumArtwork(album.id, images[images.length - 1]).catch(
                   () => {},
                 )
-              } else if (albumDraft.artworkPrompt) {
+              } else if (plan.artworkPrompt) {
                 void GenerateAlbumArtwork(album.id, '').catch(() => {})
               }
               await ClearChat('album', artist.id).catch(() => {})
