@@ -1,5 +1,5 @@
 import {useCallback, useEffect, useState} from 'react'
-import {Check, Copy, FolderOpen, ListPlus, Pencil, Play, Plus, Trash2} from 'lucide-react'
+import {Check, Copy, FolderOpen, ListPlus, Pencil, Play, Plus, Star, Trash2} from 'lucide-react'
 import {
   ChooseTrackFile,
   DeleteTrack,
@@ -521,20 +521,40 @@ function Takes({
         <ul className="divide-y divide-edge">
           {files.map((file) => (
             <li key={file.id} className="flex items-center gap-3 py-2">
-              <input
-                type="radio"
-                name={'take-' + track.id}
-                checked={file.chosen}
-                aria-label={'Use ' + file.label}
-                onChange={() => void act(ChooseTrackFile(track.id, file.id))}
-              />
+              {/* The star is the choice (#86): the filled one is the official
+                  take — the one the extension and the release act on — and
+                  every other take reads as a remix of it. A star rather than
+                  the old radio because that is the gesture every music app
+                  taught: favourites are starred, not selected. */}
+              <button
+                className={
+                  'shrink-0 p-1 transition-colors ' +
+                  (file.chosen ? 'text-warn' : 'text-fg-muted hover:text-fg')
+                }
+                type="button"
+                title={file.chosen ? 'The official take' : 'Star as the official take'}
+                aria-label={file.chosen ? 'The official take' : 'Star as the official take'}
+                aria-pressed={file.chosen}
+                onClick={() => {
+                  if (!file.chosen) void act(ChooseTrackFile(track.id, file.id))
+                }}
+              >
+                <Star size={16} fill={file.chosen ? 'currentColor' : 'none'} />
+              </button>
               <span className="min-w-0 flex-1">
                 <span className="block truncate text-sm">{file.label}</span>
                 <span className="block truncate font-mono text-xs text-fg-muted">
                   {file.name}
                 </span>
               </span>
-              {file.chosen && <StatusPill tone="ok">The take</StatusPill>}
+              {/* Both states carry their word (see StatusPill): the official
+                  take and the remixes name themselves, rather than one pill
+                  whose absence has to mean something. */}
+              {file.chosen ? (
+                <StatusPill tone="ok">Official</StatusPill>
+              ) : (
+                <StatusPill tone="muted">Remix</StatusPill>
+              )}
               <span className="shrink-0 text-xs tabular-nums text-fg-muted">
                 {fileSize(file.bytes)}
               </span>
