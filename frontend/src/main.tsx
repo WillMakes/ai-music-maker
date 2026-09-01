@@ -5,6 +5,7 @@ import {ArtistsProvider} from './artists/ArtistsProvider'
 import {LibraryProvider} from './library/LibraryProvider'
 import {PlayerProvider} from './player/PlayerProvider'
 import {EvolutionsProvider} from './evolutions/EvolutionsProvider'
+import {ArtworksProvider} from './artworks/ArtworksProvider'
 import {BugsProvider} from './bugs/BugsProvider'
 import {ThemeProvider} from './theme/ThemeProvider'
 import './style.css'
@@ -34,11 +35,13 @@ createRoot(container).render(
         <ArtistsProvider>
           <LibraryProvider>
             <PlayerProvider>
-              {/* Above the shell so an evolution outlives the page that
-                  started it (#82) - the status bar and the album page both
-                  read it. */}
+              {/* Above the shell so an evolution (#82) and an artwork
+                  generation (#83) outlive the page that started them - the
+                  status bar and the album page both read them. */}
               <EvolutionsProvider>
-                <App />
+                <ArtworksProvider>
+                  <App />
+                </ArtworksProvider>
               </EvolutionsProvider>
             </PlayerProvider>
           </LibraryProvider>
