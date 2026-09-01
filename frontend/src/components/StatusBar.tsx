@@ -3,6 +3,7 @@ import {
   AlertTriangle,
   Bug,
   Chrome,
+  Image as ImageIcon,
   Loader2,
   Music4,
   Plug,
@@ -16,6 +17,7 @@ import {
 } from '../../wailsjs/go/main/App'
 import {main} from '../../wailsjs/go/models'
 import {useArtists} from '../artists/ArtistsProvider'
+import {useArtworks} from '../artworks/ArtworksProvider'
 import {useEvolutions} from '../evolutions/EvolutionsProvider'
 import {summarise, useBugs} from '../bugs/BugsProvider'
 import {useDataChanged} from '../lib/dataChanged'
@@ -48,6 +50,7 @@ export function StatusBar({
   const {artists} = useArtists()
   const {reports} = useBugs()
   const {evolutions, dismiss} = useEvolutions()
+  const {artworks, dismiss: dismissArtwork} = useArtworks()
 
   const [info, setInfo] = useState<main.BuildInfo | null>(null)
   const [services, setServices] = useState<main.AIServiceStatus[]>([])
@@ -164,6 +167,38 @@ export function StatusBar({
       {/* Pushed right: the queue is the one segment whose best news is saying
           nothing at all. */}
       <span className="ml-auto flex items-center gap-4">
+        {/* The artwork generations in flight (#83), the same shape as the
+            evolutions below: every click goes to the record the cover is for,
+            and a ready one retires its segment on the way. */}
+        {artworks.map((job) => (
+          <Segment
+            key={'artwork-' + job.albumId}
+            icon={
+              job.state === 'running' ? (
+                <Loader2 size={12} className="animate-spin" />
+              ) : job.state === 'done' ? (
+                <ImageIcon size={12} />
+              ) : (
+                <AlertTriangle size={12} />
+              )
+            }
+            label={
+              job.state === 'running'
+                ? `Drawing the cover for “${job.albumName}”…`
+                : job.state === 'done'
+                  ? `The cover for “${job.albumName}” is ready — open it`
+                  : `Drawing the cover for “${job.albumName}” failed`
+            }
+            tone={job.state === 'done' ? 'ok' : job.state === 'failed' ? 'warn' : undefined}
+            showLabel
+            live={job.state === 'running'}
+            onClick={() => {
+              if (job.state === 'done') dismissArtwork(job.albumId)
+              onOpenAlbum(job.albumId, job.artistId)
+            }}
+          />
+        ))}
+
         {/* The evolutions in flight (#82): started on an album page, but the
             call outlives it, so the bar is where the producer looks after
             navigating away. Running walks back to the source; ready opens the

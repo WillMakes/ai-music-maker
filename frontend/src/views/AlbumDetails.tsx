@@ -5,7 +5,6 @@ import {
   ClearChat,
   DeleteAlbum,
   ExtractTracks,
-  GenerateAlbumArtwork,
   GenerateAlbumStyle,
   GetAlbum,
   ImportAlbumArtwork,
@@ -35,6 +34,7 @@ import {toMessage} from '../lib/errors'
 import {attachmentPathsByName, isAudioPath, readAsDataURL} from '../lib/files'
 import {usePlayer} from '../player/PlayerProvider'
 import {useEvolutions} from '../evolutions/EvolutionsProvider'
+import {useArtworks} from '../artworks/ArtworksProvider'
 
 /**
  * One album: its cover, what is different about this record, its tracks, and the
@@ -68,7 +68,12 @@ export function AlbumDetails({
   // artist page (#52): without it a background write reloading `album` would
   // make the untouched draft look dirty and quietly get reverted.
   const editedRef = useRef(false)
-  const [drawing, setDrawing] = useState(false)
+  // Drawing lives in the provider (#83), like evolving (#82): the generation
+  // runs for minutes, and the producer must be free to navigate away and find
+  // it again — on this page, or in the status bar.
+  const {artworks, draw: drawArtwork, dismiss: dismissArtwork} = useArtworks()
+  const artworkJob = artworks.find((job) => job.albumId === albumId)
+  const drawing = artworkJob?.state === 'running'
   const [feedback, setFeedback] = useState('')
   const [error, setError] = useState('')
   const [interviewing, setInterviewing] = useState(false)
@@ -203,30 +208,34 @@ export function AlbumDetails({
     return () => clearTimeout(timer)
   }, [draft])
 
-  const draw = async () => {
-    setDrawing(true)
-    setError('')
-    try {
-      const updated = await GenerateAlbumArtwork(albumId, feedback)
-      setAlbum(updated)
-      // The fields the producer may be editing are left alone; only the cover
-      // and the brief behind it are taken from the answer.
-      setDraft((current) =>
-        current
-          ? main.Album.createFrom({
-              ...current,
-              artworkFile: updated.artworkFile,
-              artworkUrl: updated.artworkUrl,
-              artworkPrompt: updated.artworkPrompt,
-            })
-          : current,
-      )
-      setFeedback('')
-    } catch (err) {
-      setError(toMessage(err))
-    } finally {
-      setDrawing(false)
-    }
+  // Adopt a finished cover (#83): the generation may have ended while this
+  // page was somewhere else entirely, so the adoption is an effect on the
+  // job's state rather than the tail of the call. Only the artwork fields are
+  // taken — the producer may have kept editing the rest — and adopting them
+  // into the draft matters beyond display: the auto-save writes the whole
+  // draft, and a draft still holding the old cover would quietly put it back.
+  useEffect(() => {
+    if (artworkJob?.state !== 'done' || !artworkJob.album) return
+    const updated = artworkJob.album
+    setAlbum(updated)
+    setDraft((current) =>
+      current
+        ? main.Album.createFrom({
+            ...current,
+            artworkFile: updated.artworkFile,
+            artworkUrl: updated.artworkUrl,
+            artworkPrompt: updated.artworkPrompt,
+          })
+        : current,
+    )
+    setFeedback('')
+    dismissArtwork(artworkJob.albumId)
+  }, [artworkJob, dismissArtwork])
+
+  const draw = () => {
+    // A redraw after a failure is also its acknowledgement — the provider
+    // replaces the failed entry with the new run's.
+    drawArtwork({id: albumId, name: album?.name ?? '', artistId: album?.artistId ?? ''}, feedback)
   }
 
   if (!album || !draft) {
@@ -414,6 +423,15 @@ export function AlbumDetails({
               </button>
             )}
           </div>
+          {drawing && (
+            <p className="text-xs text-fg-muted">
+              This keeps running if you navigate away — watch the status bar, and come
+              back any time.
+            </p>
+          )}
+          {artworkJob?.state === 'failed' && (
+            <p className="text-sm text-danger">{artworkJob.error}</p>
+          )}
         </section>
       </div>
 
