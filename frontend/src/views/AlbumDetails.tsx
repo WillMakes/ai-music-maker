@@ -4,7 +4,6 @@ import {TrackEditor} from './TrackDetails'
 import {
   ClearChat,
   DeleteAlbum,
-  EvolveAlbum,
   ExtractTracks,
   GenerateAlbumArtwork,
   GenerateAlbumStyle,
@@ -35,6 +34,7 @@ import {duration} from '../lib/format'
 import {toMessage} from '../lib/errors'
 import {attachmentPathsByName, isAudioPath, readAsDataURL} from '../lib/files'
 import {usePlayer} from '../player/PlayerProvider'
+import {useEvolutions} from '../evolutions/EvolutionsProvider'
 
 /**
  * One album: its cover, what is different about this record, its tracks, and the
@@ -88,9 +88,24 @@ export function AlbumDetails({
   // Which track the detail pane shows (#40). Local state like the tab itself:
   // the album is the place, the selection is a drawer within it.
   const [selectedId, setSelectedId] = useState(trackId ?? '')
-  // Evolving runs for as long as a big generation call does, so it gets its
-  // own busy state like the artwork's (#42).
-  const [evolving, setEvolving] = useState(false)
+  // Evolving lives in the provider, not here (#82): the call runs for as long
+  // as a big generation call does, and the producer must be free to navigate
+  // away and find it again — on this page, or in the status bar.
+  const {evolutions, evolve, dismiss} = useEvolutions()
+  const evolution = evolutions.find((e) => e.albumId === albumId)
+  const evolving = evolution?.state === 'running'
+  // Auto-open the successor only on the transition seen from this page — the
+  // old behaviour for a producer who waited here. Returning to this page
+  // after the fact must not teleport them; the status bar offers the door.
+  const sawRunningRef = useRef(false)
+  useEffect(() => {
+    if (evolution?.state === 'running') sawRunningRef.current = true
+    if (evolution?.state === 'done' && sawRunningRef.current) {
+      sawRunningRef.current = false
+      dismiss(evolution.albumId)
+      onOpenAlbum(evolution.nextAlbumId)
+    }
+  }, [evolution, dismiss, onOpenAlbum])
   const player = usePlayer()
 
   // The whole batch at once (#76): each file is routed to its track by name
@@ -496,22 +511,22 @@ export function AlbumDetails({
               className="sm-button sm-button-primary"
               type="button"
               disabled={evolving}
-              onClick={async () => {
-                setEvolving(true)
-                setError('')
-                try {
-                  const next = await EvolveAlbum(albumId)
-                  onOpenAlbum(next.id)
-                } catch (err) {
-                  setError(toMessage(err))
-                } finally {
-                  setEvolving(false)
-                }
-              }}
+              onClick={() =>
+                evolve({id: album.id, name: album.name, artistId: album.artistId})
+              }
             >
               {evolving ? <Loader2 size={15} className="animate-spin" /> : <Sparkles size={15} />}
               {evolving ? 'Evolving…' : 'Create the next record'}
             </button>
+            {evolving && (
+              <p className="text-xs text-fg-muted">
+                This keeps running if you navigate away — watch the status bar, and
+                come back any time.
+              </p>
+            )}
+            {evolution?.state === 'failed' && (
+              <p className="text-sm text-danger">{evolution.error}</p>
+            )}
           </section>
         </div>
       )}

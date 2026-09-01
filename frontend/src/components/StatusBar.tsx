@@ -16,6 +16,7 @@ import {
 } from '../../wailsjs/go/main/App'
 import {main} from '../../wailsjs/go/models'
 import {useArtists} from '../artists/ArtistsProvider'
+import {useEvolutions} from '../evolutions/EvolutionsProvider'
 import {summarise, useBugs} from '../bugs/BugsProvider'
 import {useDataChanged} from '../lib/dataChanged'
 import {formatElapsed} from '../lib/format'
@@ -36,9 +37,17 @@ import type {ViewId} from '../navigation'
  * be most of the bar saying the same thing from launch to quit; the transient
  * ones are labelled, because there the words are the point.
  */
-export function StatusBar({onNavigate}: {onNavigate: (view: ViewId) => void}) {
+export function StatusBar({
+  onNavigate,
+  onOpenAlbum,
+}: {
+  onNavigate: (view: ViewId) => void
+  /** For the evolution segments (#82), whose destination is a record. */
+  onOpenAlbum: (albumId: string, artistId: string) => void
+}) {
   const {artists} = useArtists()
   const {reports} = useBugs()
+  const {evolutions, dismiss} = useEvolutions()
 
   const [info, setInfo] = useState<main.BuildInfo | null>(null)
   const [services, setServices] = useState<main.AIServiceStatus[]>([])
@@ -155,6 +164,49 @@ export function StatusBar({onNavigate}: {onNavigate: (view: ViewId) => void}) {
       {/* Pushed right: the queue is the one segment whose best news is saying
           nothing at all. */}
       <span className="ml-auto flex items-center gap-4">
+        {/* The evolutions in flight (#82): started on an album page, but the
+            call outlives it, so the bar is where the producer looks after
+            navigating away. Running walks back to the source; ready opens the
+            successor and retires the segment; failed walks back to the source,
+            where the message is shown beside the button that can retry. */}
+        {evolutions.map((evolution) => (
+          <Segment
+            key={evolution.albumId}
+            icon={
+              evolution.state === 'running' ? (
+                <Loader2 size={12} className="animate-spin" />
+              ) : evolution.state === 'done' ? (
+                <Sparkles size={12} />
+              ) : (
+                <AlertTriangle size={12} />
+              )
+            }
+            label={
+              evolution.state === 'running'
+                ? `Evolving “${evolution.albumName}”…`
+                : evolution.state === 'done'
+                  ? `“${evolution.nextAlbumName}” is ready — open it`
+                  : `Evolving “${evolution.albumName}” failed`
+            }
+            tone={
+              evolution.state === 'done'
+                ? 'ok'
+                : evolution.state === 'failed'
+                  ? 'warn'
+                  : undefined
+            }
+            showLabel
+            live={evolution.state === 'running'}
+            onClick={() => {
+              if (evolution.state === 'done') {
+                dismiss(evolution.albumId)
+                onOpenAlbum(evolution.nextAlbumId, evolution.artistId)
+              } else {
+                onOpenAlbum(evolution.albumId, evolution.artistId)
+              }
+            }}
+          />
+        ))}
         {/* What the queue is *doing*, beside what is in it. A count says how many
             reports are open and nothing about whether anything is happening to
             them, which is the question somebody who has just filed one actually
