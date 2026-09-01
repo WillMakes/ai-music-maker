@@ -144,7 +144,13 @@ export function ArtistDetails({
   return (
     <div className="space-y-5">
       <PageHeader
-        title={artist.name}
+        // The draft's name, so a rename shows in the title the moment it is
+        // committed rather than after the debounce lands; the stored name
+        // stands in while the panel field is being typed empty (#79).
+        title={draft.name.trim() ? draft.name : artist.name}
+        // The rename rides the same draft-and-debounce as the panel's Name
+        // field (#79) — one save path, one set of guards.
+        onRename={(name) => update({name})}
         breadcrumb="Artists"
         subtitle={artist.summary || 'No description yet.'}
         icon={<Music4 size={26} />}
