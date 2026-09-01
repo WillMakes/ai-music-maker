@@ -225,7 +225,14 @@ export function AlbumDetails({
   return (
     <div className="space-y-5">
       <PageHeader
-        title={album.name}
+        // The draft's name, so a rename shows in the title the moment it is
+        // committed rather than after the debounce lands; the stored name
+        // stands in while the Record tab's field is being typed empty (#80).
+        title={draft.name.trim() ? draft.name : album.name}
+        // The rename rides the same draft-and-debounce as the Record tab's
+        // Name field (#80) — which is otherwise invisible from the Tracks
+        // tab, the tab this page usually sits on.
+        onRename={(name) => update({name})}
         breadcrumb={
           <button
             className="hover:text-fg hover:underline"
