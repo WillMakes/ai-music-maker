@@ -150,6 +150,7 @@ func (a *App) ImportTrackFile(trackID, sourcePath, label string) (Track, error) 
 		Name:    filepath.Base(destination),
 		Path:    destination,
 		Bytes:   info.Size(),
+		Seconds: audioDurationSeconds(destination),
 		At:      nowStamp(),
 	}
 	// The first file imported is the chosen one. A track with takes and none
@@ -159,6 +160,12 @@ func (a *App) ImportTrackFile(trackID, sourcePath, label string) (Track, error) 
 
 	if err := a.store.addTrackFile(file); err != nil {
 		return Track{}, err
+	}
+	// The track's duration follows the chosen take (#85): once a real file is
+	// the song, targetSeconds stops being an aim and becomes its length. An
+	// unchosen take keeps its reading to itself.
+	if file.Chosen && file.Seconds > 0 {
+		_ = a.store.setTrackSeconds(trackID, file.Seconds)
 	}
 	a.store.changed(scopeTracks)
 	return a.store.track(trackID)
@@ -172,6 +179,8 @@ func (a *App) ChooseTrackFile(trackID, fileID string) (Track, error) {
 	if err := a.store.chooseTrackFile(trackID, fileID); err != nil {
 		return Track{}, err
 	}
+	// The duration follows the choice (#85), same as at import.
+	_ = a.store.syncTrackSeconds(trackID)
 	a.store.changed(scopeTracks)
 	return a.store.track(trackID)
 }
@@ -194,6 +203,9 @@ func (a *App) RemoveTrackFile(trackID, fileID string, deleteFile bool) (Track, e
 		// producer looking at an error about a file they can no longer see.
 		_ = os.Remove(path)
 	}
+	// Removing the chosen take promotes another (see removeTrackFile), and the
+	// duration follows the choice (#85).
+	_ = a.store.syncTrackSeconds(trackID)
 	a.store.changed(scopeTracks)
 	return a.store.track(trackID)
 }
@@ -261,7 +273,7 @@ func (s *Store) trackFiles(trackID string) ([]TrackFile, error) {
 		return out, nil
 	}
 	rows, err := s.db.Query(
-		`SELECT id, track_id, label, name, path, bytes, chosen, at
+		`SELECT id, track_id, label, name, path, bytes, seconds, chosen, at
 		 FROM track_files WHERE track_id = ? ORDER BY at`, trackID)
 	if err != nil {
 		return out, err
@@ -270,7 +282,7 @@ func (s *Store) trackFiles(trackID string) ([]TrackFile, error) {
 	for rows.Next() {
 		var f TrackFile
 		if err := rows.Scan(&f.ID, &f.TrackID, &f.Label, &f.Name, &f.Path,
-			&f.Bytes, &f.Chosen, &f.At); err != nil {
+			&f.Bytes, &f.Seconds, &f.Chosen, &f.At); err != nil {
 			return out, err
 		}
 		out = append(out, f)
@@ -286,7 +298,7 @@ func (s *Store) filesForAlbum(albumID string) (map[string][]TrackFile, error) {
 		return out, nil
 	}
 	rows, err := s.db.Query(
-		`SELECT f.id, f.track_id, f.label, f.name, f.path, f.bytes, f.chosen, f.at
+		`SELECT f.id, f.track_id, f.label, f.name, f.path, f.bytes, f.seconds, f.chosen, f.at
 		 FROM track_files f JOIN tracks t ON t.id = f.track_id
 		 WHERE t.album_id = ? ORDER BY f.at`, albumID)
 	if err != nil {
@@ -296,7 +308,7 @@ func (s *Store) filesForAlbum(albumID string) (map[string][]TrackFile, error) {
 	for rows.Next() {
 		var f TrackFile
 		if err := rows.Scan(&f.ID, &f.TrackID, &f.Label, &f.Name, &f.Path,
-			&f.Bytes, &f.Chosen, &f.At); err != nil {
+			&f.Bytes, &f.Seconds, &f.Chosen, &f.At); err != nil {
 			return out, err
 		}
 		out[f.TrackID] = append(out[f.TrackID], f)
@@ -319,9 +331,9 @@ func (s *Store) addTrackFile(f TrackFile) error {
 		}
 	}
 	if _, err := tx.Exec(
-		`INSERT INTO track_files (id, track_id, label, name, path, bytes, chosen, at)
-		 VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-		f.ID, f.TrackID, f.Label, f.Name, f.Path, f.Bytes, f.Chosen, f.At); err != nil {
+		`INSERT INTO track_files (id, track_id, label, name, path, bytes, seconds, chosen, at)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		f.ID, f.TrackID, f.Label, f.Name, f.Path, f.Bytes, f.Seconds, f.Chosen, f.At); err != nil {
 		return err
 	}
 	return tx.Commit()
@@ -378,4 +390,33 @@ func (s *Store) removeTrackFile(trackID, fileID string) (string, error) {
 				SELECT id FROM track_files WHERE track_id = ? ORDER BY at LIMIT 1)`, trackID)
 	}
 	return path, nil
+}
+
+// setTrackSeconds writes a track's duration without touching the rest of the
+// row — the caller may be mid-import, with the producer's own edits in flight.
+func (s *Store) setTrackSeconds(trackID string, seconds int) error {
+	if s == nil || s.db == nil {
+		return errNoStore
+	}
+	_, err := s.db.Exec(`UPDATE tracks SET target_seconds = ? WHERE id = ?`,
+		seconds, trackID)
+	return err
+}
+
+// syncTrackSeconds re-derives a track's duration from its chosen take (#85),
+// for the paths where the choice moves rather than a file arriving. A chosen
+// take with no reading changes nothing — a wrong number is worse than a stale
+// one.
+func (s *Store) syncTrackSeconds(trackID string) error {
+	if s == nil || s.db == nil {
+		return errNoStore
+	}
+	var seconds int
+	err := s.db.QueryRow(
+		`SELECT seconds FROM track_files WHERE track_id = ? AND chosen = 1`,
+		trackID).Scan(&seconds)
+	if err != nil || seconds <= 0 {
+		return err
+	}
+	return s.setTrackSeconds(trackID, seconds)
 }
