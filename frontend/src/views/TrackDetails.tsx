@@ -478,13 +478,18 @@ function Takes({
   return (
     <section
       className={'sm-panel space-y-3 p-4' + (dragging ? ' ring-2 ring-accent' : '')}
+      // The bubble stops here (#84): the album page behind this panel is a
+      // drop zone of its own, and a take dropped on a specific track must land
+      // on that track once — not once here and once more by name.
       onDragOver={(event) => {
         event.preventDefault()
+        event.stopPropagation()
         setDragging(true)
       }}
       onDragLeave={() => setDragging(false)}
       onDrop={(event) => {
         event.preventDefault()
+        event.stopPropagation()
         setDragging(false)
         if (event.dataTransfer.files.length) void importDropped(event.dataTransfer.files)
       }}

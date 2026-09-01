@@ -69,3 +69,48 @@ func TestImportAlbumTakeDropRoutesToTheTrack(t *testing.T) {
 		t.Fatalf("the take is not on disk: %v", err)
 	}
 }
+
+// TestSeveralFilesLandOnOneTrackAsTakes reproduces #84: a Suno session ends
+// with more than one download of the same song - the browser names the second
+// "Name (1).mp3" - and importing the batch must file every one of them as a
+// take on that track, first in chosen, none overwriting another.
+func TestSeveralFilesLandOnOneTrackAsTakes(t *testing.T) {
+	app := newTestApp(t)
+	artist, err := app.SaveArtist(Artist{Name: "Cassette Motel", Inspirations: []Inspiration{}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	album, err := app.SaveAlbum(Album{ArtistID: artist.ID, Name: "Season 3"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := app.SaveTrack(Track{AlbumID: album.ID, Name: "Cold Open"}); err != nil {
+		t.Fatal(err)
+	}
+
+	payload := base64.StdEncoding.EncodeToString([]byte("not really mp3 bytes"))
+	var got Track
+	for _, name := range []string{"Cold Open.mp3", "Cold Open (1).mp3", "Cold Open (2).mp3"} {
+		got, err = app.ImportAlbumTakeDrop(album.ID, name, "data:audio/mpeg;base64,"+payload)
+		if err != nil {
+			t.Fatalf("%s was not routed: %v", name, err)
+		}
+	}
+	if len(got.Files) != 3 {
+		t.Fatalf("want 3 takes on the track, got %d: %+v", len(got.Files), got.Files)
+	}
+	paths := map[string]bool{}
+	chosen := 0
+	for _, f := range got.Files {
+		paths[f.Path] = true
+		if f.Chosen {
+			chosen++
+		}
+	}
+	if len(paths) != 3 {
+		t.Fatalf("takes overwrote each other on disk: %+v", got.Files)
+	}
+	if chosen != 1 {
+		t.Fatalf("want exactly one chosen take, got %d", chosen)
+	}
+}
