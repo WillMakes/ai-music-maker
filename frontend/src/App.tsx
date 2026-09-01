@@ -344,7 +344,10 @@ export default function App() {
             column and already ends in its own collapse control, and a bar
             running under it would have to say something about a rail that has
             nothing to report. */}
-        <StatusBar onNavigate={(view) => go({view})} />
+        <StatusBar
+          onNavigate={(view) => go({view})}
+          onOpenAlbum={(albumId, artistId) => go({view: 'album-details', albumId, artistId})}
+        />
       </div>
 
       {reporting && (

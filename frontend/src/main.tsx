@@ -4,6 +4,7 @@ import App from './App'
 import {ArtistsProvider} from './artists/ArtistsProvider'
 import {LibraryProvider} from './library/LibraryProvider'
 import {PlayerProvider} from './player/PlayerProvider'
+import {EvolutionsProvider} from './evolutions/EvolutionsProvider'
 import {BugsProvider} from './bugs/BugsProvider'
 import {ThemeProvider} from './theme/ThemeProvider'
 import './style.css'
@@ -33,7 +34,12 @@ createRoot(container).render(
         <ArtistsProvider>
           <LibraryProvider>
             <PlayerProvider>
-              <App />
+              {/* Above the shell so an evolution outlives the page that
+                  started it (#82) - the status bar and the album page both
+                  read it. */}
+              <EvolutionsProvider>
+                <App />
+              </EvolutionsProvider>
             </PlayerProvider>
           </LibraryProvider>
         </ArtistsProvider>
