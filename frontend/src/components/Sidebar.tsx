@@ -128,7 +128,21 @@ export function Sidebar({
                       <TreeRow
                         key={album.id}
                         indent
-                        icon={<Disc3 size={13} className="shrink-0" aria-hidden />}
+                        // The cover as the row's icon (#81): the rail is the
+                        // library, and a library is browsed by its spines. The
+                        // disc glyph stays for a record with no artwork yet.
+                        icon={
+                          album.artworkUrl ? (
+                            <img
+                              src={album.artworkUrl}
+                              alt=""
+                              className="size-5 shrink-0 rounded-sm object-cover"
+                              aria-hidden
+                            />
+                          ) : (
+                            <Disc3 size={13} className="shrink-0" aria-hidden />
+                          )
+                        }
                         label={album.name}
                         badge={album.trackCount > 0 ? String(album.trackCount) : ''}
                         active={

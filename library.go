@@ -19,6 +19,9 @@ type LibraryAlbum struct {
 	// UpdatedAt orders the Home view's resume cards: the record touched last is
 	// the one to pick back up.
 	UpdatedAt string `json:"updatedAt"`
+	// ArtworkURL is the rail's thumbnail (#81) — the same bridge address the
+	// album page draws the cover from, empty for a record with no cover yet.
+	ArtworkURL string `json:"artworkUrl"`
 }
 
 // LibraryArtist is one artist and their records.
@@ -38,7 +41,7 @@ func (a *App) LibraryTree() ([]LibraryArtist, error) {
 
 	rows, err := a.store.db.Query(
 		`SELECT ar.id, ar.name, COALESCE(al.id, ''), COALESCE(al.name, ''),
-		        COALESCE(al.updated_at, ''),
+		        COALESCE(al.updated_at, ''), COALESCE(al.artwork_file, ''),
 		        (SELECT COUNT(*) FROM tracks t WHERE t.album_id = al.id)
 		 FROM artists ar
 		 LEFT JOIN albums al ON al.artist_id = ar.id
@@ -53,10 +56,10 @@ func (a *App) LibraryTree() ([]LibraryArtist, error) {
 	// the rail rather than appearing only once they have a record.
 	index := map[string]int{}
 	for rows.Next() {
-		var artistID, artistName, albumID, albumName, updatedAt string
+		var artistID, artistName, albumID, albumName, updatedAt, artworkFile string
 		var trackCount int
 		if err := rows.Scan(&artistID, &artistName, &albumID, &albumName,
-			&updatedAt, &trackCount); err != nil {
+			&updatedAt, &artworkFile, &trackCount); err != nil {
 			return out, err
 		}
 		at, known := index[artistID]
@@ -69,9 +72,22 @@ func (a *App) LibraryTree() ([]LibraryArtist, error) {
 		if albumID != "" {
 			out[at].Albums = append(out[at].Albums, LibraryAlbum{
 				ID: albumID, Name: albumName, TrackCount: trackCount,
-				UpdatedAt: updatedAt,
+				// The file for now; the URL is derived below, once the rows
+				// are closed. artworkURL reads the bridge token from settings,
+				// and the store holds a single connection — a query issued
+				// while this result set is still open waits on it for ever.
+				UpdatedAt: updatedAt, ArtworkURL: artworkFile,
 			})
 		}
 	}
-	return out, rows.Err()
+	if err := rows.Err(); err != nil {
+		return out, err
+	}
+	rows.Close()
+	for at := range out {
+		for i := range out[at].Albums {
+			out[at].Albums[i].ArtworkURL = a.artworkURL(out[at].Albums[i].ArtworkURL)
+		}
+	}
+	return out, nil
 }
