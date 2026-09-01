@@ -56,6 +56,11 @@ type TrackFile struct {
 	Name  string `json:"name"`
 	Path  string `json:"path"`
 	Bytes int64  `json:"bytes"`
+	// Seconds is the file's real playing time, read off its headers at import
+	// (#85) — 0 when the codec is not one this app reads. The track's
+	// targetSeconds follows the chosen take's value, so the page stops saying
+	// how long the song was aimed to be once it knows how long it is.
+	Seconds int `json:"seconds"`
 	// Chosen marks the take that is the track. At most one per track, enforced
 	// on write: "which of these is the song" is a question with one answer, and
 	// a list where three are ticked has not answered it.

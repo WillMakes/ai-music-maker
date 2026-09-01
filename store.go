@@ -352,6 +352,8 @@ func (s *Store) addColumns() error {
 		{"artist_inspirations", "artist", "TEXT NOT NULL DEFAULT ''"},
 		{"artist_inspirations", "album", "TEXT NOT NULL DEFAULT ''"},
 		{"artist_inspirations", "artwork_url", "TEXT NOT NULL DEFAULT ''"},
+		// The take's real playing time, read at import (#85).
+		{"track_files", "seconds", "INTEGER NOT NULL DEFAULT 0"},
 	}
 	for _, c := range columns {
 		_, err := s.db.Exec(fmt.Sprintf("ALTER TABLE %s ADD COLUMN %s %s",
