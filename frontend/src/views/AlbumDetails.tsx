@@ -247,7 +247,27 @@ export function AlbumDetails({
   const selected = tracks.find((t) => t.id === selectedId) ?? tracks[0]
 
   return (
-    <div className="space-y-5">
+    /* The whole page is the batch drop zone (#84), not just the Tracks tab
+       (#76): the page opens on the Record tab, and a drop that only worked
+       one tab over read as no matching at all. Each file is still routed to
+       its track by name, and several files for one track land as several
+       takes. The per-track editor keeps its own zone by stopping the
+       bubble. */
+    <div
+      className={'space-y-5' + (droppingTakes ? ' rounded-lg ring-2 ring-accent' : '')}
+      onDragOver={(event) => {
+        event.preventDefault()
+        setDroppingTakes(true)
+      }}
+      onDragLeave={() => setDroppingTakes(false)}
+      onDrop={(event) => {
+        event.preventDefault()
+        setDroppingTakes(false)
+        if (event.dataTransfer.files.length) {
+          void importDroppedTakes(event.dataTransfer.files)
+        }
+      }}
+    >
       <PageHeader
         // The draft's name, so a rename shows in the title the moment it is
         // committed rather than after the debounce lands; the stored name
@@ -289,6 +309,17 @@ export function AlbumDetails({
             >
               <ListPlus size={15} />
               Queue
+            </button>
+            {/* In the header so the ability is visible from every tab (#84):
+                the picked files are matched to tracks by name, the same as a
+                drop anywhere on the page. */}
+            <button
+              className="sm-button sm-button-quiet"
+              type="button"
+              onClick={() => void pickTakes()}
+            >
+              <FolderInput size={15} />
+              Import takes
             </button>
             {/* No Save button (#75) — just the word for what the debounce
                 is doing, matching the artist page (#52). */}
@@ -629,28 +660,15 @@ export function AlbumDetails({
             </div>
           </div>
         ) : (
-          /* The whole tab is the batch drop zone (#76): a folder of Suno
-             downloads lands here in one gesture, each file routed to its
-             track by name. */
-          <div
-            className={'space-y-3' + (droppingTakes ? ' rounded-lg ring-2 ring-accent' : '')}
-            onDragOver={(event) => {
-              event.preventDefault()
-              setDroppingTakes(true)
-            }}
-            onDragLeave={() => setDroppingTakes(false)}
-            onDrop={(event) => {
-              event.preventDefault()
-              setDroppingTakes(false)
-              if (event.dataTransfer.files.length) {
-                void importDroppedTakes(event.dataTransfer.files)
-              }
-            }}
-          >
+          /* The batch import's home row (#76). The drop zone itself moved up
+             to the whole page (#84); this keeps the words that explain it,
+             where the tracks the files land on are in view. */
+          <div className="space-y-3">
             <div className="flex items-center gap-3">
               <p className="flex-1 text-xs text-fg-muted">
-                Drop a batch of takes anywhere here — each file lands on the track it
-                is named after.
+                Drop a batch of takes anywhere on this page — each file lands on the
+                track it is named after, and several files for one track become its
+                takes.
               </p>
               <button
                 className="sm-button sm-button-quiet"
