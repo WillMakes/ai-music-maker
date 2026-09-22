@@ -32,10 +32,36 @@ import (
 // key its entry sits under.
 const mcpServerName = "suno-maker"
 
-// mcpProtocolVersion is the revision this server implements. Answered verbatim
-// in the initialize result: a client that asked for a different one is told what
-// it actually got rather than being agreed with.
-const mcpProtocolVersion = "2024-11-05"
+// mcpProtocolVersions are the MCP revisions this server speaks, and
+// mcpProtocolLatest is what a client proposing none of them is answered with.
+// The tool surface is the same under all three, so speaking a revision is
+// echoing it back at initialize — which the protocol requires: a client that
+// proposed a revision the server supports must be answered with that revision,
+// not with whichever one the server was written against (#89).
+var mcpProtocolVersions = map[string]bool{
+	"2024-11-05": true, "2025-03-26": true, "2025-06-18": true,
+}
+
+const mcpProtocolLatest = "2025-06-18"
+
+// mcpInstructions is the server's own orientation, sent in the initialize
+// result. Codex and Claude Code put it in the model's context, which makes it
+// the one place this app can say where to start before a single tool is
+// called (#89).
+//
+// Without it, a producer asking Codex for "the at-a-glance for suno-maker"
+// got "SunoMaker doesn't expose a matching view": the model searched eighty
+// tool descriptions for the words it had, found none, and improvised from
+// list_bug_reports. get_documentation was there the whole time, and nothing
+// pointed at it. Prompts do not do this job in Codex — it never lists them.
+const mcpInstructions = "Tools for SunoMaker, a desktop app that plans music " +
+	"for Suno — artists, their albums, each album's tracks with Suno prompts and " +
+	"lyrics, the finished takes, album artwork, the AI interviews that write all " +
+	"of it, and the bug queue. Call get_documentation first for the app at a " +
+	"glance: what it holds, how the workflow runs, and which tool does what. " +
+	"describe_app is the full map for writing documentation — every page, what " +
+	"it calls, which tool reaches the same thing. library_tree is the quickest " +
+	"read of what is in the library."
 
 // runMCPServer handles a `mcp` invocation, reporting handled=false for anything
 // else so main falls through and opens the window as usual.
@@ -126,16 +152,26 @@ func serveMCP(app *App, in io.Reader, out io.Writer) int {
 func dispatchMCP(app *App, req jsonRPCRequest) (any, *jsonRPCError) {
 	switch req.Method {
 	case "initialize":
+		var params struct {
+			ProtocolVersion string `json:"protocolVersion"`
+		}
+		_ = json.Unmarshal(req.Params, &params)
+		version := mcpProtocolLatest
+		if mcpProtocolVersions[params.ProtocolVersion] {
+			version = params.ProtocolVersion
+		}
 		return map[string]any{
-			"protocolVersion": mcpProtocolVersion,
+			"protocolVersion": version,
 			// Only tools. This server has no resources and no prompts, and
-			// declaring capabilities it does not implement would have clients
-			// call methods that answer -32601.
+			// declaring capabilities it does not implement would be a promise
+			// the listings below cannot keep.
 			"capabilities": map[string]any{"tools": map[string]any{}},
 			"serverInfo": map[string]any{
 				"name":    mcpServerName,
+				"title":   "SunoMaker",
 				"version": appVersion,
 			},
+			"instructions": mcpInstructions,
 		}, nil
 
 	case "ping":
@@ -143,6 +179,17 @@ func dispatchMCP(app *App, req jsonRPCRequest) (any, *jsonRPCError) {
 
 	case "tools/list":
 		return map[string]any{"tools": mcpToolDefinitions()}, nil
+
+	// Codex asks for resources and prompts whatever a server declared, and
+	// wrote "Failed to list resources for MCP server 'suno-maker'" to its log
+	// on every connection when the answer was -32601 (#89). An empty listing
+	// is the true answer — there are none — and it is not an error.
+	case "resources/list":
+		return map[string]any{"resources": []any{}}, nil
+	case "resources/templates/list":
+		return map[string]any{"resourceTemplates": []any{}}, nil
+	case "prompts/list":
+		return map[string]any{"prompts": []any{}}, nil
 
 	case "tools/call":
 		var params struct {

@@ -208,10 +208,15 @@ func mcpImage(dataURL string) map[string]any {
 func libraryTools() []mcpTool {
 	return []mcpTool{
 		{
-			name:        "get_documentation",
-			description: "What this application is, what it holds, how its workflow runs and which tools this server offers. Read this first.",
-			binding:     "Documentation",
-			schema:      object(map[string]any{}),
+			name: "get_documentation",
+			// "At a glance" and "overview" are in here on purpose: a model
+			// asked for either searches tool descriptions for the words, and
+			// this is the tool it should find (#89).
+			description: "SunoMaker at a glance — the overview to read first: what this " +
+				"application is, what it holds, how its workflow runs, where things live, " +
+				"and which tools this server offers.",
+			binding: "Documentation",
+			schema:  object(map[string]any{}),
 			run: with(func(app *App, _ noArgs) map[string]any {
 				return mcpResult(map[string]any{"documentation": app.Documentation()})
 			}),
