@@ -156,6 +156,13 @@ The MCP server reads the database directly rather than talking to a running
 window, which is what makes it work when the app is closed — and why the store
 sets `busy_timeout`: two processes share the file.
 
+Its `describe_app` tool is the application's map of itself: every page, the
+components it renders, the bindings it calls, and the tool that reaches each
+one. The page half is written by `frontend/scripts/app-map.mjs` on every
+frontend build, from `navigation.ts`, the route guards in `App.tsx` and the
+import graph, into `dist/app-map.json`; the binary embeds it and joins the
+tool surface to it at read time. Nothing in the map is maintained by hand.
+
 ## House style
 
 See [CLAUDE.md](CLAUDE.md).

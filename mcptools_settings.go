@@ -189,6 +189,20 @@ func settingsTools() []mcpTool {
 
 		// -- About ----------------------------------------------------------------
 		{
+			name: "describe_app",
+			description: "The application's map of itself, for writing documentation: every " +
+				"page with the components it renders and the functions it calls; the " +
+				"shell every page shares; every binding with the pages that use it and " +
+				"the tools that reach it, or why none does; and every tool with its " +
+				"schema. Read off the source at build time, joined to the tool surface " +
+				"at read time — nothing in it is written by hand. Large; call it once.",
+			binding: "DescribeApp",
+			schema:  object(map[string]any{}),
+			run: with(func(app *App, _ noArgs) map[string]any {
+				return answer(app.DescribeApp())
+			}),
+		},
+		{
 			name: "get_build_info",
 			description: "What is running: version, commit, Go version, platform, whether the " +
 				"database opened, and the repository it came from.",
