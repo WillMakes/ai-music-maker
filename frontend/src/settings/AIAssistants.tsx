@@ -53,8 +53,8 @@ export function AIAssistants() {
       <div>
         <h2 className="text-sm font-semibold">AI assistants</h2>
         <p className="mt-1 text-sm text-fg-muted">
-          Let an assistant read and write your library through {status.toolCount} tools —
-          artists, albums, tracks, skills and the bug queue.
+          Let an assistant do everything this window does, through {status.toolCount} tools —
+          the library and its files, the interviews, artwork, skills, settings and the bug queue.
         </p>
       </div>
 

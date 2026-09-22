@@ -101,11 +101,13 @@ the ones made afterwards.
 	b.WriteString(`
 ## Settings
 
-    AI          Claude, ChatGPT and Grok, each connected either by its
-                signed-in CLI (billed to the subscription) or by an API key.
-                One is starred as the default. The same panel registers this
-                app as an MCP server with Claude Code, Claude Desktop, Codex
-                and Grok.
+    AI          Claude, ChatGPT, Gemini, Antigravity and Grok, each connected
+                either by its signed-in CLI (billed to the subscription) or by
+                an API key. One is starred as the default.
+    AI assistants
+                registers this app as an MCP server with Claude Code, Claude
+                Desktop, Codex, Gemini CLI, Antigravity and Grok, so an
+                assistant can do everything the window can — see below.
     Skills      the app's own briefs — how it interviews, how it writes a Suno
                 prompt, what a cover should look like. Built-ins can be edited
                 and reset; you can write your own.
@@ -128,6 +130,24 @@ the ones made afterwards.
 		b.WriteString("\n")
 	}
 
+	// The tool list is generated from the tools themselves, so this document
+	// can never describe a server the binary does not have (#87). One line
+	// each: the name and the first sentence, enough to find the right tool
+	// before tools/list gives the whole schema.
+	b.WriteString("## The MCP server\n\n")
+	b.WriteString(`Run as ` + "`suno-maker mcp`" + `, speaking JSON-RPC on stdio, for the AI
+clients Settings → AI assistants registers it with. It reads the database
+directly, so it works with the window closed. Every operation the window has
+is a tool, except the four that need a window (file dialogs, raising the
+window, opening the browser) and dismissing the fixed-bugs notice, which is
+the producer's to dismiss.
+
+`)
+	for _, tool := range mcpTools() {
+		fmt.Fprintf(&b, "    %-28s %s\n", tool.name, firstSentence(tool.description))
+	}
+	b.WriteString("\n")
+
 	b.WriteString(`## The bug queue
 
 Reports are filed from the bug button in the top bar. A report is a GitHub issue
@@ -148,4 +168,15 @@ watched from. Work one with:
 	}
 
 	return b.String()
+}
+
+// firstSentence is a description cut at its first full stop, for a listing
+// that wants one line per item. A description with no full stop is short
+// enough to be its own line.
+func firstSentence(s string) string {
+	s = strings.Join(strings.Fields(s), " ")
+	if i := strings.Index(s, ". "); i >= 0 {
+		return s[:i+1]
+	}
+	return s
 }

@@ -101,7 +101,7 @@ GoLand run configurations for all of the above are committed under
 | Tab | What it does |
 | --- | --- |
 | **AI** | Claude, ChatGPT and Grok. Each connects either by its signed-in CLI (`claude`, `codex`) — which bills your subscription — or by an API key, validated against the provider before it is stored. One is starred as the default; it is what the interviews use. |
-| **AI assistants** | Registers this app as an MCP server with Claude Code, Claude Desktop, Codex and Grok, so an assistant can read and write your library. Eighteen tools. |
+| **AI assistants** | Registers this app as an MCP server with Claude Code, Claude Desktop, Codex, Gemini CLI, Antigravity and Grok. Every operation the window has is a tool — the library and its files, the interviews, artwork, skills, settings and the bug queue; `suno-maker docs` lists them. |
 | **Skills** | The app's own briefs: how it interviews, how it writes a Suno prompt, what a cover should look like. Built-ins can be edited and reset; you can write your own. |
 | **Chrome extension** | Exports the extension with this app's bridge token in it, and says where to point "Load unpacked". |
 | **Bug reports** | The open queue and what has been fixed. |

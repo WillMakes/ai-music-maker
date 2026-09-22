@@ -150,6 +150,19 @@ func (a *App) ListBugReports() ([]BugReport, error) {
 	return a.store.bugReports()
 }
 
+// GetBugReport reads one open report by id.
+//
+// Not ListBugReports filtered: the listing reconciles against the forge on
+// every read, which is the right cost for "what is there to do" and the wrong
+// one for looking up a report whose id is already in hand. This is what
+// `bugs get` reads and what the MCP server answers get_bug_report with (#87).
+func (a *App) GetBugReport(id string) (BugReport, error) {
+	if a.store == nil {
+		return BugReport{Attachments: []string{}}, nil
+	}
+	return a.store.bugReport(id)
+}
+
 // ListResolvedReports reports what has been fixed, newest first.
 func (a *App) ListResolvedReports() ([]ResolvedReport, error) {
 	if a.store == nil {
