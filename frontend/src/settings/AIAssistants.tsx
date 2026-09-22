@@ -1,6 +1,13 @@
-import {useCallback, useEffect, useState} from 'react'
-import {ConnectMCPClient, DisconnectMCPClient, GetMCPStatus} from '../../wailsjs/go/main/App'
+import {useCallback, useEffect, useMemo, useState} from 'react'
+import {ChevronDown, ChevronRight} from 'lucide-react'
+import {
+  ConnectMCPClient,
+  DisconnectMCPClient,
+  GetMCPStatus,
+  ListMCPTools,
+} from '../../wailsjs/go/main/App'
 import {main} from '../../wailsjs/go/models'
+import {TextField} from '../components/Field'
 import {StatusPill} from '../components/StatusPill'
 import {toMessage} from '../lib/errors'
 
@@ -122,6 +129,118 @@ export function AIAssistants() {
           whether or not this window is open.
         </p>
       </section>
+
+      <ToolList count={status.toolCount} />
     </div>
+  )
+}
+
+/**
+ * Every tool the server offers, with what it does and what it takes (#90).
+ *
+ * Folded away by default: it is a reference for somebody deciding what to let
+ * an assistant do, not something to scroll past on the way to the Connect
+ * buttons. Read from the same list the server dispatches through, so a tool
+ * shown here can be called and a tool that can be called is shown.
+ */
+function ToolList({count}: {count: number}) {
+  const [tools, setTools] = useState<main.MCPToolInfo[]>([])
+  const [open, setOpen] = useState(false)
+  const [query, setQuery] = useState('')
+  const [error, setError] = useState('')
+
+  useEffect(() => {
+    ListMCPTools()
+      .then((found) => setTools(found ?? []))
+      .catch((err) => setError(toMessage(err)))
+  }, [])
+
+  // Grouped in the server's own order — library first, settings last — and
+  // narrowed by the search across name and description, since a producer
+  // looking for "the one that imports takes" has words, not a tool name.
+  const groups = useMemo(() => {
+    const needle = query.trim().toLowerCase()
+    const out: {name: string; tools: main.MCPToolInfo[]}[] = []
+    for (const tool of tools) {
+      if (
+        needle &&
+        !tool.name.toLowerCase().includes(needle) &&
+        !tool.description.toLowerCase().includes(needle)
+      ) {
+        continue
+      }
+      const last = out[out.length - 1]
+      if (last && last.name === tool.group) last.tools.push(tool)
+      else out.push({name: tool.group, tools: [tool]})
+    }
+    return out
+  }, [tools, query])
+
+  return (
+    <section className="sm-panel p-4">
+      <button
+        className="flex w-full items-center gap-2 text-left text-sm font-semibold"
+        type="button"
+        aria-expanded={open}
+        onClick={() => setOpen((was) => !was)}
+      >
+        {open ? (
+          <ChevronDown size={16} aria-hidden className="shrink-0 text-fg-muted" />
+        ) : (
+          <ChevronRight size={16} aria-hidden className="shrink-0 text-fg-muted" />
+        )}
+        The {count} tools
+        <span className="font-normal text-fg-muted">— what a connected assistant can do here</span>
+      </button>
+
+      {open && (
+        <div className="mt-4 space-y-4">
+          {error && <p className="text-sm text-danger">{error}</p>}
+          <TextField
+            label="Find a tool"
+            value={query}
+            onChange={setQuery}
+            placeholder="Search by name or by what it does"
+          />
+          {groups.length === 0 && !error && (
+            <p className="text-sm text-fg-muted">
+              {tools.length === 0 ? 'Loading…' : 'Nothing matches that.'}
+            </p>
+          )}
+          {groups.map((group) => (
+            <div key={group.name}>
+              <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-fg-muted">
+                {group.name}
+              </h3>
+              <ul className="divide-y divide-edge rounded border border-edge">
+                {group.tools.map((tool) => (
+                  <li key={tool.name} className="px-3 py-2">
+                    <p className="font-mono text-xs font-medium">{tool.name}</p>
+                    <p className="mt-1 text-sm text-fg-muted">{tool.description}</p>
+                    {tool.arguments.length > 0 && (
+                      <p className="mt-1.5 flex flex-wrap gap-1">
+                        {tool.arguments.map((arg) => (
+                          <span
+                            key={arg.name}
+                            title={(arg.required ? 'Required — ' : 'Optional — ') + arg.description}
+                            className={
+                              'rounded px-1.5 py-0.5 font-mono text-xs ' +
+                              (arg.required ? 'bg-surface-hover text-fg' : 'text-fg-muted')
+                            }
+                          >
+                            {arg.name}
+                            {arg.required && '*'}
+                          </span>
+                        ))}
+                      </p>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ))}
+        </div>
+      )}
+    </section>
   )
 }

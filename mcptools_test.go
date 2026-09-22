@@ -342,6 +342,47 @@ func TestSettingsToolsKeepTheKeysIn(t *testing.T) {
 	}
 }
 
+// TestListMCPToolsIsTheServersOwnList is #90: the Settings panel's tool list
+// comes from the same list the server dispatches through, every tool sits in
+// a named group, and a tool's arguments are read off its schema with the
+// required ones marked.
+func TestListMCPToolsIsTheServersOwnList(t *testing.T) {
+	app := newTestApp(t)
+	listed := app.ListMCPTools()
+	if len(listed) != mcpToolCount() {
+		t.Fatalf("listed %d tools, the server has %d", len(listed), mcpToolCount())
+	}
+	groups := map[string]int{}
+	byName := map[string]MCPToolInfo{}
+	for _, tool := range listed {
+		if tool.Group == "" || tool.Description == "" {
+			t.Errorf("%s is listed without a group or a description", tool.Name)
+		}
+		groups[tool.Group]++
+		byName[tool.Name] = tool
+	}
+	if len(groups) < 5 {
+		t.Errorf("want the five domains, got %v", groups)
+	}
+	save, ok := byName["save_track"]
+	if !ok {
+		t.Fatal("save_track is not listed")
+	}
+	required := map[string]bool{}
+	for _, arg := range save.Arguments {
+		required[arg.Name] = arg.Required
+		if arg.Description == "" {
+			t.Errorf("save_track's %s has no description", arg.Name)
+		}
+	}
+	if !required["albumId"] || !required["name"] || required["lyrics"] {
+		t.Errorf("save_track's required arguments are wrong: %v", required)
+	}
+	if len(byName["list_artists"].Arguments) != 0 {
+		t.Errorf("list_artists takes no arguments, listed %v", byName["list_artists"].Arguments)
+	}
+}
+
 func TestUnknownToolAndBadArgumentsAreToolErrors(t *testing.T) {
 	app := newTestApp(t)
 	if result := callMCPTool(app, "no_such_tool", nil); result["isError"] != true {
