@@ -75,12 +75,15 @@ func TestEveryBindingHasATool(t *testing.T) {
 		}
 	}
 
-	for _, name := range mcpNotOffered {
+	for name, reason := range mcpNotOffered {
 		if !bindings[name] {
 			t.Errorf("%s is listed as not offered, but is not a binding on App", name)
 		}
 		if tool, ok := reached[name]; ok {
 			t.Errorf("%s is listed as not offered, yet %s reaches it", name, tool)
+		}
+		if strings.TrimSpace(reason) == "" {
+			t.Errorf("%s is not offered and no reason is given", name)
 		}
 	}
 
@@ -89,14 +92,7 @@ func TestEveryBindingHasATool(t *testing.T) {
 		if reached[name] != "" {
 			continue
 		}
-		listed := false
-		for _, skipped := range mcpNotOffered {
-			if skipped == name {
-				listed = true
-				break
-			}
-		}
-		if !listed {
+		if _, listed := mcpNotOffered[name]; !listed {
 			missing = append(missing, name)
 		}
 	}

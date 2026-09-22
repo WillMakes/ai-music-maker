@@ -140,7 +140,9 @@ clients Settings → AI assistants registers it with. It reads the database
 directly, so it works with the window closed. Every operation the window has
 is a tool, except the four that need a window (file dialogs, raising the
 window, opening the browser) and dismissing the fixed-bugs notice, which is
-the producer's to dismiss.
+the producer's to dismiss. describe_app is the map of all of it — every page,
+what it renders, what it calls, and which tool reaches the same thing — read
+off the source when the frontend is built, for writing documentation from.
 
 `)
 	for _, tool := range mcpTools() {
