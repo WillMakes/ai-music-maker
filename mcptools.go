@@ -26,20 +26,21 @@ import (
 // called that" is something the model should read and act on.
 // ---------------------------------------------------------------------------
 
-// mcpNotOffered is every binding the server deliberately does not expose, and
-// the test that checks parity holds it to exactly these.
+// mcpNotOffered is every binding the server deliberately does not expose, with
+// the reason — and the test that checks parity holds it to exactly these. The
+// reasons are data rather than a comment because describe_app (#88) reports
+// them: an agent documenting the app should say why a page's button has no
+// tool, not just that it has none.
 //
-// Four of them need a window: two open the desktop's file dialog, one raises the
-// window and one opens the producer's browser. The server runs with no webview,
-// and a dialog nobody can see is a call that never returns. An agent with a path
-// to hand over has import_track_file and import_album_artwork, which take it
-// directly.
-//
-// MarkFixesSeen is the producer's own acknowledgement — the window shows an
-// unseen fix once, as a notice, and clears the flag when they have read it. An
-// agent dismissing that notice would be dismissing it on the producer's behalf.
-var mcpNotOffered = []string{
-	"ShowWindow", "OpenURL", "PickImageFile", "PickAudioFiles", "MarkFixesSeen",
+// Four of them need a window. The server runs with no webview, and a dialog
+// nobody can see is a call that never returns; an agent with a path to hand
+// over has import_track_file and import_album_artwork, which take it directly.
+var mcpNotOffered = map[string]string{
+	"PickImageFile":  "opens the desktop's file dialog, which needs a window; import_album_artwork takes the path directly",
+	"PickAudioFiles": "opens the desktop's file dialog, which needs a window; import_track_file and import_album_take take the path directly",
+	"ShowWindow":     "raises the window, which the server has none of",
+	"OpenURL":        "opens a link in the producer's browser, which is theirs to do",
+	"MarkFixesSeen":  "dismisses the fixed-bugs notice, which is the producer's own acknowledgement — the window shows a fix once and clears the flag when they have read it",
 }
 
 // mcpTool is one tool's definition and its implementation together.
