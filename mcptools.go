@@ -9,16 +9,38 @@ import (
 // ---------------------------------------------------------------------------
 // What an agent can do to this app
 //
-// The tool surface behind the MCP server. It is deliberately the same set of
-// operations the window has, reaching the same bindings: an agent that can read
-// the library, write a prompt and file a bug is an agent that can do the work,
-// and a tool that did something no button does would be a second implementation
-// to keep in step.
+// The tool surface behind the MCP server: every operation the window has,
+// reaching the same bindings (#87). An agent that can read the library, run an
+// interview, write a prompt, file the takes and work the bug queue is an agent
+// that can do the producer's work, and a tool that did something no button does
+// would be a second implementation to keep in step.
+//
+// The surface is split by domain across the mcptools_*.go files, the way the
+// bindings themselves are; this file holds the shared plumbing and the library
+// proper. Each tool names the binding it reaches, and a test reflects over App
+// to check that nothing exported is left unreached — the only bindings it may
+// skip are the ones in mcpNotOffered, each with its reason.
 //
 // Every tool answers JSON (see mcpResult). Every failure answers as a tool error
 // rather than a transport error (see mcpFailure), because "there is no album
 // called that" is something the model should read and act on.
 // ---------------------------------------------------------------------------
+
+// mcpNotOffered is every binding the server deliberately does not expose, and
+// the test that checks parity holds it to exactly these.
+//
+// Four of them need a window: two open the desktop's file dialog, one raises the
+// window and one opens the producer's browser. The server runs with no webview,
+// and a dialog nobody can see is a call that never returns. An agent with a path
+// to hand over has import_track_file and import_album_artwork, which take it
+// directly.
+//
+// MarkFixesSeen is the producer's own acknowledgement — the window shows an
+// unseen fix once, as a notice, and clears the flag when they have read it. An
+// agent dismissing that notice would be dismissing it on the producer's behalf.
+var mcpNotOffered = []string{
+	"ShowWindow", "OpenURL", "PickImageFile", "PickAudioFiles", "MarkFixesSeen",
+}
 
 // mcpTool is one tool's definition and its implementation together.
 //
@@ -28,13 +50,37 @@ import (
 type mcpTool struct {
 	name        string
 	description string
+	// binding names the App method(s) this tool reaches, space-separated for
+	// the few that compose two. Read by the parity test, and by nothing else:
+	// it is documentation that is checked.
+	binding string
 	// schema is the JSON Schema for the arguments, as the protocol wants it.
 	schema map[string]any
 	run    func(app *App, args json.RawMessage) map[string]any
 }
 
-// object builds an argument schema. A helper because every one of these is the
-// same three keys and writing them out twenty times buries the differences.
+// mcpTools is the whole surface, in the order tools/list offers it: the
+// library first, since that is where every task starts, then the files, the
+// AI, the bug queue, and the settings.
+func mcpTools() []mcpTool {
+	var out []mcpTool
+	out = append(out, libraryTools()...)
+	out = append(out, fileTools()...)
+	out = append(out, aiTools()...)
+	out = append(out, bugTools()...)
+	out = append(out, settingsTools()...)
+	return out
+}
+
+// ---------------------------------------------------------------------------
+// Schema helpers
+//
+// Every argument schema is the same few shapes, and writing them out eighty
+// times would bury the differences between tools under the JSON that is the
+// same for all of them.
+// ---------------------------------------------------------------------------
+
+// object builds an argument schema.
 func object(properties map[string]any, required ...string) map[string]any {
 	if required == nil {
 		required = []string{}
@@ -52,87 +98,207 @@ func number(description string) map[string]any {
 	return map[string]any{"type": "integer", "description": description}
 }
 
-func mcpTools() []mcpTool {
+func boolean(description string) map[string]any {
+	return map[string]any{"type": "boolean", "description": description}
+}
+
+func array(description string, items map[string]any) map[string]any {
+	return map[string]any{"type": "array", "description": description, "items": items}
+}
+
+// oneOf is a string argument with a closed set of values. Declared as an enum
+// so a client can validate before calling, and so the model sees the choices
+// rather than guessing at them from prose.
+func oneOf(description string, values ...string) map[string]any {
+	return map[string]any{"type": "string", "description": description, "enum": values}
+}
+
+// messagesSchema is a conversation as every Ask/Extract tool takes it: the
+// whole transcript, oldest first, in the shape the window holds it. Sent whole
+// on every turn for interview.go's reason — the turn is stateless, so resuming
+// is reading a row rather than reviving a session.
+func messagesSchema(description string) map[string]any {
+	return array(description, object(map[string]any{
+		"role": oneOf("who said it", "user", "assistant"),
+		"text": text("what was said"),
+		"note": text("the app's own note under a reply — a turn that failed, and why. Leave empty."),
+		"attachments": array("paths of files sent with this turn, as attach_interview_file returned them",
+			text("a path under this app's own directory")),
+		"research": text("the music analysis the app ran for this turn. Leave empty; the app fills it."),
+	}, "role", "text"))
+}
+
+// ---------------------------------------------------------------------------
+// Result helpers
+// ---------------------------------------------------------------------------
+
+// with decodes the arguments into T and hands them to fn.
+//
+// Generic so every tool is its own two lines rather than the same five: the
+// unmarshal, the error branch and the call are identical across the surface,
+// and the one place they could differ — what T is — is the type parameter. A
+// decode failure is a tool error, not a transport one: a wrongly typed argument
+// is the model's mistake to read and correct.
+func with[T any](fn func(app *App, in T) map[string]any) func(*App, json.RawMessage) map[string]any {
+	return func(app *App, args json.RawMessage) map[string]any {
+		var in T
+		if err := json.Unmarshal(args, &in); err != nil {
+			return mcpFailure(fmt.Errorf("bad arguments: %w", err))
+		}
+		return fn(app, in)
+	}
+}
+
+// The argument shapes that recur across domains. Named once so a tool that
+// takes an album id declares it the same way every other one does.
+type (
+	idArg struct {
+		ID string `json:"id"`
+	}
+	artistArg struct {
+		ArtistID string `json:"artistId"`
+	}
+	albumArg struct {
+		AlbumID string `json:"albumId"`
+	}
+	trackArg struct {
+		TrackID string `json:"trackId"`
+	}
+	noArgs struct{}
+)
+
+// answer turns a (value, error) pair into a tool result. Written this way so
+// every tool is one line rather than three, and so the error branch is
+// impossible to forget.
+func answer[T any](value T, err error) map[string]any {
+	if err != nil {
+		return mcpFailure(err)
+	}
+	return mcpResult(value)
+}
+
+// done is answer for a binding that returns only an error. Something is still
+// answered on success — a model reading an empty result cannot tell it from a
+// tool that produced nothing.
+func done(err error) map[string]any {
+	if err != nil {
+		return mcpFailure(err)
+	}
+	return mcpResult(map[string]any{"ok": true})
+}
+
+// mcpImage answers a picture as the protocol's image block, so a client that
+// shows images to its model shows this one. Text would be the same base64
+// wrapped in a data URL — a string the model can only describe the length of.
+func mcpImage(dataURL string) map[string]any {
+	mime, encoded, err := splitDataURL(dataURL)
+	if err != nil {
+		return mcpFailure(err)
+	}
+	return map[string]any{
+		"content": []map[string]any{{"type": "image", "data": encoded, "mimeType": mime}},
+	}
+}
+
+// ---------------------------------------------------------------------------
+// The library: artists, albums, tracks, and the app's own account of itself
+// ---------------------------------------------------------------------------
+
+func libraryTools() []mcpTool {
 	return []mcpTool{
+		{
+			name:        "get_documentation",
+			description: "What this application is, what it holds, how its workflow runs and which tools this server offers. Read this first.",
+			binding:     "Documentation",
+			schema:      object(map[string]any{}),
+			run: with(func(app *App, _ noArgs) map[string]any {
+				return mcpResult(map[string]any{"documentation": app.Documentation()})
+			}),
+		},
+		{
+			name: "library_tree",
+			description: "The whole library in one call: every artist with their albums, each album's " +
+				"track count and cover. The cheapest way to find a record by name.",
+			binding: "LibraryTree",
+			schema:  object(map[string]any{}),
+			run: with(func(app *App, _ noArgs) map[string]any {
+				return answer(app.LibraryTree())
+			}),
+		},
 		{
 			name: "list_artists",
 			description: "Every artist in SunoMaker, newest first, with how many albums each has. " +
-				"Start here: an album or a track can only be reached through its artist.",
-			schema: object(map[string]any{}),
-			run: func(app *App, _ json.RawMessage) map[string]any {
+				"An album or a track can only be reached through its artist.",
+			binding: "ListArtists",
+			schema:  object(map[string]any{}),
+			run: with(func(app *App, _ noArgs) map[string]any {
 				return answer(app.ListArtists())
-			},
+			}),
 		},
 		{
 			name: "get_artist",
 			description: "One artist with its base technical style and the YouTube references " +
 				"the style was decided from.",
-			schema: object(map[string]any{"id": text("the artist id")}, "id"),
-			run: func(app *App, args json.RawMessage) map[string]any {
-				var in struct {
-					ID string `json:"id"`
-				}
-				if err := json.Unmarshal(args, &in); err != nil {
-					return mcpFailure(err)
-				}
+			binding: "GetArtist",
+			schema:  object(map[string]any{"id": text("the artist id")}, "id"),
+			run: with(func(app *App, in idArg) map[string]any {
 				return answer(app.GetArtist(in.ID))
-			},
+			}),
 		},
 		{
 			name: "save_artist",
 			description: "Create or update an artist. Omit id to create. baseStyle is the " +
 				"technical breakdown every album under this artist inherits — dense and " +
-				"comma-led, not a genre label. Returns the stored record.",
+				"comma-led, not a genre label. The inspirations given replace the ones " +
+				"stored. Returns the stored record.",
+			binding: "SaveArtist",
 			schema: object(map[string]any{
 				"id":        text("the artist id; omit to create"),
 				"name":      text("the artist name"),
 				"summary":   text("one line describing who this artist is"),
 				"baseStyle": text("the base technical style"),
-				"inspirations": map[string]any{
-					"type":        "array",
-					"description": "YouTube or YouTube Music references, each with what it was chosen for",
-					"items": object(map[string]any{
-						"url":   text("the video or track URL"),
-						"title": text("what it is called"),
-						"note":  text("what this reference is here for"),
-					}, "url"),
-				},
+				"inspirations": array("YouTube or YouTube Music references, each with what it was chosen for",
+					object(map[string]any{
+						"url":        text("the video or track URL"),
+						"title":      text("what it is called"),
+						"artist":     text("who performs it, once analyzed"),
+						"album":      text("the release it appears on, once analyzed"),
+						"artworkUrl": text("its cover art, once analyzed"),
+						"note":       text("what this reference is here for — or its full analyzed style breakdown"),
+					}, "url")),
 			}, "name"),
-			run: func(app *App, args json.RawMessage) map[string]any {
-				var artist Artist
-				if err := json.Unmarshal(args, &artist); err != nil {
-					return mcpFailure(err)
-				}
+			run: with(func(app *App, artist Artist) map[string]any {
 				return answer(app.SaveArtist(artist))
-			},
+			}),
+		},
+		{
+			name: "delete_artist",
+			description: "Delete an artist and everything under it — albums, tracks and the rows " +
+				"naming their files. The audio stays on disk. There is no undo.",
+			binding: "DeleteArtist",
+			schema:  object(map[string]any{"id": text("the artist id")}, "id"),
+			run: with(func(app *App, in idArg) map[string]any {
+				return done(app.DeleteArtist(in.ID))
+			}),
 		},
 		{
 			name:        "list_albums",
 			description: "One artist's albums, oldest first — a discography reads forwards.",
+			binding:     "ListAlbums",
 			schema:      object(map[string]any{"artistId": text("the artist id")}, "artistId"),
-			run: func(app *App, args json.RawMessage) map[string]any {
-				var in struct {
-					ArtistID string `json:"artistId"`
-				}
-				if err := json.Unmarshal(args, &in); err != nil {
-					return mcpFailure(err)
-				}
+			run: with(func(app *App, in artistArg) map[string]any {
 				return answer(app.ListAlbums(in.ArtistID))
-			},
+			}),
 		},
 		{
-			name:        "get_album",
-			description: "One album, with its own technical style and its release links.",
-			schema:      object(map[string]any{"id": text("the album id")}, "id"),
-			run: func(app *App, args json.RawMessage) map[string]any {
-				var in struct {
-					ID string `json:"id"`
-				}
-				if err := json.Unmarshal(args, &in); err != nil {
-					return mcpFailure(err)
-				}
+			name: "get_album",
+			description: "One album, with its own technical style, its cover, its release links " +
+				"and how far along it is (tracks written, tracks made).",
+			binding: "GetAlbum",
+			schema:  object(map[string]any{"id": text("the album id")}, "id"),
+			run: with(func(app *App, in idArg) map[string]any {
 				return answer(app.GetAlbum(in.ID))
-			},
+			}),
 		},
 		{
 			name: "save_album",
@@ -140,6 +306,7 @@ func mcpTools() []mcpTool {
 				"are the only requirements. technicalStyle is ONLY what differs from the " +
 				"artist's base style — the two are combined when a track prompt is written, " +
 				"so repeating the artist's here dilutes it.",
+			binding: "SaveAlbum",
 			schema: object(map[string]any{
 				"id":             text("the album id; omit to create"),
 				"artistId":       text("the artist this album belongs to"),
@@ -150,27 +317,48 @@ func mcpTools() []mcpTool {
 				"spotifyUrl":     text("the Spotify link"),
 				"youtubeUrl":     text("the YouTube Music link"),
 			}, "artistId", "name"),
-			run: func(app *App, args json.RawMessage) map[string]any {
-				var album Album
-				if err := json.Unmarshal(args, &album); err != nil {
-					return mcpFailure(err)
-				}
+			run: with(func(app *App, album Album) map[string]any {
 				return answer(app.SaveAlbum(album))
-			},
+			}),
+		},
+		{
+			name: "delete_album",
+			description: "Delete an album, its tracks and the rows naming their files. The audio " +
+				"and the cover stay on disk. There is no undo.",
+			binding: "DeleteAlbum",
+			schema:  object(map[string]any{"id": text("the album id")}, "id"),
+			run: with(func(app *App, in idArg) map[string]any {
+				return done(app.DeleteAlbum(in.ID))
+			}),
+		},
+		{
+			name: "import_album",
+			description: "Create an album from a folder of finished audio: the album is named after " +
+				"the folder unless a name is given, every audio file becomes a track in " +
+				"filename order, and each file is filed into the library. With a name and no " +
+				"folder, makes an empty album.",
+			binding: "ImportAlbum",
+			schema: object(map[string]any{
+				"artistId": text("the artist the album belongs to"),
+				"name":     text("the album name; omit to use the folder's"),
+				"dir":      text("an absolute path to the folder of audio; omit for an empty album"),
+			}, "artistId"),
+			run: with(func(app *App, in struct {
+				ArtistID string `json:"artistId"`
+				Name     string `json:"name"`
+				Dir      string `json:"dir"`
+			}) map[string]any {
+				return answer(app.ImportAlbum(in.ArtistID, in.Name, in.Dir))
+			}),
 		},
 		{
 			name: "get_album_style",
 			description: "The combined technical style a track on this album should be written " +
 				"against: the artist's base style, then the album's own. This is what to " +
 				"write a Suno prompt from.",
-			schema: object(map[string]any{"albumId": text("the album id")}, "albumId"),
-			run: func(app *App, args json.RawMessage) map[string]any {
-				var in struct {
-					AlbumID string `json:"albumId"`
-				}
-				if err := json.Unmarshal(args, &in); err != nil {
-					return mcpFailure(err)
-				}
+			binding: "GetAlbum GetArtist",
+			schema:  object(map[string]any{"albumId": text("the album id")}, "albumId"),
+			run: with(func(app *App, in albumArg) map[string]any {
 				album, err := app.GetAlbum(in.AlbumID)
 				if err != nil {
 					return mcpFailure(err)
@@ -187,35 +375,25 @@ func mcpTools() []mcpTool {
 					"combinedStyle": combinedStyle(artist, album),
 					"inspirations":  artist.Inspirations,
 				})
-			},
+			}),
 		},
 		{
 			name:        "list_tracks",
 			description: "One album's tracks in running order, with their prompts, lyrics and files.",
+			binding:     "ListTracks",
 			schema:      object(map[string]any{"albumId": text("the album id")}, "albumId"),
-			run: func(app *App, args json.RawMessage) map[string]any {
-				var in struct {
-					AlbumID string `json:"albumId"`
-				}
-				if err := json.Unmarshal(args, &in); err != nil {
-					return mcpFailure(err)
-				}
+			run: with(func(app *App, in albumArg) map[string]any {
 				return answer(app.ListTracks(in.AlbumID))
-			},
+			}),
 		},
 		{
 			name:        "get_track",
 			description: "One track: its Suno style prompt, its lyrics and the files that came back.",
+			binding:     "GetTrack",
 			schema:      object(map[string]any{"id": text("the track id")}, "id"),
-			run: func(app *App, args json.RawMessage) map[string]any {
-				var in struct {
-					ID string `json:"id"`
-				}
-				if err := json.Unmarshal(args, &in); err != nil {
-					return mcpFailure(err)
-				}
+			run: with(func(app *App, in idArg) map[string]any {
 				return answer(app.GetTrack(in.ID))
-			},
+			}),
 		},
 		{
 			name: "save_track",
@@ -223,6 +401,7 @@ func mcpTools() []mcpTool {
 				"position goes on the end. prompt is what gets pasted into Suno's Style " +
 				"field and lyrics into its Lyrics field, so write both to Suno's shape — " +
 				"see the track-generation skill.",
+			binding: "SaveTrack",
 			schema: object(map[string]any{
 				"id":            text("the track id; omit to create"),
 				"albumId":       text("the album this track belongs to"),
@@ -233,134 +412,54 @@ func mcpTools() []mcpTool {
 				"lyrics":        text("the lyrics, with [Section] tags"),
 				"notes":         text("anything else worth recording about this track"),
 			}, "albumId", "name"),
-			run: func(app *App, args json.RawMessage) map[string]any {
-				var track Track
-				if err := json.Unmarshal(args, &track); err != nil {
-					return mcpFailure(err)
-				}
+			run: with(func(app *App, track Track) map[string]any {
 				return answer(app.SaveTrack(track))
-			},
+			}),
 		},
 		{
-			name:        "list_skills",
-			description: "The app's own briefs — how it interviews, how it writes a Suno prompt, what a cover should look like.",
-			schema:      object(map[string]any{}),
-			run: func(app *App, _ json.RawMessage) map[string]any {
-				return answer(app.ListSkills())
-			},
+			name: "delete_track",
+			description: "Delete a track and the rows naming its files. The audio stays on disk. " +
+				"There is no undo.",
+			binding: "DeleteTrack",
+			schema:  object(map[string]any{"id": text("the track id")}, "id"),
+			run: with(func(app *App, in idArg) map[string]any {
+				return done(app.DeleteTrack(in.ID))
+			}),
 		},
 		{
-			name: "get_skill",
-			description: "One skill's full text. Read track-generation before writing a prompt, " +
-				"and bug-reports before working the queue.",
-			schema: object(map[string]any{"id": text("the skill id")}, "id"),
-			run: func(app *App, args json.RawMessage) map[string]any {
-				var in struct {
-					ID string `json:"id"`
-				}
-				if err := json.Unmarshal(args, &in); err != nil {
-					return mcpFailure(err)
-				}
-				return answer(app.GetSkill(in.ID))
-			},
-		},
-		{
-			name: "save_skill",
-			description: "Write a skill, or override a built-in by passing its id. A built-in's " +
-				"title and description stay the build's — only the body is yours.",
+			name: "reorder_tracks",
+			description: "Write an album's running order as a whole: every track id, in the order " +
+				"they should play. Returns the tracks in their new order.",
+			binding: "ReorderTracks",
 			schema: object(map[string]any{
-				"id":          text("the skill id; a built-in's id overrides it"),
-				"title":       text("what to call it"),
-				"description": text("one line on what it is for"),
-				"body":        text("the skill itself, in markdown"),
-			}, "body"),
-			run: func(app *App, args json.RawMessage) map[string]any {
-				var skill Skill
-				if err := json.Unmarshal(args, &skill); err != nil {
-					return mcpFailure(err)
-				}
-				return answer(app.SaveSkill(skill))
-			},
+				"albumId":  text("the album id"),
+				"trackIds": array("every track on the album, in running order", text("a track id")),
+			}, "albumId", "trackIds"),
+			run: with(func(app *App, in struct {
+				AlbumID  string   `json:"albumId"`
+				TrackIDs []string `json:"trackIds"`
+			}) map[string]any {
+				return answer(app.ReorderTracks(in.AlbumID, in.TrackIDs))
+			}),
 		},
 		{
-			name: "list_bug_reports",
-			description: "The open bug queue, oldest first — the working order, and the order " +
-				"that decides which report may be claimed.",
-			schema: object(map[string]any{}),
-			run: func(app *App, _ json.RawMessage) map[string]any {
-				return answer(app.ListBugReports())
-			},
-		},
-		{
-			name:        "file_bug_report",
-			description: "File a bug. Opens an issue on this repository and files a counterpart in Jax.",
+			name: "playlist",
+			description: "The play queue for one track's record, an album, an artist or the whole " +
+				"library, in playing order, with a loopback URL for each track's chosen take. " +
+				"The URLs are served by the running app; a track with no takes is skipped.",
+			binding: "Playlist",
 			schema: object(map[string]any{
-				"description": text("what is wrong"),
-				"route":       text("the page it was found on"),
-				"global":      map[string]any{"type": "boolean", "description": "about the whole app rather than one page"},
-			}, "description"),
-			run: func(app *App, args json.RawMessage) map[string]any {
-				var report BugReport
-				if err := json.Unmarshal(args, &report); err != nil {
-					return mcpFailure(err)
-				}
-				return answer(app.FileBugReport(report))
-			},
-		},
-		{
-			name:        "claim_bug_report",
-			description: "Claim a report before working it, so two agents do not take the same one.",
-			schema:      object(map[string]any{"id": text("the report id")}, "id"),
-			run: func(app *App, args json.RawMessage) map[string]any {
-				var in struct {
-					ID string `json:"id"`
-				}
-				if err := json.Unmarshal(args, &in); err != nil {
-					return mcpFailure(err)
-				}
-				return answer(app.ClaimBugReport(in.ID))
-			},
-		},
-		{
-			name: "resolve_bug_report",
-			description: "Resolve a report once its fix is on main: closes the issue with a " +
-				"comment pointing at the commit, and clears it from Jax.",
-			schema: object(map[string]any{
-				"id":        text("the report id"),
-				"commitSha": text("the commit the fix landed in"),
-				"commitUrl": text("where that commit can be read"),
-			}, "id"),
-			run: func(app *App, args json.RawMessage) map[string]any {
-				var in struct {
-					ID        string `json:"id"`
-					CommitSHA string `json:"commitSha"`
-					CommitURL string `json:"commitUrl"`
-				}
-				if err := json.Unmarshal(args, &in); err != nil {
-					return mcpFailure(err)
-				}
-				return answer(app.ResolveBugReport(in.ID, in.CommitSHA, in.CommitURL))
-			},
-		},
-		{
-			name:        "get_documentation",
-			description: "What this application is, what it holds and how its workflow runs. Read this first.",
-			schema:      object(map[string]any{}),
-			run: func(app *App, _ json.RawMessage) map[string]any {
-				return mcpResult(map[string]any{"documentation": app.Documentation()})
-			},
+				"kind": oneOf("what to queue", "track", "album", "artist", "all"),
+				"id":   text("the track, album or artist id; omit for all"),
+			}, "kind"),
+			run: with(func(app *App, in struct {
+				Kind string `json:"kind"`
+				ID   string `json:"id"`
+			}) map[string]any {
+				return answer(app.Playlist(in.Kind, in.ID))
+			}),
 		},
 	}
-}
-
-// answer turns a (value, error) pair into a tool result. Written this way so
-// every tool above is one line rather than three, and so the error branch is
-// impossible to forget.
-func answer[T any](value T, err error) map[string]any {
-	if err != nil {
-		return mcpFailure(err)
-	}
-	return mcpResult(value)
 }
 
 // mcpToolDefinitions is what tools/list answers.
