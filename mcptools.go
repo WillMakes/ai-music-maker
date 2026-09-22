@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"sort"
 	"strings"
 )
 
@@ -41,6 +42,7 @@ var mcpNotOffered = map[string]string{
 	"ShowWindow":     "raises the window, which the server has none of",
 	"OpenURL":        "opens a link in the producer's browser, which is theirs to do",
 	"MarkFixesSeen":  "dismisses the fixed-bugs notice, which is the producer's own acknowledgement — the window shows a fix once and clears the flag when they have read it",
+	"ListMCPTools":   "lists this server's tools, which is what the protocol's own tools/list already answers",
 }
 
 // mcpTool is one tool's definition and its implementation together.
@@ -58,6 +60,9 @@ type mcpTool struct {
 	// schema is the JSON Schema for the arguments, as the protocol wants it.
 	schema map[string]any
 	run    func(app *App, args json.RawMessage) map[string]any
+	// group is the domain the tool belongs to, stamped by mcpTools from the
+	// slice it came in — the Settings panel lists tools under it (#90).
+	group string
 }
 
 // mcpTools is the whole surface, in the order tools/list offers it: the
@@ -65,11 +70,73 @@ type mcpTool struct {
 // AI, the bug queue, and the settings.
 func mcpTools() []mcpTool {
 	var out []mcpTool
-	out = append(out, libraryTools()...)
-	out = append(out, fileTools()...)
-	out = append(out, aiTools()...)
-	out = append(out, bugTools()...)
-	out = append(out, settingsTools()...)
+	for _, domain := range []struct {
+		name  string
+		tools []mcpTool
+	}{
+		{"Library", libraryTools()},
+		{"Files and artwork", fileTools()},
+		{"AI and interviews", aiTools()},
+		{"Bug queue", bugTools()},
+		{"Skills, extension and settings", settingsTools()},
+	} {
+		for _, t := range domain.tools {
+			t.group = domain.name
+			out = append(out, t)
+		}
+	}
+	return out
+}
+
+// MCPToolInfo is one tool as Settings → AI assistants lists it (#90): what a
+// connected assistant can do here, in the assistant's own terms.
+type MCPToolInfo struct {
+	Name        string       `json:"name"`
+	Group       string       `json:"group"`
+	Description string       `json:"description"`
+	Arguments   []MCPToolArg `json:"arguments"`
+}
+
+// MCPToolArg is one argument of a tool, read off its schema.
+type MCPToolArg struct {
+	Name        string `json:"name"`
+	Description string `json:"description"`
+	Required    bool   `json:"required"`
+}
+
+// ListMCPTools reports every tool the server offers, from the same list the
+// server dispatches through — so a tool that is listed can be called, and one
+// that can be called is listed. The window's own read of the surface; an
+// assistant asks tools/list.
+func (a *App) ListMCPTools() []MCPToolInfo {
+	out := []MCPToolInfo{}
+	for _, t := range mcpTools() {
+		info := MCPToolInfo{
+			Name: t.name, Group: t.group, Description: t.description, Arguments: []MCPToolArg{},
+		}
+		required := map[string]bool{}
+		if names, ok := t.schema["required"].([]string); ok {
+			for _, name := range names {
+				required[name] = true
+			}
+		}
+		properties, _ := t.schema["properties"].(map[string]any)
+		// Sorted, because a map's order is not one and the panel should read
+		// the same way twice.
+		names := make([]string, 0, len(properties))
+		for name := range properties {
+			names = append(names, name)
+		}
+		sort.Strings(names)
+		for _, name := range names {
+			property, _ := properties[name].(map[string]any)
+			description, _ := property["description"].(string)
+			info.Arguments = append(info.Arguments, MCPToolArg{
+				Name: name, Description: description, Required: required[name],
+			})
+		}
+		out = append(out, info)
+	}
 	return out
 }
 
