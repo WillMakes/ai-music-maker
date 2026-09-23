@@ -18,8 +18,19 @@
   if (window.__sunoMakerMounted) return
   window.__sunoMakerMounted = true
 
+  // Resolves undefined, rather than throwing, when nothing answers — the
+  // recorder not running, or the extension reloaded under this page.
   const send = (message) =>
-    new Promise((resolve) => chrome.runtime.sendMessage(message, resolve))
+    new Promise((resolve) => {
+      try {
+        chrome.runtime.sendMessage(message, (reply) => {
+          void chrome.runtime.lastError
+          resolve(reply)
+        })
+      } catch (_) {
+        resolve(undefined)
+      }
+    })
 
   const ICON = chrome.runtime.getURL('logo.png')
 
@@ -368,20 +379,24 @@
     return flat.length > 70 ? flat.slice(0, 70) + '…' : flat
   }
 
-  // ---- Filing what is heard (#91) ----
+  // ---- Recording what is heard (#91, #92) ----
   //
-  // A song played to the end on Suno is reported to the app, which downloads
-  // Suno's own file for it and files it onto the track of the same name. The
-  // audio itself is never recorded here: Suno's file is the take bit for bit,
-  // where a recording of the tab would be a re-encode of it.
+  // With recording switched on from the toolbar button, the tab's sound is
+  // captured (offscreen.js), and this decides what a take is: one song,
+  // heard from its first half-second to its end. Joining a song part-way, or
+  // seeking inside it, leaves it unrecorded, because a take somebody skipped
+  // through is not the song they listened to (#92). Pausing is allowed — the
+  // recording pauses with it, and nothing of the silence is kept.
   //
-  // "To the end" means heard, not skipped to: the player's own record of what
-  // it played has to cover nearly all of the song. Seeking to the last second
-  // fires the same 'ended' event, and a take nobody listened to is not one
-  // somebody chose to keep.
+  // The song itself is found from the player: its audio address carries the
+  // clip id, and its title is matched to a track in SunoMaker.
 
   const CLIP = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i
-  const HEARD = 0.9
+  // How far in a song may be and still count as its start, and how short of
+  // its end the player's record of what it played may fall — the slack of the
+  // page's own timing, not a part of the song allowed to go unheard.
+  const START_SLACK = 0.5
+  const END_SLACK = 0.5
 
   const titleKey = (title) => (title || '').toLowerCase().replace(/[^\p{L}\p{N}]/gu, '')
 
@@ -449,38 +464,103 @@
     setTimeout(() => node.remove(), 6000)
   }
 
-  // Clips already reported from this page, so a song on repeat is one
-  // report. The app refuses a second copy anyway; this saves asking.
-  const reported = new Set()
+  const clipOf = (media) => {
+    const found = (media.currentSrc || media.src || '').match(CLIP)
+    return found ? found[0].toLowerCase() : ''
+  }
+
+  const toRecorder = (type, fields) => send({target: 'offscreen', type, ...fields})
+
+  // The listen in progress: which song, whether the recorder took it from
+  // its start, and whether it is paused.
+  let listen = null
+  let hinted = false
+
+  const abandon = () => {
+    if (listen && listen.recording) toRecorder('song-abort', {clip: listen.clip})
+    listen = null
+  }
+
+  const begin = async (media) => {
+    abandon()
+    const clip = clipOf(media)
+    if (!clip) return
+    const mine = {clip, recording: false, paused: false}
+    listen = mine
+    const r = await toRecorder('song-start', {clip})
+    mine.recording = !!(r && r.ok)
+    // Once a page, while SunoMaker is open: say how to turn recording on,
+    // since nothing else on Suno would tell anyone it exists.
+    if (!mine.recording && !hinted && appIsUp) {
+      hinted = true
+      toast("Press SunoMaker's button in Chrome's toolbar to record the songs you listen to.")
+    }
+  }
+
+  const onPlay = (event) => {
+    const media = event.target
+    if (!(media instanceof HTMLMediaElement)) return
+    const clip = clipOf(media)
+    if (listen && listen.clip === clip && listen.paused) {
+      listen.paused = false
+      if (listen.recording) toRecorder('song-resume', {clip})
+      return
+    }
+    if (media.currentTime <= START_SLACK) begin(media)
+    // Joined part-way: not a whole listen, and not the start of one.
+    else abandon()
+  }
+
+  const onPause = (event) => {
+    const media = event.target
+    // The player pauses itself on the way to 'ended'; that is the end, not
+    // a pause.
+    if (!(media instanceof HTMLMediaElement) || media.ended) return
+    if (!listen || listen.clip !== clipOf(media)) return
+    listen.paused = true
+    if (listen.recording) toRecorder('song-pause', {clip: listen.clip})
+  }
+
+  const onSeeking = (event) => {
+    const media = event.target
+    if (!(media instanceof HTMLMediaElement)) return
+    // Back to the top while playing is starting over, and the fresh listen
+    // is as whole as the first; anywhere else is a skip.
+    if (media.currentTime <= START_SLACK && !media.paused) begin(media)
+    else abandon()
+  }
+
+  const onLoad = (event) => {
+    const media = event.target
+    if (!(media instanceof HTMLMediaElement)) return
+    if (listen && listen.clip !== clipOf(media)) abandon()
+  }
 
   const onEnded = async (event) => {
     const media = event.target
     if (!(media instanceof HTMLMediaElement)) return
-    const address = media.currentSrc || media.src || ''
-    const found = address.match(CLIP)
-    if (!found) return
-    const clip = found[0].toLowerCase()
-    // A song still being generated streams with no known length; it has no
-    // finished file to fetch yet.
-    if (!isFinite(media.duration) || media.duration <= 0) return
-    if (heardSeconds(media) < media.duration * HEARD) return
-    if (reported.has(clip)) return
-    reported.add(clip)
-
-    const title = titleOf(clip)
+    const done = listen
+    if (!done || done.clip !== clipOf(media)) return
+    listen = null
+    if (!done.recording) return
+    const whole =
+      isFinite(media.duration) &&
+      media.duration > 0 &&
+      heardSeconds(media) >= media.duration - START_SLACK - END_SLACK
+    if (!whole) {
+      toRecorder('song-abort', {clip: done.clip})
+      return
+    }
+    const title = titleOf(done.clip)
     const trackId = title ? await rememberedTrack(title) : ''
-    const r = await send({
-      type: 'capture',
-      play: {clipId: clip, title, audioUrl: address, trackId},
-    })
+    const r = await toRecorder('song-end', {clip: done.clip, title, trackId})
     if (!r || !r.ok) {
-      // Not reported after all, so hearing it again once the app is open
-      // gets another chance.
-      reported.delete(clip)
       if (r && r.status === 401) {
         toast('SunoMaker did not recognise this extension. Export it again from Settings.', true)
       } else if (r && r.data && r.data.error) {
         toast(r.data.error, true)
+      } else if (r && r.error) {
+        toast(r.error, true)
       }
       // No answer at all is the app being closed, which is not news.
       return
@@ -490,10 +570,32 @@
     if (r.data && r.data.outcome === 'filed') toast(r.data.message)
   }
 
-  // Media events do not bubble, so this listens in the capture phase, which
+  // Media events do not bubble, so these listen in the capture phase, which
   // sees them on their way to any audio element in the page. Installed
-  // whether or not the app is up: it may be opened mid-song.
+  // whether or not the app is up: it may be opened mid-session.
+  document.addEventListener('play', onPlay, true)
+  document.addEventListener('pause', onPause, true)
+  document.addEventListener('seeking', onSeeking, true)
+  document.addEventListener('loadstart', onLoad, true)
   document.addEventListener('ended', onEnded, true)
+
+  chrome.runtime.onMessage.addListener((msg, _sender, reply) => {
+    if (!msg) return false
+    if (msg.type === 'ping') {
+      // The worker asking whether this is a Suno page before it records it.
+      reply({ok: true})
+      return false
+    }
+    if (msg.type === 'recording') {
+      hinted = true
+      toast(
+        msg.on
+          ? 'Recording. Songs you hear from start to finish are filed onto their tracks, from the next one that starts.'
+          : 'Stopped recording.',
+      )
+    }
+    return false
+  })
 
   // ---- Attaching the buttons ----
 
