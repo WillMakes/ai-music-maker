@@ -90,6 +90,12 @@ func (a *App) ImportDroppedTrackFile(trackID, name, dataURL, label string) (Trac
 // is filled from the file's own name, which is what Suno's download is called
 // and is at least something the producer will recognise.
 func (a *App) ImportTrackFile(trackID, sourcePath, label string) (Track, error) {
+	return a.importTrackFile(trackID, sourcePath, label, "")
+}
+
+// importTrackFile is ImportTrackFile with the Suno clip the file came from,
+// which only the capture from Suno's player knows (#91).
+func (a *App) importTrackFile(trackID, sourcePath, label, sunoClip string) (Track, error) {
 	if a.store == nil {
 		return Track{}, errNoStore
 	}
@@ -144,14 +150,15 @@ func (a *App) ImportTrackFile(trackID, sourcePath, label string) (Track, error) 
 		label = strings.TrimSuffix(filepath.Base(sourcePath), ext)
 	}
 	file := TrackFile{
-		ID:      newID("file"),
-		TrackID: trackID,
-		Label:   strings.TrimSpace(label),
-		Name:    filepath.Base(destination),
-		Path:    destination,
-		Bytes:   info.Size(),
-		Seconds: audioDurationSeconds(destination),
-		At:      nowStamp(),
+		ID:       newID("file"),
+		TrackID:  trackID,
+		Label:    strings.TrimSpace(label),
+		Name:     filepath.Base(destination),
+		Path:     destination,
+		Bytes:    info.Size(),
+		Seconds:  audioDurationSeconds(destination),
+		At:       nowStamp(),
+		SunoClip: sunoClip,
 	}
 	// The first file imported is the chosen one. A track with takes and none
 	// picked is a track the extension and the release step cannot act on, and
@@ -273,7 +280,7 @@ func (s *Store) trackFiles(trackID string) ([]TrackFile, error) {
 		return out, nil
 	}
 	rows, err := s.db.Query(
-		`SELECT id, track_id, label, name, path, bytes, seconds, chosen, at
+		`SELECT id, track_id, label, name, path, bytes, seconds, chosen, at, suno_clip
 		 FROM track_files WHERE track_id = ? ORDER BY at`, trackID)
 	if err != nil {
 		return out, err
@@ -282,7 +289,7 @@ func (s *Store) trackFiles(trackID string) ([]TrackFile, error) {
 	for rows.Next() {
 		var f TrackFile
 		if err := rows.Scan(&f.ID, &f.TrackID, &f.Label, &f.Name, &f.Path,
-			&f.Bytes, &f.Seconds, &f.Chosen, &f.At); err != nil {
+			&f.Bytes, &f.Seconds, &f.Chosen, &f.At, &f.SunoClip); err != nil {
 			return out, err
 		}
 		out = append(out, f)
@@ -298,7 +305,7 @@ func (s *Store) filesForAlbum(albumID string) (map[string][]TrackFile, error) {
 		return out, nil
 	}
 	rows, err := s.db.Query(
-		`SELECT f.id, f.track_id, f.label, f.name, f.path, f.bytes, f.seconds, f.chosen, f.at
+		`SELECT f.id, f.track_id, f.label, f.name, f.path, f.bytes, f.seconds, f.chosen, f.at, f.suno_clip
 		 FROM track_files f JOIN tracks t ON t.id = f.track_id
 		 WHERE t.album_id = ? ORDER BY f.at`, albumID)
 	if err != nil {
@@ -308,7 +315,7 @@ func (s *Store) filesForAlbum(albumID string) (map[string][]TrackFile, error) {
 	for rows.Next() {
 		var f TrackFile
 		if err := rows.Scan(&f.ID, &f.TrackID, &f.Label, &f.Name, &f.Path,
-			&f.Bytes, &f.Seconds, &f.Chosen, &f.At); err != nil {
+			&f.Bytes, &f.Seconds, &f.Chosen, &f.At, &f.SunoClip); err != nil {
 			return out, err
 		}
 		out[f.TrackID] = append(out[f.TrackID], f)
@@ -331,9 +338,9 @@ func (s *Store) addTrackFile(f TrackFile) error {
 		}
 	}
 	if _, err := tx.Exec(
-		`INSERT INTO track_files (id, track_id, label, name, path, bytes, seconds, chosen, at)
-		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-		f.ID, f.TrackID, f.Label, f.Name, f.Path, f.Bytes, f.Seconds, f.Chosen, f.At); err != nil {
+		`INSERT INTO track_files (id, track_id, label, name, path, bytes, seconds, chosen, at, suno_clip)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		f.ID, f.TrackID, f.Label, f.Name, f.Path, f.Bytes, f.Seconds, f.Chosen, f.At, f.SunoClip); err != nil {
 		return err
 	}
 	return tx.Commit()

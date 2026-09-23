@@ -354,6 +354,9 @@ func (s *Store) addColumns() error {
 		{"artist_inspirations", "artwork_url", "TEXT NOT NULL DEFAULT ''"},
 		// The take's real playing time, read at import (#85).
 		{"track_files", "seconds", "INTEGER NOT NULL DEFAULT 0"},
+		// The Suno clip a take was filed from while it played (#91), so the
+		// same clip heard twice is filed once.
+		{"track_files", "suno_clip", "TEXT NOT NULL DEFAULT ''"},
 	}
 	for _, c := range columns {
 		_, err := s.db.Exec(fmt.Sprintf("ALTER TABLE %s ADD COLUMN %s %s",
