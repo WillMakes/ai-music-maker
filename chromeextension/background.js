@@ -24,6 +24,16 @@ chrome.runtime.onMessage.addListener((msg, _sender, reply) => {
           headers: authed(),
         })
         reply({ok: r.ok, data: r.ok ? await r.json() : null, status: r.status})
+      } else if (msg.type === 'capture') {
+        // A song heard to the end (#91). The app downloads and files it; this
+        // only says which clip it was.
+        const r = await fetch(base() + '/capture', {
+          method: 'POST',
+          headers: {...authed(), 'Content-Type': 'application/json'},
+          body: JSON.stringify(msg.play),
+        })
+        const data = await r.json().catch(() => null)
+        reply({ok: r.ok, data, status: r.status})
       } else if (msg.type === 'open') {
         const r = await fetch(base() + '/open', {method: 'POST', headers: authed()})
         reply({ok: r.ok})

@@ -34,9 +34,10 @@ import (
 // ambient credential to forge — a page without the token cannot act, whatever
 // CORS says.
 //
-// Four routes are the extension's: health, so it can tell whether the app is up;
+// Five routes are the extension's: health, so it can tell whether the app is up;
 // library, the artists/albums/tracks it picks from; track, one track's fields;
-// and open, which raises the window.
+// open, which raises the window; and capture, the report that a song finished
+// playing in Suno, which files it onto its track (see sunocapture.go).
 //
 // Two are not for the extension at all. artwork is how the app's own webview
 // loads an album cover out of ~/.sunomaker (see artwork.go), and changed is how a
@@ -99,6 +100,7 @@ func (a *App) superviseExtensionBridge(ctx context.Context) {
 	mux.HandleFunc("/artwork/", a.bridgeArtwork)
 	mux.HandleFunc("/audio/", a.bridgeAudio)
 	mux.HandleFunc("/changed", a.bridgeChanged)
+	mux.HandleFunc("/capture", a.bridgeCapture)
 
 	srv := &http.Server{
 		Addr:              "127.0.0.1:" + strconv.Itoa(extensionBridgePort),
