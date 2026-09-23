@@ -77,8 +77,8 @@ func settingsTools() []mcpTool {
 			name: "get_setting",
 			description: "Read one raw setting by key. The keys the window uses: theme, " +
 				"last_route, default_track_length (seconds a new track aims at), " +
-				"music_root, suno_capture (\"off\" stops the extension filing takes heard " +
-				"on Suno). Empty when unset.",
+				"music_root, suno_capture (\"off\" stops the extension filing the songs it " +
+				"records on Suno). Empty when unset.",
 			binding: "GetSetting",
 			schema:  object(map[string]any{"key": text("the setting key")}, "key"),
 			run: with(func(app *App, in struct {

@@ -48,9 +48,10 @@ instead of only the ones made afterwards.
 4. **Make them in Suno.** The Chrome extension puts a button on Suno's Lyrics,
    Style and Title fields. Press one, pick a track, and the field is filled.
 
-5. **Bring the files back.** Listen to a song all the way through in Suno and
-   the extension files it onto the track with the same title; or import the
-   finished audio against its track. Then mark the take that is the song.
+5. **Bring the files back.** With recording on, listen to a song all the way
+   through in Suno and the extension records it onto the track with the same
+   title; or import the finished audio against its track. Then mark the take
+   that is the song.
 
 6. **Release it.** Once the record is out, its three streaming links go on the
    album.
@@ -104,7 +105,7 @@ GoLand run configurations for all of the above are committed under
 | **AI** | Claude, ChatGPT and Grok. Each connects either by its signed-in CLI (`claude`, `codex`) — which bills your subscription — or by an API key, validated against the provider before it is stored. One is starred as the default; it is what the interviews use. |
 | **AI assistants** | Registers this app as an MCP server with Claude Code, Claude Desktop, Codex, Gemini CLI, Antigravity and Grok. Every operation the window has is a tool — the library and its files, the interviews, artwork, skills, settings and the bug queue; `suno-maker docs` lists them. |
 | **Skills** | The app's own briefs: how it interviews, how it writes a Suno prompt, what a cover should look like. Built-ins can be edited and reset; you can write your own. |
-| **Chrome extension** | Exports the extension with this app's bridge token in it, says where to point "Load unpacked", and turns off filing the takes you listen to in Suno. |
+| **Chrome extension** | Exports the extension with this app's bridge token in it, says where to point "Load unpacked", and turns off recording the songs you listen to in Suno. |
 | **Bug reports** | The open queue and what has been fixed. |
 | **About** | What is running, and the same documentation `suno-maker docs` prints. |
 
@@ -115,11 +116,13 @@ this machine, so a copy from anywhere else would have no way to reach the app.
 
 It reaches SunoMaker over `127.0.0.1:8799` — loopback only, so nothing off the
 machine can see it — gated by that token in an `Authorization` header. It reads
-your library, and writes one thing: a song played to the end in Suno is reported
-by its clip id, and the app downloads Suno's own MP3 for it and files it onto the
-track with the same title (`sunocapture.go`). Skipping to the end does not count,
-a clip is filed once, and a title no track has is left alone. On a Suno page with
-the app closed it stays silent.
+your library, and writes one thing: recordings. Pressing its toolbar button on
+the Suno tab starts capturing that tab's sound, which Chrome allows only after
+that press, and pressing it again stops. A song heard from its start to its end
+is recorded as a WAV (`chromeextension/offscreen.js`) and filed onto the track
+with the same title (`sunocapture.go`). Joining a song part-way or seeking inside
+it leaves it unrecorded, a clip is filed once, and a title no track has is left
+alone. On a Suno page with the app closed it stays silent.
 
 Suno's markup carries no stable ids, so each of the three fields is found by a
 list of candidate selectors and then by a label match. Those will break when Suno

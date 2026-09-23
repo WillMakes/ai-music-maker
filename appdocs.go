@@ -81,9 +81,10 @@ the ones made afterwards.
 4. **Make them in Suno.** The browser extension puts a button on Suno's Lyrics,
    Style and Title fields. Press one, pick a track, and the field is filled.
 
-5. **Bring the files back.** Listen to a song all the way through in Suno and
-   the extension files it onto the track with the same title. Or import the
-   finished audio against its track. Files are copied into the operating
+5. **Bring the files back.** Press the extension's toolbar button on the Suno
+   tab to record, and a song you listen to all the way through is recorded
+   onto the track with the same title. Or import the finished audio against
+   its track. Files are copied into the operating
    system's music folder under SunoMaker/Artist/Album, so a music player finds
    them without being told to.
 
@@ -114,8 +115,8 @@ the ones made afterwards.
                 prompt, what a cover should look like. Built-ins can be edited
                 and reset; you can write your own.
     Extension   exports the Chrome extension with this app's bridge token in
-                it, says where to point "Load unpacked", and turns off filing
-                the takes you listen to in Suno.
+                it, says where to point "Load unpacked", and turns off recording
+                the songs you listen to in Suno.
     Bug reports the open queue and what has been fixed.
     About       what is running, and where it came from.
 
