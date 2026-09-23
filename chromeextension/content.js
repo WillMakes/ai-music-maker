@@ -158,6 +158,7 @@
   // has an answer for is filled together — three picks per track was this
   // extension's own version of the round trip it exists to end.
   const fillAll = (track, mode) => {
+    rememberTrack(track)
     FIELDS.forEach((field) => {
       const target = findField(field)
       const value = field.value(track) || ''
@@ -308,6 +309,7 @@
               if (!value) row.disabled = true
               row.addEventListener('click', () => {
                 fill(target, value, panel.dataset.mode || 'replace')
+                rememberTrack(track)
                 closePicker()
               })
             } else {
@@ -365,6 +367,133 @@
     const flat = value.replace(/\s+/g, ' ').trim()
     return flat.length > 70 ? flat.slice(0, 70) + '…' : flat
   }
+
+  // ---- Filing what is heard (#91) ----
+  //
+  // A song played to the end on Suno is reported to the app, which downloads
+  // Suno's own file for it and files it onto the track of the same name. The
+  // audio itself is never recorded here: Suno's file is the take bit for bit,
+  // where a recording of the tab would be a re-encode of it.
+  //
+  // "To the end" means heard, not skipped to: the player's own record of what
+  // it played has to cover nearly all of the song. Seeking to the last second
+  // fires the same 'ended' event, and a take nobody listened to is not one
+  // somebody chose to keep.
+
+  const CLIP = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i
+  const HEARD = 0.9
+
+  const titleKey = (title) => (title || '').toLowerCase().replace(/[^\p{L}\p{N}]/gu, '')
+
+  // The track the form was last filled from, by the title it gave the song.
+  // It is what settles a name two albums share, so it is kept across page
+  // loads — the song is often heard long after the form was filled.
+  const rememberTrack = (track) => {
+    const key = titleKey(track && track.name)
+    if (!key) return
+    chrome.storage.local.get({filled: {}}, ({filled}) => {
+      filled[key] = {id: track.id, at: Date.now()}
+      const keys = Object.keys(filled)
+      // Bounded, oldest out: this is a hint for recent work, not a history.
+      if (keys.length > 200) {
+        keys
+          .sort((a, b) => filled[a].at - filled[b].at)
+          .slice(0, keys.length - 200)
+          .forEach((k) => delete filled[k])
+      }
+      chrome.storage.local.set({filled})
+    })
+  }
+
+  const rememberedTrack = (title) =>
+    new Promise((resolve) =>
+      chrome.storage.local.get({filled: {}}, ({filled}) => {
+        const hit = filled[titleKey(title)]
+        resolve(hit ? hit.id : '')
+      }),
+    )
+
+  // The song's title. A link to the song's own page is tied to this clip and
+  // is tried first; the media session is what Suno tells the operating system
+  // is playing, and is the fallback when no such link is on screen.
+  const titleOf = (clip) => {
+    const link = document.querySelector(`a[href*="/song/${clip}"]`)
+    const text = link && (link.textContent || '').trim()
+    if (text) return text
+    try {
+      const meta = navigator.mediaSession && navigator.mediaSession.metadata
+      if (meta && meta.title) return meta.title
+    } catch (_) {
+      // Unreadable metadata is the same as none.
+    }
+    return ''
+  }
+
+  const heardSeconds = (media) => {
+    let total = 0
+    for (let i = 0; i < media.played.length; i++) {
+      total += media.played.end(i) - media.played.start(i)
+    }
+    return total
+  }
+
+  const toast = (text, isError) => {
+    const node = el('div', isError ? 'sm-toast sm-toast-error' : 'sm-toast')
+    const logo = el('img', 'sm-button-logo')
+    logo.src = ICON
+    logo.alt = ''
+    node.appendChild(logo)
+    node.appendChild(el('span', null, text))
+    node.setAttribute('role', 'status')
+    document.body.appendChild(node)
+    setTimeout(() => node.remove(), 6000)
+  }
+
+  // Clips already reported from this page, so a song on repeat is one
+  // report. The app refuses a second copy anyway; this saves asking.
+  const reported = new Set()
+
+  const onEnded = async (event) => {
+    const media = event.target
+    if (!(media instanceof HTMLMediaElement)) return
+    const address = media.currentSrc || media.src || ''
+    const found = address.match(CLIP)
+    if (!found) return
+    const clip = found[0].toLowerCase()
+    // A song still being generated streams with no known length; it has no
+    // finished file to fetch yet.
+    if (!isFinite(media.duration) || media.duration <= 0) return
+    if (heardSeconds(media) < media.duration * HEARD) return
+    if (reported.has(clip)) return
+    reported.add(clip)
+
+    const title = titleOf(clip)
+    const trackId = title ? await rememberedTrack(title) : ''
+    const r = await send({
+      type: 'capture',
+      play: {clipId: clip, title, audioUrl: address, trackId},
+    })
+    if (!r || !r.ok) {
+      // Not reported after all, so hearing it again once the app is open
+      // gets another chance.
+      reported.delete(clip)
+      if (r && r.status === 401) {
+        toast('SunoMaker did not recognise this extension. Export it again from Settings.', true)
+      } else if (r && r.data && r.data.error) {
+        toast(r.data.error, true)
+      }
+      // No answer at all is the app being closed, which is not news.
+      return
+    }
+    // Only a filing is worth interrupting for. Most songs heard on Suno are
+    // not the producer's tracks, and saying so after each would be noise.
+    if (r.data && r.data.outcome === 'filed') toast(r.data.message)
+  }
+
+  // Media events do not bubble, so this listens in the capture phase, which
+  // sees them on their way to any audio element in the page. Installed
+  // whether or not the app is up: it may be opened mid-song.
+  document.addEventListener('ended', onEnded, true)
 
   // ---- Attaching the buttons ----
 

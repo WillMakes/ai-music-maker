@@ -1,10 +1,19 @@
 import {useCallback, useEffect, useState} from 'react'
 import {Download, FolderOpen} from 'lucide-react'
-import {ExportExtension, GetExtensionStatus, RevealExtension} from '../../wailsjs/go/main/App'
+import {
+  ExportExtension,
+  GetExtensionStatus,
+  GetSetting,
+  RevealExtension,
+  SetSetting,
+} from '../../wailsjs/go/main/App'
 import {main} from '../../wailsjs/go/models'
 import {CopyButton} from '../components/CopyButton'
 import {StatusPill} from '../components/StatusPill'
 import {toMessage} from '../lib/errors'
+
+// The setting the capture reads; "off" is the only value that means anything.
+const SUNO_CAPTURE = 'suno_capture'
 
 /**
  * Settings → Chrome extension.
@@ -20,10 +29,16 @@ export function ExtensionPanel() {
   const [status, setStatus] = useState<main.ExtensionStatus | null>(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
+  // Filing takes as they are heard (#91). On unless the setting says "off",
+  // matching the app's own reading of it in sunocapture.go.
+  const [capture, setCapture] = useState(true)
 
   const reload = useCallback(() => {
     GetExtensionStatus()
       .then(setStatus)
+      .catch((err) => setError(toMessage(err)))
+    GetSetting(SUNO_CAPTURE)
+      .then((value) => setCapture(value !== 'off'))
       .catch((err) => setError(toMessage(err)))
   }, [])
 
@@ -46,7 +61,8 @@ export function ExtensionPanel() {
         </h2>
         <p className="mt-1 text-sm text-fg-muted">
           Puts a button on Suno's Lyrics, Style and Title fields. Press one, pick a track,
-          and the field is filled from this app.
+          and the field is filled from this app. Songs you listen to all the way through
+          in Suno are filed onto their tracks.
         </p>
       </div>
 
@@ -98,6 +114,35 @@ export function ExtensionPanel() {
         )}
       </section>
 
+      <section className="sm-panel p-4">
+        <label className="flex items-start gap-2 text-sm">
+          <input
+            type="checkbox"
+            className="mt-0.5"
+            checked={capture}
+            onChange={async (event) => {
+              const next = event.target.checked
+              setCapture(next)
+              setError('')
+              try {
+                await SetSetting(SUNO_CAPTURE, next ? '' : 'off')
+              } catch (err) {
+                setCapture(!next)
+                setError(toMessage(err))
+              }
+            }}
+          />
+          <span>
+            File the takes I listen to all the way through
+            <span className="block text-xs text-fg-muted">
+              When a song finishes playing in Suno, Suno's own file for it is added to the
+              track with the same title. Skipping to the end does not count, a song heard
+              twice is filed once, and a title no track has is left alone.
+            </span>
+          </span>
+        </label>
+      </section>
+
       <section className="sm-panel space-y-2 p-4">
         <h3 className="text-sm font-semibold">Installing it</h3>
         <ol className="ml-4 list-decimal space-y-1 text-sm text-fg-muted">
@@ -119,7 +164,9 @@ export function ExtensionPanel() {
         <p className="text-sm text-fg-muted">
           Over <span className="font-mono">127.0.0.1:{status.port}</span> — loopback only,
           so nothing off this machine can see it — and gated by a token written into the
-          exported copy. It reads your library and nothing else; it never writes.
+          exported copy. It reads your library, and the one thing it writes is a take
+          you finished listening to. Re-export after updating SunoMaker so the copy in
+          Chrome learns what this one can do.
         </p>
         <p className="text-sm text-fg-muted">
           The buttons appear only while SunoMaker is open. On a Suno page with the app

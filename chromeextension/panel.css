@@ -273,3 +273,29 @@
   outline: 2px solid #5eead4;
   outline-offset: 2px;
 }
+
+/* The note that a take was filed (#91). Above the dock, in the same colours,
+   so it reads as the extension speaking rather than as Suno. */
+.sm-toast {
+  position: fixed;
+  right: 16px;
+  bottom: 60px;
+  z-index: 2147483001;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  box-sizing: border-box;
+  max-width: 360px;
+  margin: 0;
+  padding: 9px 14px 9px 10px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 10px;
+  background: rgba(20, 20, 24, 0.96);
+  color: #f5f5f5;
+  font: 500 12px/1.4 "Segoe UI", system-ui, -apple-system, sans-serif;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.5);
+}
+
+.sm-toast-error {
+  border-color: rgba(248, 113, 113, 0.6);
+}

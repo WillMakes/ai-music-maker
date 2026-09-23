@@ -66,6 +66,10 @@ type TrackFile struct {
 	// a list where three are ticked has not answered it.
 	Chosen bool   `json:"chosen"`
 	At     string `json:"at"`
+	// SunoClip is the Suno clip id a take was filed from as it finished
+	// playing (#91); empty for a file imported by hand. It is what stops a
+	// song listened to twice from landing twice.
+	SunoClip string `json:"sunoClip"`
 }
 
 // ListTracks reports one album's tracks in running order.

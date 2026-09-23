@@ -28,8 +28,15 @@ import (
 // numbering this app's own files carry stripped from the front.
 func normalizeForMatch(s string) string {
 	s = strings.TrimSuffix(s, filepath.Ext(s))
+	return normalizeTitle(strings.TrimLeft(s, "0123456789 .-_"))
+}
+
+// normalizeTitle is normalizeForMatch for a name that is not a file name — a
+// song title off Suno's player (#91). Neither of the file-name trims applies:
+// "Mr. Blue" has no extension to lose, and "1999" is a title, not a running
+// order, so trimming either would match the song as "mr" or as nothing.
+func normalizeTitle(s string) string {
 	s = strings.ToLower(s)
-	s = strings.TrimLeft(s, "0123456789 .-_")
 	var b strings.Builder
 	for _, r := range s {
 		if unicode.IsLetter(r) || unicode.IsDigit(r) {
