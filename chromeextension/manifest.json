@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "SunoMaker",
-  "version": "1.1.0",
-  "description": "Fills Suno's Lyrics, Style and Title fields from a track planned in SunoMaker, and files the takes you listen to all the way through.",
+  "version": "1.2.0",
+  "description": "Fills Suno's Lyrics, Style and Title fields from a track planned in SunoMaker, and records the songs you listen to all the way through onto their tracks.",
   "icons": {
     "16": "icon-16.png",
     "32": "icon-32.png",
@@ -19,7 +19,7 @@
     }
   },
   "background": {"service_worker": "background.js"},
-  "permissions": ["storage"],
+  "permissions": ["storage", "tabCapture", "offscreen"],
   "content_scripts": [
     {
       "matches": ["https://suno.com/*", "https://*.suno.com/*", "https://app.suno.ai/*"],

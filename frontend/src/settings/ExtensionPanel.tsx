@@ -29,7 +29,7 @@ export function ExtensionPanel() {
   const [status, setStatus] = useState<main.ExtensionStatus | null>(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
-  // Filing takes as they are heard (#91). On unless the setting says "off",
+  // Recording takes as they are heard (#91, #92). On unless the setting says "off",
   // matching the app's own reading of it in sunocapture.go.
   const [capture, setCapture] = useState(true)
 
@@ -61,8 +61,8 @@ export function ExtensionPanel() {
         </h2>
         <p className="mt-1 text-sm text-fg-muted">
           Puts a button on Suno's Lyrics, Style and Title fields. Press one, pick a track,
-          and the field is filled from this app. Songs you listen to all the way through
-          in Suno are filed onto their tracks.
+          and the field is filled from this app. It can also record the songs you listen
+          to all the way through in Suno onto their tracks.
         </p>
       </div>
 
@@ -133,11 +133,13 @@ export function ExtensionPanel() {
             }}
           />
           <span>
-            File the takes I listen to all the way through
+            Record the songs I listen to all the way through
             <span className="block text-xs text-fg-muted">
-              When a song finishes playing in Suno, Suno's own file for it is added to the
-              track with the same title. Skipping to the end does not count, a song heard
-              twice is filed once, and a title no track has is left alone.
+              Press SunoMaker's button in Chrome's toolbar on the Suno tab to start recording,
+              and again to stop. A song heard from its start to its end is recorded as a WAV
+              and added to the track with the same title. Joining a song part-way or skipping
+              inside it leaves it unrecorded. A song heard twice is filed once, and a title no
+              track has is left alone.
             </span>
           </span>
         </label>
@@ -164,8 +166,8 @@ export function ExtensionPanel() {
         <p className="text-sm text-fg-muted">
           Over <span className="font-mono">127.0.0.1:{status.port}</span> — loopback only,
           so nothing off this machine can see it — and gated by a token written into the
-          exported copy. It reads your library, and the one thing it writes is a take
-          you finished listening to. Re-export after updating SunoMaker so the copy in
+          exported copy. It reads your library, and the one thing it writes is a song
+          you recorded by listening to all of it. Re-export after updating SunoMaker so the copy in
           Chrome learns what this one can do.
         </p>
         <p className="text-sm text-fg-muted">

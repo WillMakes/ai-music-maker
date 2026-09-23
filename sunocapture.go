@@ -1,69 +1,63 @@
 package main
 
 import (
+	"bytes"
 	"database/sql"
-	"encoding/json"
 	"fmt"
 	"io"
-	"mime"
 	"net/http"
-	"net/url"
 	"os"
 	"path/filepath"
 	"regexp"
 	"strings"
 	"sync"
-	"time"
 )
 
 // ---------------------------------------------------------------------------
-// Takes filed as they are heard on Suno (#91)
+// Takes recorded as they are heard on Suno (#91, #92)
 //
 // A session in Suno ends with the producer listening back to what it made, and
 // every take worth keeping then had to be downloaded and imported by hand. The
-// extension already sits on those pages, so it watches Suno's player instead:
-// when a song has been heard to the end, it tells the app which Suno clip that
-// was, and the app files it onto the track of the same name without being
-// asked.
+// extension already sits on those pages, so it listens instead: with recording
+// switched on from its toolbar button, it captures the Suno tab's own audio
+// output, and a song heard from its first second to its last is sent here as a
+// WAV and filed onto the track with the same title.
 //
-// "Record" in the report is done by downloading, not by capturing the tab's
-// sound. Suno serves every finished clip as an MP3 on its CDN; that file is
-// the take, bit for bit, where a recording of the tab would be a lossy
-// re-encode of it that also caught any other sound the browser made, and would
-// need Chrome's tab-capture permission and a prompt on every page load.
+// Recorded, not downloaded (#92). The first version fetched Suno's MP3 for the
+// clip, which the producer did not ask for: what they want kept is what they
+// listened to, and only a song they sat through all of. The capture is taken as
+// raw samples and stored as WAV, so it is not squeezed through a second lossy
+// codec on top of the one Suno already used.
 //
-// The app fetches the file itself rather than the extension relaying bytes:
-// the browser would be moving several megabytes as base64 through a service
-// worker for no gain, and only the app needs to hold it.
+// This file owns the decision — which track, whether it was already filed,
+// whether filing is switched off — and the extension owns the listening; see
+// chromeextension/offscreen.js for the recording and content.js for what
+// counts as heard in full.
 // ---------------------------------------------------------------------------
 
 // keySunoCapture turns the capture off when it holds "off". On unless turned
-// off, because it is only ever reached by an extension the producer installed
-// and it files nothing that does not match a track by name.
+// off, because nothing is recorded until the producer presses the toolbar
+// button, and nothing is filed that does not match a track by name.
 const keySunoCapture = "suno_capture"
 
-// sunoClipPattern is what a Suno clip id looks like: a lowercase UUID. The id
-// is the one part of the CDN address that comes from the page, so it is
-// checked to the character before it goes into one.
+// sunoClipPattern is what a Suno clip id looks like: a lowercase UUID. It is
+// what a recording is remembered by, so it is checked to the character.
 var sunoClipPattern = regexp.MustCompile(
 	`^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$`)
 
-// SunoPlay is what the extension reports when a song finished playing.
+// SunoPlay is what the extension reports alongside a finished recording.
 type SunoPlay struct {
 	// ClipID is Suno's id for the song, read from the player's audio address.
 	ClipID string `json:"clipId"`
 	// Title is the song's title as Suno shows it, which is the name it is
 	// matched to a track by.
 	Title string `json:"title"`
-	// AudioURL is the address the page was playing. Tried after the CDN's
-	// canonical address, never instead of it, and only on Suno's own hosts.
-	AudioURL string `json:"audioUrl"`
 	// TrackID is set when the extension itself filled Suno's form from this
 	// track under this title — that is certain where a name match is a guess.
 	TrackID string `json:"trackId"`
 }
 
-// SunoCapture is the answer: what happened to the play, in words the
+// SunoCapture is the answer: what happened to the recording, in words the
 // extension can show as they are.
 type SunoCapture struct {
 	// Outcome is "filed", "already" (this clip was filed before), "unmatched"
@@ -76,78 +70,16 @@ type SunoCapture struct {
 }
 
 // sunoCaptureMu keeps two reports of one clip — two Suno tabs, or a replay
-// racing the first download — from both passing the already-filed check.
+// finishing while the first is still being written — from both passing the
+// already-filed check.
 var sunoCaptureMu sync.Mutex
 
-// fetchSunoAudio downloads one clip to dest. A variable so tests can file a
-// take without reaching Suno.
-var fetchSunoAudio = func(address, dest string) error {
-	client := &http.Client{Timeout: 2 * time.Minute}
-	resp, err := client.Get(address)
-	if err != nil {
-		return err
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("Suno answered %s", resp.Status)
-	}
-	// A clip that is still being generated answers with a page or an empty
-	// stream rather than audio; filing that would be a take that never plays.
-	kind, _, _ := mime.ParseMediaType(resp.Header.Get("Content-Type"))
-	if kind != "" && !strings.HasPrefix(kind, "audio/") && kind != "application/octet-stream" {
-		return fmt.Errorf("Suno answered with %s, not audio", kind)
-	}
-	out, err := os.Create(dest)
-	if err != nil {
-		return err
-	}
-	// One byte past the cap is how an oversized download is told apart from
-	// one that is exactly the cap.
-	written, copyErr := io.Copy(out, io.LimitReader(resp.Body, maxTrackFileBytes+1))
-	closeErr := out.Close()
-	if copyErr != nil {
-		return copyErr
-	}
-	if closeErr != nil {
-		return closeErr
-	}
-	if written == 0 {
-		return fmt.Errorf("Suno sent an empty file")
-	}
-	if written > maxTrackFileBytes {
-		return fmt.Errorf("the file is larger than this app will file (%d MB)", maxTrackFileBytes>>20)
-	}
-	return nil
-}
-
-// sunoAudioAddresses are where a clip's file is looked for, in order: the
-// CDN's own address for the finished MP3 first, then whatever the page was
-// playing, if that is on Suno. The page's address is sometimes a stream of a
-// song still being made, which is why it is second.
-func sunoAudioAddresses(play SunoPlay) []string {
-	out := []string{"https://cdn1.suno.ai/" + play.ClipID + ".mp3"}
-	if u, err := url.Parse(strings.TrimSpace(play.AudioURL)); err == nil &&
-		u.Scheme == "https" && isSunoHost(u.Hostname()) && u.String() != out[0] {
-		out = append(out, u.String())
-	}
-	return out
-}
-
-// isSunoHost limits where the app will download from. The bridge is gated by
-// a token, but an app that fetched any address it was handed would be a
-// fetcher for whoever held one.
-func isSunoHost(host string) bool {
-	host = strings.ToLower(host)
-	for _, domain := range []string{"suno.ai", "suno.com"} {
-		if host == domain || strings.HasSuffix(host, "."+domain) {
-			return true
-		}
-	}
-	return false
-}
-
 // captureSunoPlay files a song heard to the end onto its track.
-func (a *App) captureSunoPlay(play SunoPlay) (SunoCapture, error) {
+//
+// write puts the recording at the path it is given. It is called only once the
+// recording is known to be wanted, so a song that has no track, or was filed
+// already, costs a check rather than tens of megabytes on disk.
+func (a *App) captureSunoPlay(play SunoPlay, write func(dest string) error) (SunoCapture, error) {
 	if a.store == nil {
 		return SunoCapture{}, errNoStore
 	}
@@ -186,33 +118,60 @@ func (a *App) captureSunoPlay(play SunoPlay) (SunoCapture, error) {
 
 	dir, err := os.MkdirTemp("", "sunomaker-suno-")
 	if err != nil {
-		return SunoCapture{}, fmt.Errorf("could not make somewhere to put the download: %w", err)
+		return SunoCapture{}, fmt.Errorf("could not make somewhere to put the recording: %w", err)
 	}
 	defer os.RemoveAll(dir)
 	name := slugify(track.Name)
 	if name == "" {
 		name = "take"
 	}
-	temp := filepath.Join(dir, name+".mp3")
-	var fetchErr error
-	for _, address := range sunoAudioAddresses(play) {
-		if fetchErr = fetchSunoAudio(address, temp); fetchErr == nil {
-			break
-		}
-	}
-	if fetchErr != nil {
-		return SunoCapture{}, fmt.Errorf("could not download %q from Suno: %w", play.Title, fetchErr)
+	temp := filepath.Join(dir, name+".wav")
+	if err := write(temp); err != nil {
+		return SunoCapture{}, err
 	}
 
 	// The clip id's first block tells two takes of one track apart in the
 	// list, and is the part a producer can find again in Suno's address bar.
-	label := "Suno " + play.ClipID[:8]
+	label := "Recorded on Suno " + play.ClipID[:8]
 	if _, err := a.importTrackFile(track.ID, temp, label, play.ClipID); err != nil {
 		return SunoCapture{}, err
 	}
 	out, err := a.describeCapture("filed", track.ID)
-	out.Message = fmt.Sprintf("Filed onto %s — %s.", out.TrackName, out.AlbumName)
+	out.Message = fmt.Sprintf("Recorded onto %s — %s.", out.TrackName, out.AlbumName)
 	return out, err
+}
+
+// writeWAV is the bridge's writer: the request body, bounded, and refused
+// unless it is a WAV. The extension only ever sends one, so anything else is
+// a request this route was not built for, not a format to be guessed at.
+func writeWAV(body io.Reader) func(dest string) error {
+	return func(dest string) error {
+		head := make([]byte, 12)
+		if _, err := io.ReadFull(body, head); err != nil ||
+			!bytes.Equal(head[:4], []byte("RIFF")) || !bytes.Equal(head[8:], []byte("WAVE")) {
+			return fmt.Errorf("the recording is not a WAV file")
+		}
+		out, err := os.Create(dest)
+		if err != nil {
+			return err
+		}
+		// One byte past the cap is how an oversized recording is told apart
+		// from one that is exactly the cap.
+		written, copyErr := io.Copy(out, io.MultiReader(bytes.NewReader(head),
+			io.LimitReader(body, maxTrackFileBytes+1-int64(len(head)))))
+		closeErr := out.Close()
+		if copyErr != nil {
+			return copyErr
+		}
+		if closeErr != nil {
+			return closeErr
+		}
+		if written > maxTrackFileBytes {
+			return fmt.Errorf("the recording is larger than this app will file (%d MB)",
+				maxTrackFileBytes>>20)
+		}
+		return nil
+	}
 }
 
 // trackForSunoPlay finds the track a finished song belongs to.
@@ -296,7 +255,9 @@ func (s *Store) trackWithSunoClip(clip string) (string, error) {
 	return trackID, err
 }
 
-// bridgeCapture is the extension's report that a song finished playing.
+// bridgeCapture receives a recording: the WAV as the body, and which song it
+// is in the query — a multipart form would be an encoder in the extension and
+// a parser here for three short strings.
 //
 // Answered with the outcome even when nothing was filed, so the extension
 // can say what happened; an HTTP error is kept for a request that could not
@@ -314,12 +275,9 @@ func (a *App) bridgeCapture(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "POST only", http.StatusMethodNotAllowed)
 		return
 	}
-	var play SunoPlay
-	if err := json.NewDecoder(io.LimitReader(r.Body, 64<<10)).Decode(&play); err != nil {
-		bridgeJSON(w, http.StatusBadRequest, map[string]any{"error": "could not read the report"})
-		return
-	}
-	out, err := a.captureSunoPlay(play)
+	q := r.URL.Query()
+	play := SunoPlay{ClipID: q.Get("clip"), Title: q.Get("title"), TrackID: q.Get("track")}
+	out, err := a.captureSunoPlay(play, writeWAV(r.Body))
 	if err != nil {
 		bridgeJSON(w, http.StatusUnprocessableEntity, map[string]any{"error": err.Error()})
 		return

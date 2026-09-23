@@ -1,0 +1,7 @@
+<!doctype html>
+<!-- Holds the Suno tab's audio stream while recording is on (#92). A service
+     worker cannot run an AudioContext or keep a stream open, so this page
+     exists to do both; nobody ever sees it. -->
+<meta charset="utf-8" />
+<script src="config.js"></script>
+<script src="offscreen.js"></script>

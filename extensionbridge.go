@@ -36,8 +36,8 @@ import (
 //
 // Five routes are the extension's: health, so it can tell whether the app is up;
 // library, the artists/albums/tracks it picks from; track, one track's fields;
-// open, which raises the window; and capture, the report that a song finished
-// playing in Suno, which files it onto its track (see sunocapture.go).
+// open, which raises the window; and capture, a recording of a song heard in
+// full on Suno, which is filed onto its track (see sunocapture.go).
 //
 // Two are not for the extension at all. artwork is how the app's own webview
 // loads an album cover out of ~/.sunomaker (see artwork.go), and changed is how a
