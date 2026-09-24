@@ -10,6 +10,8 @@ the finished songs where your music player will find them.
 **Website:** [sunomaker.willmakes.tv](https://sunomaker.willmakes.tv) ·
 **License:** [MIT](LICENSE)
 
+![An album's tracks in SunoMaker: the running order, a track's Suno style prompt, and its takes](docs/screenshots/album.png)
+
 > SunoMaker is distributed as source code only. There are no installers or
 > prebuilt binaries: you build it yourself with Go, which takes a few minutes
 > and is described below.
@@ -19,6 +21,7 @@ the finished songs where your music player will find them.
 ## Contents
 
 - [What it does](#what-it-does)
+- [Screenshots](#screenshots)
 - [Requirements](#requirements)
 - [Build and install](#build-and-install)
 - [First run](#first-run)
@@ -50,6 +53,24 @@ the finished songs where your music player will find them.
 - **A built-in music player** for listening back through an album's takes.
 - **Works with AI assistants.** An MCP server gives Claude Code, Claude Desktop,
   Codex, Gemini CLI, Antigravity and Grok everything the window can do.
+
+## Screenshots
+
+The screenshots show a made-up demo library.
+
+**An artist.** Their albums and how far each has got, the base style every
+album inherits, and the references it was decided from.
+
+![An artist page: albums with progress, the base technical style, and inspiration references](docs/screenshots/artist.png)
+
+**Home.** Pick up where you left off, or start the next artist.
+
+![The dashboard: recent albums and the workflow](docs/screenshots/dashboard.png)
+
+**AI providers.** Connect through a signed-in CLI or an API key, and star the
+one the interviews use.
+
+![Settings, AI: Claude, ChatGPT, Gemini, Antigravity and Grok](docs/screenshots/settings-ai.png)
 
 ## Requirements
 
