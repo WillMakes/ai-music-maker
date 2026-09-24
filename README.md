@@ -10,7 +10,7 @@ the finished songs where your music player will find them.
 **Website:** [sunomaker.willmakes.tv](https://sunomaker.willmakes.tv) ·
 **License:** [MIT](LICENSE)
 
-![An album's tracks in SunoMaker: the running order, a track's Suno style prompt, and its takes](docs/screenshots/album.png)
+![An album in SunoMaker: its cover and sound, the running order, a track's Suno style prompt, and its takes](docs/screenshots/album.png)
 
 > SunoMaker is distributed as source code only. There are no installers or
 > prebuilt binaries: you build it yourself with Go, which takes a few minutes

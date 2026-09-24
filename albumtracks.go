@@ -51,7 +51,7 @@ func (a *App) WriteAlbumTracks(albumID string) (Album, error) {
 	// adding to a started record is the track interview's job.
 	if len(existing) > 0 {
 		return Album{}, fmt.Errorf(
-			"this record already has tracks — Write tracks on the Tracks tab adds more")
+			"this record already has tracks — Write more tracks, under its track list, adds more")
 	}
 
 	var ground []string
