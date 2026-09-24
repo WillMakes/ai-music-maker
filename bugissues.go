@@ -97,7 +97,7 @@ type issueQueue struct {
 // findIssueQueue works out where reports go, and answers errIssuesUnavailable
 // when the answer is nowhere.
 func (a *App) findIssueQueue() (issueQueue, error) {
-	repo := currentBugRepo()
+	repo := a.bugRepo()
 	if repo.Slug == "" {
 		return issueQueue{}, errIssuesUnavailable
 	}
@@ -111,7 +111,7 @@ func (a *App) findIssueQueue() (issueQueue, error) {
 // githubToken is a credential to act as.
 //
 // A variable, and that is not decoration. The tests run inside this very
-// checkout, so currentBugRepo finds the real remote and `gh auth token` answers
+// checkout, so the repository resolves to the real one and `gh auth token` answers
 // with the producer's real credential — a test suite that filed reports would
 // open real issues on the real repository, which is exactly what happened the
 // first time this was written. newTestApp points this at "" so findIssueQueue

@@ -118,7 +118,8 @@ the ones made afterwards.
     Extension   exports the Chrome extension with this app's bridge token in
                 it, says where to point "Load unpacked", and turns off recording
                 the songs you listen to in Suno.
-    Bug reports the open queue and what has been fixed.
+    Bug reports the open queue, what has been fixed, and the repository reports
+                are filed on, which can be changed there.
     About       what is running, and where it came from.
 
 `)
@@ -167,7 +168,7 @@ watched from. Work one with:
     suno-maker bugs workflow     the whole process
 
 `)
-	repo := currentBugRepo()
+	repo := a.bugRepo()
 	if repo.Slug != "" {
 		fmt.Fprintf(&b, "Reports are filed against %s.\n", repo.Slug)
 	} else {

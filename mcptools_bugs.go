@@ -168,13 +168,25 @@ func bugTools() []mcpTool {
 		},
 		{
 			name: "get_bug_repo",
-			description: "The repository reports are filed against, read from the checkout this " +
-				"binary runs in. No slug means this build is not in a GitHub checkout and " +
-				"reports stay local.",
+			description: "The repository reports are filed against: the pinned one, or the " +
+				"SunoMaker checkout this runs in, which pins itself. No slug means reports stay " +
+				"local. `ignored` names another project's checkout that was not used.",
 			binding: "GetBugRepo",
 			schema:  object(map[string]any{}),
 			run: with(func(app *App, _ noArgs) map[string]any {
 				return mcpResult(app.GetBugRepo())
+			}),
+		},
+		{
+			name: "set_bug_repo",
+			description: "Pin the repository reports are filed against, as owner/repo or a GitHub " +
+				"URL; checked on GitHub before it is kept. Empty unpins.",
+			binding: "SetBugRepo",
+			schema:  object(map[string]any{"repo": text("owner/repo, a GitHub URL, or empty to unpin")}, "repo"),
+			run: with(func(app *App, in struct {
+				Repo string `json:"repo"`
+			}) map[string]any {
+				return answer(app.SetBugRepo(in.Repo))
 			}),
 		},
 	}

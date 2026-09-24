@@ -57,7 +57,7 @@ func (s *jaxStub) start(t *testing.T) {
 
 	previous := findJaxTarget
 	findJaxTarget = func() (jaxTarget, error) {
-		return jaxTarget{url: server.URL, token: "stub-token", app: "WillMakes/suno-maker"}, nil
+		return jaxTarget{url: server.URL, token: "stub-token"}, nil
 	}
 	t.Cleanup(func() { findJaxTarget = previous })
 }
