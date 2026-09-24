@@ -6,7 +6,7 @@ import (
 	"testing"
 )
 
-// TestAlbumCarriesTheArtistsBaseStyle is #40's join: the Record tab shows the
+// TestAlbumCarriesTheArtistsBaseStyle is #40's join: the album page shows the
 // inherited half of combinedStyle read-only, and it must follow the artist —
 // a base style edited today is what every album of theirs reports tomorrow.
 func TestAlbumCarriesTheArtistsBaseStyle(t *testing.T) {

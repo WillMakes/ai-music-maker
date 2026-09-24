@@ -55,7 +55,7 @@ type Album struct {
 	// ArtistName is joined at read time rather than copied onto the row, so an
 	// artist renamed today is renamed on every album of theirs.
 	ArtistName string `json:"artistName"`
-	// ArtistBaseStyle is joined the same way, for the Record tab's read-only
+	// ArtistBaseStyle is joined the same way, for the album page's read-only
 	// "inherited" pane (#40) — the producer sees what combinedStyle will put
 	// before this record's own style without leaving the page.
 	ArtistBaseStyle string `json:"artistBaseStyle"`

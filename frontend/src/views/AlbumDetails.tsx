@@ -78,15 +78,14 @@ export function AlbumDetails({
   const [error, setError] = useState('')
   const [interviewing, setInterviewing] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
-  // The page as tabs (#34): Record, Tracks, Artwork, Release. Local state
-  // rather than routes — the album is the place, these are its drawers.
-  const [tab, setTab] = useState<'record' | 'tracks' | 'artwork' | 'release'>('record')
+  // The tracks section, scrolled to when a route names a track (#97).
+  const tracksRef = useRef<HTMLElement>(null)
   // The style distillation (#38) has its own busy state, like the artwork's.
   const [generating, setGenerating] = useState(false)
-  // The Record tab's two style panes as tabs (#48), this record's own style
-  // the default — it is the editable half.
+  // The record's two style panes as tabs (#48), this record's own style the
+  // default — it is the editable half.
   const [styleTab, setStyleTab] = useState<'style' | 'inherited'>('style')
-  // The empty Tracks tab's one-press list writer (#71).
+  // The empty track list's one-press writer (#71).
   const [writingTracks, setWritingTracks] = useState(false)
   // Whether a drag is hovering the track list (#76) — the batch drop zone.
   const [droppingTakes, setDroppingTakes] = useState(false)
@@ -165,10 +164,11 @@ export function AlbumDetails({
   useDataChanged(['albums', 'tracks'], reload)
 
   useEffect(() => {
-    if (trackId) {
-      setSelectedId(trackId)
-      setTab('tracks')
-    }
+    if (!trackId) return
+    setSelectedId(trackId)
+    // One page now (#97), so arriving for a track means scrolling to it
+    // rather than switching tabs — after the list has rendered.
+    requestAnimationFrame(() => tracksRef.current?.scrollIntoView({block: 'start'}))
   }, [trackId])
 
   const update = (patch: Partial<main.Album>) => {
@@ -247,12 +247,9 @@ export function AlbumDetails({
   const selected = tracks.find((t) => t.id === selectedId) ?? tracks[0]
 
   return (
-    /* The whole page is the batch drop zone (#84), not just the Tracks tab
-       (#76): the page opens on the Record tab, and a drop that only worked
-       one tab over read as no matching at all. Each file is still routed to
-       its track by name, and several files for one track land as several
-       takes. The per-track editor keeps its own zone by stopping the
-       bubble. */
+    /* The whole page is the batch drop zone (#84): each file is routed to its
+       track by name, and several files for one track land as several takes.
+       The per-track editor keeps its own zone by stopping the bubble. */
     <div
       className={'space-y-5' + (droppingTakes ? ' rounded-lg ring-2 ring-accent' : '')}
       onDragOver={(event) => {
@@ -270,12 +267,11 @@ export function AlbumDetails({
     >
       <PageHeader
         // The draft's name, so a rename shows in the title the moment it is
-        // committed rather than after the debounce lands; the stored name
-        // stands in while the Record tab's field is being typed empty (#80).
+        // committed rather than after the debounce lands (#80).
         title={draft.name.trim() ? draft.name : album.name}
-        // The rename rides the same draft-and-debounce as the Record tab's
-        // Name field (#80) — which is otherwise invisible from the Tracks
-        // tab, the tab this page usually sits on.
+        // The one place the record is renamed (#80, #97): it rides the same
+        // draft-and-debounce as every other field on the page. The Record
+        // tab's separate Name field went with the tab.
         onRename={(name) => update({name})}
         breadcrumb={
           <button
@@ -310,9 +306,9 @@ export function AlbumDetails({
               <ListPlus size={15} />
               Queue
             </button>
-            {/* In the header so the ability is visible from every tab (#84):
-                the picked files are matched to tracks by name, the same as a
-                drop anywhere on the page. */}
+            {/* In the header, where it is in reach from anywhere on the page
+                (#84): the picked files are matched to tracks by name, the same
+                as a drop anywhere on the page. */}
             <button
               className="sm-button sm-button-quiet"
               type="button"
@@ -374,38 +370,17 @@ export function AlbumDetails({
         </div>
       )}
 
-      <TabStrip
-        tabs={[
-          {id: 'record', label: 'Record'},
-          {id: 'tracks', label: 'Tracks'},
-          {id: 'artwork', label: 'Artwork'},
-          {id: 'release', label: 'Release'},
-        ]}
-        current={tab}
-        onSelect={setTab}
-      />
-
-      {/* Hidden rather than unmounted: artwork generation runs for minutes,
-          and unmounting the panel mid-draw would drop its busy state while the
-          call kept running. */}
-      <div className={tab === 'artwork' ? 'max-w-md' : 'hidden'}>
-        <section className="sm-panel space-y-3 p-4">
-          <h2 className="text-sm font-semibold">Artwork</h2>
-          <div className="flex justify-center">
-            <Cover url={album.artworkUrl} name={album.name} size={200} />
-          </div>
-          <TextField
-            label={album.artworkFile ? 'Change' : 'Describe the cover'}
-            hint={
-              album.artworkFile
-                ? 'What to change about it — the rest is kept.'
-                : 'Or leave it blank and let the style decide.'
-            }
-            value={feedback}
-            placeholder={album.artworkFile ? 'Make it colder, less busy' : 'A single lit window'}
-            onChange={setFeedback}
-            disabled={drawing}
-          />
+      {/* One page rather than four tabs (#97): the cover, the record's sound,
+          its tracks and its release sit where each is read, top to bottom in
+          the order the workflow reaches them. The tabs hid the cover and the
+          style from the Tracks tab this page usually sits on, and the record
+          is easier to judge whole — the cover beside the style it should
+          match, the style above the prompts it is joined into. */}
+      <div className="grid items-start gap-4 md:grid-cols-[232px_minmax(0,1fr)]">
+        {/* Always mounted, now that there is no tab to hide it behind: a
+            cover generation runs for minutes and its busy state lives here. */}
+        <section className="sm-panel space-y-3 p-4" aria-label="Artwork">
+          <Cover url={album.artworkUrl} name={album.name} size={200} />
           <div className="flex flex-wrap gap-2">
             <button
               className="sm-button sm-button-primary"
@@ -413,13 +388,21 @@ export function AlbumDetails({
               onClick={draw}
               disabled={drawing}
             >
-              {album.artworkFile ? <RefreshCw size={15} /> : <Wand2 size={15} />}
+              {drawing ? (
+                <Loader2 size={15} className="animate-spin" />
+              ) : album.artworkFile ? (
+                <RefreshCw size={15} />
+              ) : (
+                <Wand2 size={15} />
+              )}
               {drawing ? 'Drawing…' : album.artworkFile ? 'Redraw' : 'Generate'}
             </button>
             <button
               className="sm-button sm-button-quiet"
               type="button"
               disabled={drawing}
+              aria-label="Use an image file"
+              title="Use an image file"
               onClick={async () => {
                 // The OS's own picker (#39): the binding owns the window
                 // context the dialog needs, so the producer browses instead
@@ -434,13 +417,14 @@ export function AlbumDetails({
               }}
             >
               <ImagePlus size={15} />
-              Use a file
             </button>
             {album.artworkFile && (
               <button
                 className="sm-button sm-button-quiet"
                 type="button"
                 disabled={drawing}
+                aria-label="Remove the cover"
+                title="Remove the cover"
                 onClick={async () => {
                   try {
                     setAlbum(await RemoveAlbumArtwork(albumId))
@@ -450,171 +434,146 @@ export function AlbumDetails({
                 }}
               >
                 <Trash2 size={15} />
-                Remove
               </button>
             )}
           </div>
+          <TextField
+            label={album.artworkFile ? 'What to change' : 'Describe the cover'}
+            hint={
+              album.artworkFile
+                ? 'The rest of the cover is kept.'
+                : 'Or leave it blank and let the style decide.'
+            }
+            value={feedback}
+            placeholder={album.artworkFile ? 'Colder, less busy' : 'A single lit window'}
+            onChange={setFeedback}
+            disabled={drawing}
+          />
           {drawing && (
             <p className="text-xs text-fg-muted">
-              This keeps running if you navigate away — watch the status bar, and come
-              back any time.
+              This keeps running if you navigate away — watch the status bar.
             </p>
           )}
           {artworkJob?.state === 'failed' && (
             <p className="text-sm text-danger">{artworkJob.error}</p>
           )}
         </section>
+
+        {/* The right-hand column: the record's sound, and the record that
+            follows from it — together about the height of the cover beside
+            them, so the tracks below start as high as they can. */}
+        <div className="space-y-4">
+        <section className="sm-panel space-y-3 p-4">
+          <div className="flex flex-wrap items-center gap-2">
+            <h2 className="flex-1 text-sm font-semibold">The record's sound</h2>
+            {/* Back by request (#38, reversing #37), with the button that
+                earns its place: it distils the tracks' own style prompts into
+                the record's shared core. Into the draft, not the database —
+                the producer edits and the auto-save keeps it. */}
+            {styleTab === 'style' && (
+              <button
+                className="sm-button sm-button-quiet"
+                type="button"
+                disabled={generating}
+                onClick={async () => {
+                  setGenerating(true)
+                  setError('')
+                  try {
+                    update({technicalStyle: await GenerateAlbumStyle(albumId)})
+                  } catch (err) {
+                    setError(toMessage(err))
+                  } finally {
+                    setGenerating(false)
+                  }
+                }}
+              >
+                {generating ? <Loader2 size={15} className="animate-spin" /> : <Wand2 size={15} />}
+                {generating ? 'Distilling…' : 'Generate from the tracks'}
+              </button>
+            )}
+          </div>
+          {/* Tabs rather than a two-column grid (#48): the two halves of
+              combinedStyle are read one at a time, and side by side they
+              halved the room the style is actually written in. */}
+          <TabStrip
+            tabs={[
+              {id: 'style', label: 'This record'},
+              {id: 'inherited', label: 'Inherited from ' + album.artistName},
+            ]}
+            current={styleTab}
+            onSelect={setStyleTab}
+          />
+          {styleTab === 'style' && (
+            /* Markdown with a preview (#44), matching the artist's base style:
+               the style is read far more often than written, and the rendered
+               form is what it is read in. */
+            <MarkdownField
+              label=""
+              hint="Joined with the artist's base style when a track prompt is written."
+              placeholder="Analog synths, colder mix than the debut, 100-110 BPM…"
+              value={draft.technicalStyle}
+              onChange={(technicalStyle) => update({technicalStyle})}
+            />
+          )}
+          {styleTab === 'inherited' && (
+            /* The other half of combinedStyle, shown where the joining
+               happens (#40). Read-only: the base style belongs to the artist,
+               and two editable copies of it would drift. */
+            <div className="space-y-1">
+              <pre className="max-h-72 overflow-auto whitespace-pre-wrap rounded-md border border-edge bg-surface px-3 py-2 font-mono text-xs leading-relaxed text-fg-muted">
+                {album.artistBaseStyle || 'No base style written yet.'}
+              </pre>
+              <p className="text-xs text-fg-muted">Read-only here — edit it on the artist.</p>
+            </div>
+          )}
+        </section>
+
+        {/* The successor (#42): a new record under the same artist, the
+            technical style evolved one step and a fresh track list written to
+            flow. Navigation happens only once the album exists — a failure
+            leaves the producer here, with the message. */}
+        <section className="sm-panel space-y-3 p-4">
+          <h2 className="text-sm font-semibold">The next record</h2>
+          <p className="text-xs text-fg-muted">
+            A new album that evolves this one: the technical style moved a step forward, and
+            a whole new track list styled so each song flows into the next. Lyrics stay yours
+            — write them per track, or through the interview on the new record.
+          </p>
+          <button
+            className="sm-button sm-button-primary"
+            type="button"
+            disabled={evolving}
+            onClick={() => evolve({id: album.id, name: album.name, artistId: album.artistId})}
+          >
+            {evolving ? <Loader2 size={15} className="animate-spin" /> : <Sparkles size={15} />}
+            {evolving ? 'Evolving…' : 'Create the next record'}
+          </button>
+          {evolving && (
+            <p className="text-xs text-fg-muted">
+              This keeps running if you navigate away — watch the status bar.
+            </p>
+          )}
+          {evolution?.state === 'failed' && (
+            <p className="text-sm text-danger">{evolution.error}</p>
+          )}
+        </section>
+        </div>
       </div>
 
-      {tab === 'record' && (
-        <div className="max-w-4xl space-y-4">
-          <section className="sm-panel space-y-4 p-4">
-            <h2 className="text-sm font-semibold">The record</h2>
-            <TextField
-              label="Name"
-              required
-              value={draft.name}
-              onChange={(name) => update({name})}
-            />
-            {/* Tabs rather than the old two-column grid (#48): the two
-                halves of combinedStyle are read one at a time, and side by
-                side they halved the room the style is actually written in.
-                This record's own style is the default — the editable half. */}
-            <TabStrip
-              tabs={[
-                {id: 'style', label: 'Technical style'},
-                {id: 'inherited', label: 'Inherited from ' + album.artistName},
-              ]}
-              current={styleTab}
-              onSelect={setStyleTab}
-            />
-            {styleTab === 'style' && (
-              <div className="space-y-2">
-                {/* Back by request (#38, reversing #37), with the button that
-                    earns its place: Generate distils the tracks' own style
-                    prompts into the record's shared core. Into the draft, not
-                    the database — the producer edits and saves. */}
-                <div className="flex justify-end">
-                  <button
-                    className="sm-button sm-button-quiet"
-                    type="button"
-                    disabled={generating}
-                    onClick={async () => {
-                      setGenerating(true)
-                      setError('')
-                      try {
-                        update({technicalStyle: await GenerateAlbumStyle(albumId)})
-                      } catch (err) {
-                        setError(toMessage(err))
-                      } finally {
-                        setGenerating(false)
-                      }
-                    }}
-                  >
-                    {generating ? (
-                      <Loader2 size={15} className="animate-spin" />
-                    ) : (
-                      <Wand2 size={15} />
-                    )}
-                    {generating ? 'Distilling…' : 'Generate from the tracks'}
-                  </button>
-                </div>
-                {/* Markdown with a preview (#44), matching the artist's base
-                    style: the style is read far more often than written, and
-                    the rendered form is what it is read in. */}
-                <MarkdownField
-                  label=""
-                  hint="The record's central style, distilled from its tracks — or written by hand. Joined with the artist's base style when a track prompt is written."
-                  placeholder="Analog synths, colder mix than the debut, 100-110 BPM…"
-                  value={draft.technicalStyle}
-                  onChange={(technicalStyle) => update({technicalStyle})}
-                />
-              </div>
-            )}
-            {styleTab === 'inherited' && (
-              /* The other half of combinedStyle, shown where the joining
-                 happens (#40). Read-only: the base style belongs to the
-                 artist, and two editable copies of it would drift. */
-              <div className="space-y-1">
-                <pre className="max-h-72 overflow-auto whitespace-pre-wrap rounded-md border border-edge bg-surface px-3 py-2 font-mono text-xs leading-relaxed text-fg-muted">
-                  {album.artistBaseStyle || 'No base style written yet.'}
-                </pre>
-                <p className="text-xs text-fg-muted">Read-only here — edit it on the artist.</p>
-              </div>
-            )}
-          </section>
-
-          {/* The successor (#42): a new record under the same artist, the
-              technical style evolved one step and a fresh track list written
-              to flow. Navigation happens only once the album exists — a
-              failure leaves the producer here, with the message. */}
-          <section className="sm-panel space-y-3 p-4">
-            <h2 className="text-sm font-semibold">The next record</h2>
+      <section ref={tracksRef} className="scroll-mt-4 space-y-3" aria-label="Tracks">
+        <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+          <h2 className="text-sm font-semibold">Tracks</h2>
+          {tracks.length > 0 && (
+            /* The batch import's words (#76), where the tracks the files land
+               on are in view; the button is in the header. */
             <p className="text-xs text-fg-muted">
-              Create a new album that evolves this one: the technical style moved a
-              step forward, and a whole new track list styled so each song flows into
-              the next. Lyrics stay yours — write them per track, or through the
-              interview on the new record.
+              Drop a batch of takes anywhere on this page — each file lands on the track it
+              is named after.
             </p>
-            <button
-              className="sm-button sm-button-primary"
-              type="button"
-              disabled={evolving}
-              onClick={() =>
-                evolve({id: album.id, name: album.name, artistId: album.artistId})
-              }
-            >
-              {evolving ? <Loader2 size={15} className="animate-spin" /> : <Sparkles size={15} />}
-              {evolving ? 'Evolving…' : 'Create the next record'}
-            </button>
-            {evolving && (
-              <p className="text-xs text-fg-muted">
-                This keeps running if you navigate away — watch the status bar, and
-                come back any time.
-              </p>
-            )}
-            {evolution?.state === 'failed' && (
-              <p className="text-sm text-danger">{evolution.error}</p>
-            )}
-          </section>
+          )}
         </div>
-      )}
-
-      {tab === 'release' && (
-        <div className="max-w-2xl">
-          <section className="sm-panel space-y-4 p-4">
-            <h2 className="text-sm font-semibold">Released at</h2>
-            <p className="text-xs text-fg-muted">
-              Filled in once the record is out — the last step of the workflow rather
-              than the first.
-            </p>
-            <div className="grid gap-3 md:grid-cols-3">
-              <TextField
-                label="Apple Music"
-                type="url"
-                value={draft.appleMusicUrl}
-                onChange={(appleMusicUrl) => update({appleMusicUrl})}
-              />
-              <TextField
-                label="Spotify"
-                type="url"
-                value={draft.spotifyUrl}
-                onChange={(spotifyUrl) => update({spotifyUrl})}
-              />
-              <TextField
-                label="YouTube Music"
-                type="url"
-                value={draft.youtubeUrl}
-                onChange={(youtubeUrl) => update({youtubeUrl})}
-              />
-            </div>
-          </section>
-        </div>
-      )}
-
-      {tab === 'tracks' &&
-        (tracks.length === 0 ? (
-          <div className="space-y-3">
+        {tracks.length === 0 ? (
+          <div className="sm-panel space-y-3 p-4">
             <EmptyState
               icon={ListMusic}
               title="No tracks yet"
@@ -622,8 +581,7 @@ export function AlbumDetails({
             />
             <div className="flex justify-center gap-2">
               {/* The one-press repair (#71): a record with a style but no
-                  tracks — an album created before the interview wrote them
-                  (#70) — gets its list written directly, no second
+                  tracks gets its list written directly, no second
                   conversation required. */}
               <button
                 className="sm-button sm-button-primary"
@@ -642,11 +600,7 @@ export function AlbumDetails({
                   }
                 }}
               >
-                {writingTracks ? (
-                  <Loader2 size={15} className="animate-spin" />
-                ) : (
-                  <Wand2 size={15} />
-                )}
+                {writingTracks ? <Loader2 size={15} className="animate-spin" /> : <Wand2 size={15} />}
                 {writingTracks ? 'Writing…' : 'Write the track list'}
               </button>
               <button
@@ -660,29 +614,8 @@ export function AlbumDetails({
             </div>
           </div>
         ) : (
-          /* The batch import's home row (#76). The drop zone itself moved up
-             to the whole page (#84); this keeps the words that explain it,
-             where the tracks the files land on are in view. */
-          <div className="space-y-3">
-            <div className="flex items-center gap-3">
-              <p className="flex-1 text-xs text-fg-muted">
-                Drop a batch of takes anywhere on this page — each file lands on the
-                track it is named after, and several files for one track become its
-                takes.
-              </p>
-              <button
-                className="sm-button sm-button-quiet"
-                type="button"
-                onClick={() => void pickTakes()}
-              >
-                <FolderInput size={15} />
-                Import takes
-              </button>
-            </div>
-          {/* Master-detail (#40): the running order on the left, the selected
-             track edited in place on the right. The track stopped being a
-             destination - clicking through a record's songs no longer walks
-             the history stack. */}
+          /* Master-detail (#40): the running order on the left, the selected
+             track edited in place on the right. */
           <div className="grid items-start gap-4 md:grid-cols-[280px_minmax(0,1fr)]">
             <div className="sm-panel overflow-hidden">
               <ul className="divide-y divide-edge">
@@ -691,9 +624,7 @@ export function AlbumDetails({
                     <button
                       className={
                         'flex w-full items-center gap-2 px-3 py-2 text-left ' +
-                        (track.id === selected?.id
-                          ? 'bg-surface-hover'
-                          : 'hover:bg-surface-hover')
+                        (track.id === selected?.id ? 'bg-surface-hover' : 'hover:bg-surface-hover')
                       }
                       type="button"
                       onClick={() => setSelectedId(track.id)}
@@ -709,10 +640,7 @@ export function AlbumDetails({
                         {track.files?.length ? (
                           <>
                             <span className="group-hover/pos:hidden">{track.position}</span>
-                            <Play
-                              size={13}
-                              className="hidden text-accent group-hover/pos:block"
-                            />
+                            <Play size={13} className="hidden text-accent group-hover/pos:block" />
                           </>
                         ) : (
                           track.position
@@ -722,8 +650,7 @@ export function AlbumDetails({
                         <span className="block truncate text-sm font-medium">{track.name}</span>
                         <span className="block text-xs text-fg-muted">
                           {track.files?.length
-                            ? track.files.length +
-                              (track.files.length === 1 ? ' take' : ' takes')
+                            ? track.files.length + (track.files.length === 1 ? ' take' : ' takes')
                             : 'not made'}
                         </span>
                       </span>
@@ -756,8 +683,36 @@ export function AlbumDetails({
               />
             )}
           </div>
-          </div>
-        ))}
+        )}
+      </section>
+
+      {/* The last step of the workflow, last on the page. */}
+      <section className="sm-panel space-y-3 p-4">
+        <div>
+          <h2 className="text-sm font-semibold">Released at</h2>
+          <p className="mt-1 text-xs text-fg-muted">Filled in once the record is out.</p>
+        </div>
+        <div className="grid gap-3 md:grid-cols-3">
+          <TextField
+            label="Apple Music"
+            type="url"
+            value={draft.appleMusicUrl}
+            onChange={(appleMusicUrl) => update({appleMusicUrl})}
+          />
+          <TextField
+            label="Spotify"
+            type="url"
+            value={draft.spotifyUrl}
+            onChange={(spotifyUrl) => update({spotifyUrl})}
+          />
+          <TextField
+            label="YouTube Music"
+            type="url"
+            value={draft.youtubeUrl}
+            onChange={(youtubeUrl) => update({youtubeUrl})}
+          />
+        </div>
+      </section>
 
       {interviewing && (
         <InterviewDialog
