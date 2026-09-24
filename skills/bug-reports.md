@@ -18,6 +18,15 @@ went wrong on stderr with a non-zero exit code.
 report. There is no step where you open a tracker issue — the report arrived as
 one.
 
+**The repository is pinned, not read from where you stand.** The first time
+SunoMaker runs inside its own checkout (recognised by its `go.mod`), that
+checkout's GitHub repository is pinned in the app's settings, and every process
+files there afterwards — the window, this CLI, and an MCP server an agent
+started in some other project's folder (#94). A checkout of another project is
+never filed against; `bugs repo` names it as `ignored`. Pin a different
+repository with `bugs repo <owner/repo>`, the `set_bug_repo` tool, or Settings →
+Bug reports; it is checked on GitHub before it is kept.
+
 **Every open issue is a report**, however it was opened and whoever opened it. An
 issue written on github.com the ordinary way is in this queue at the next read
 and is worked like any other. A queue you could only add to from inside the app

@@ -139,6 +139,12 @@ A button in the top bar, on every page. **A report is a GitHub issue** on this
 repository, and it gets a counterpart in Jax, which is where the queue is watched
 from.
 
+The repository is pinned in the app's settings (`gitrepo.go`): the first run from
+a SunoMaker checkout pins that checkout's GitHub repository, and every process
+files there afterwards — including an MCP server an agent started in another
+project, which used to file into that project's issues. Settings → Bug reports
+shows it and changes it; so does `bugs repo <owner/repo>`.
+
 ```bash
 suno-maker bugs list                 # open reports, oldest first
 suno-maker bugs claim <id>           # here, on the issue, and in Jax

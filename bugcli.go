@@ -45,7 +45,8 @@ const bugUsage = `SunoMaker — bug queue
   bugs resolve <id>            Resolve: close the issue, tell Jax, record the fix
                                               [--sha <sha>] [--url <commit url>]
   bugs history                 Reports already fixed, newest first
-  bugs repo                    The repository reports are filed against
+  bugs repo [<owner/repo>]     The repository reports are filed against; with
+                               an argument, pin it (empty string unpins)
   bugs workflow                How to work a report, end to end
 `
 
@@ -104,7 +105,20 @@ func bugCommand(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprint(stdout, bugWorkflowText(store))
 		return 0
 	case "repo":
-		return out.emit(currentBugRepo(), nil)
+		// Answers without a database, from the checkout alone; with one, from
+		// the pinned setting — and `bugs repo <owner/repo>` pins (#94).
+		store, err := openStore()
+		if err != nil {
+			if len(args) > 1 {
+				return out.emit(nil, err)
+			}
+			return out.emit(resolveBugRepo(nil), nil)
+		}
+		defer store.Close()
+		if len(args) > 1 {
+			return out.emit((&App{store: store}).SetBugRepo(args[1]))
+		}
+		return out.emit(resolveBugRepo(store), nil)
 	case "help", "-h", "--help":
 		fmt.Fprint(stdout, bugUsage)
 		return 0

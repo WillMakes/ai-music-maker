@@ -1,8 +1,12 @@
-import {useEffect, useState} from 'react'
+import {useCallback, useEffect, useState} from 'react'
 import {ChevronLeft, ChevronRight, ExternalLink} from 'lucide-react'
-import {MarkFixesSeen, OpenURL} from '../../wailsjs/go/main/App'
+import {GetBugRepo, MarkFixesSeen, OpenURL, SetBugRepo} from '../../wailsjs/go/main/App'
+import {main} from '../../wailsjs/go/models'
 import {useBugs} from '../bugs/BugsProvider'
+import {TextField} from '../components/Field'
 import {StatusPill} from '../components/StatusPill'
+import {useDataChanged} from '../lib/dataChanged'
+import {toMessage} from '../lib/errors'
 import {when} from '../lib/format'
 
 /**
@@ -48,6 +52,8 @@ export function BugsPanel() {
       </div>
 
       {error && <p className="text-sm text-danger">{error}</p>}
+
+      <RepoSection />
 
       <section className="space-y-2">
         <h3 className="text-sm font-semibold">
@@ -174,5 +180,136 @@ export function BugsPanel() {
         )}
       </section>
     </div>
+  )
+}
+
+// The setting the repository is pinned under (gitrepo.go), for the refresh.
+const BUG_REPO_SETTING = 'bug_repo'
+
+/**
+ * Where reports are filed, and the way to change it (#94).
+ *
+ * Reports used to go wherever the process was standing, and an agent working in
+ * another project filed this app's reports on that project's repository. Now
+ * the repository is pinned: shown here, changed here, and checked on GitHub
+ * before a new one is kept. A checkout of some other project the app happens
+ * to be running in is named, so it is plain that it was not used.
+ */
+function RepoSection() {
+  const [repo, setRepo] = useState<main.BugRepo | null>(null)
+  const [draft, setDraft] = useState('')
+  const [editing, setEditing] = useState(false)
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState('')
+
+  const reload = useCallback(() => {
+    GetBugRepo()
+      .then((found) => {
+        setRepo(found)
+        setDraft(found.slug)
+      })
+      .catch((err) => setError(toMessage(err)))
+  }, [])
+
+  useEffect(reload, [reload])
+  useDataChanged([BUG_REPO_SETTING], reload)
+
+  const save = async (value: string) => {
+    setBusy(true)
+    setError('')
+    try {
+      const saved = await SetBugRepo(value)
+      setRepo(saved)
+      setDraft(saved.slug)
+      setEditing(false)
+    } catch (err) {
+      setError(toMessage(err))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  if (!repo) return null
+
+  return (
+    <section className="sm-panel space-y-3 p-4">
+      <div className="flex flex-wrap items-center gap-2">
+        <h3 className="text-sm font-semibold">Filed on</h3>
+        {repo.slug ? (
+          <>
+            <span className="font-mono text-sm">{repo.slug}</span>
+            <StatusPill tone={repo.source === 'pinned' ? 'ok' : 'muted'}>
+              {repo.source === 'pinned' ? 'Pinned' : 'From this checkout, now pinned'}
+            </StatusPill>
+          </>
+        ) : (
+          <StatusPill tone="warn">No repository — reports stay on this machine</StatusPill>
+        )}
+      </div>
+
+      {repo.ignored && (
+        <p className="text-sm text-fg-muted">
+          This app is running inside <span className="font-mono">{repo.ignored}</span>, which
+          is not SunoMaker, so its repository is not used.
+        </p>
+      )}
+      {!repo.slug && !editing && (
+        <p className="text-sm text-fg-muted">
+          Run SunoMaker once from its own checkout and it pins itself, or set the repository
+          here.
+        </p>
+      )}
+
+      {error && <p className="text-sm text-danger">{error}</p>}
+
+      {editing ? (
+        <div className="space-y-2">
+          <TextField
+            label="Repository"
+            value={draft}
+            onChange={setDraft}
+            placeholder="owner/repo or a GitHub URL"
+          />
+          <div className="flex flex-wrap gap-2">
+            <button
+              className="sm-button sm-button-primary"
+              type="button"
+              disabled={busy || !draft.trim()}
+              onClick={() => void save(draft)}
+            >
+              {busy ? 'Checking on GitHub…' : 'Pin'}
+            </button>
+            <button
+              className="sm-button sm-button-quiet"
+              type="button"
+              disabled={busy}
+              onClick={() => {
+                setEditing(false)
+                setDraft(repo.slug)
+                setError('')
+              }}
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      ) : (
+        <div className="flex flex-wrap gap-2">
+          <button className="sm-button sm-button-quiet" type="button" onClick={() => setEditing(true)}>
+            {repo.slug ? 'Change' : 'Set the repository'}
+          </button>
+          {repo.slug && (
+            <button
+              className="sm-button sm-button-quiet"
+              type="button"
+              onClick={() => void OpenURL('https://github.com/' + repo.slug).catch(() => {})}
+            >
+              <ExternalLink size={15} />
+              Open its issues
+            </button>
+          )}
+        </div>
+      )}
+    </section>
   )
 }
