@@ -44,6 +44,14 @@ import {useArtworks} from '../artworks/ArtworksProvider'
  * so it has its own busy state rather than sharing the page's. A producer
  * waiting on a cover can still edit the fields beside it.
  */
+/**
+ * How much of the record's sound shows before Show all, in pixels (#98). Sized
+ * so the sound panel ends level with the cover panel beside it: a real sound
+ * runs to paragraphs, and uncapped it opened a gap under the cover as tall as
+ * the rest of it.
+ */
+const SOUND_HEIGHT = 200
+
 export function AlbumDetails({
   albumId,
   trackId,
@@ -376,7 +384,7 @@ export function AlbumDetails({
           style from the Tracks tab this page usually sits on, and the record
           is easier to judge whole — the cover beside the style it should
           match, the style above the prompts it is joined into. */}
-      <div className="grid items-start gap-4 md:grid-cols-[232px_minmax(0,1fr)]">
+      <div className="grid gap-4 md:grid-cols-[232px_minmax(0,1fr)]">
         {/* Always mounted, now that there is no tab to hide it behind: a
             cover generation runs for minutes and its busy state lives here. */}
         <section className="sm-panel space-y-3 p-4" aria-label="Artwork">
@@ -459,11 +467,7 @@ export function AlbumDetails({
           )}
         </section>
 
-        {/* The right-hand column: the record's sound, and the record that
-            follows from it — together about the height of the cover beside
-            them, so the tracks below start as high as they can. */}
-        <div className="space-y-4">
-        <section className="sm-panel space-y-3 p-4">
+        <section className="sm-panel flex flex-col gap-3 p-4">
           <div className="flex flex-wrap items-center gap-2">
             <h2 className="flex-1 text-sm font-semibold">The record's sound</h2>
             {/* Back by request (#38, reversing #37), with the button that
@@ -513,51 +517,22 @@ export function AlbumDetails({
               placeholder="Analog synths, colder mix than the debut, 100-110 BPM…"
               value={draft.technicalStyle}
               onChange={(technicalStyle) => update({technicalStyle})}
+              collapsedHeight={SOUND_HEIGHT}
+              fill
             />
           )}
           {styleTab === 'inherited' && (
             /* The other half of combinedStyle, shown where the joining
                happens (#40). Read-only: the base style belongs to the artist,
                and two editable copies of it would drift. */
-            <div className="space-y-1">
-              <pre className="max-h-72 overflow-auto whitespace-pre-wrap rounded-md border border-edge bg-surface px-3 py-2 font-mono text-xs leading-relaxed text-fg-muted">
+            <div className="flex flex-1 flex-col gap-1">
+              <pre style={{maxHeight: SOUND_HEIGHT}} className="flex-1 overflow-auto whitespace-pre-wrap rounded-md border border-edge bg-surface px-3 py-2 font-mono text-xs leading-relaxed text-fg-muted">
                 {album.artistBaseStyle || 'No base style written yet.'}
               </pre>
               <p className="text-xs text-fg-muted">Read-only here — edit it on the artist.</p>
             </div>
           )}
         </section>
-
-        {/* The successor (#42): a new record under the same artist, the
-            technical style evolved one step and a fresh track list written to
-            flow. Navigation happens only once the album exists — a failure
-            leaves the producer here, with the message. */}
-        <section className="sm-panel space-y-3 p-4">
-          <h2 className="text-sm font-semibold">The next record</h2>
-          <p className="text-xs text-fg-muted">
-            A new album that evolves this one: the technical style moved a step forward, and
-            a whole new track list styled so each song flows into the next. Lyrics stay yours
-            — write them per track, or through the interview on the new record.
-          </p>
-          <button
-            className="sm-button sm-button-primary"
-            type="button"
-            disabled={evolving}
-            onClick={() => evolve({id: album.id, name: album.name, artistId: album.artistId})}
-          >
-            {evolving ? <Loader2 size={15} className="animate-spin" /> : <Sparkles size={15} />}
-            {evolving ? 'Evolving…' : 'Create the next record'}
-          </button>
-          {evolving && (
-            <p className="text-xs text-fg-muted">
-              This keeps running if you navigate away — watch the status bar.
-            </p>
-          )}
-          {evolution?.state === 'failed' && (
-            <p className="text-sm text-danger">{evolution.error}</p>
-          )}
-        </section>
-        </div>
       </div>
 
       <section ref={tracksRef} className="scroll-mt-4 space-y-3" aria-label="Tracks">
@@ -686,7 +661,11 @@ export function AlbumDetails({
         )}
       </section>
 
-      {/* The last step of the workflow, last on the page. */}
+      {/* The last steps of the workflow, last on the page: where the record
+          went once it was out, and the record that follows it. Down here
+          rather than under the sound (#98), where the space it took depended
+          on how long the sound ran and the cover's column went empty. */}
+      <div className="grid items-start gap-4 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
       <section className="sm-panel space-y-3 p-4">
         <div>
           <h2 className="text-sm font-semibold">Released at</h2>
@@ -713,6 +692,37 @@ export function AlbumDetails({
           />
         </div>
       </section>
+
+        {/* The successor (#42): a new record under the same artist, the
+            technical style evolved one step and a fresh track list written to
+            flow. Navigation happens only once the album exists — a failure
+            leaves the producer here, with the message. */}
+        <section className="sm-panel space-y-3 p-4">
+          <h2 className="text-sm font-semibold">The next record</h2>
+          <p className="text-xs text-fg-muted">
+            A new album that evolves this one: the technical style moved a step forward, and
+            a whole new track list styled so each song flows into the next. Lyrics stay yours
+            — write them per track, or through the interview on the new record.
+          </p>
+          <button
+            className="sm-button sm-button-primary"
+            type="button"
+            disabled={evolving}
+            onClick={() => evolve({id: album.id, name: album.name, artistId: album.artistId})}
+          >
+            {evolving ? <Loader2 size={15} className="animate-spin" /> : <Sparkles size={15} />}
+            {evolving ? 'Evolving…' : 'Create the next record'}
+          </button>
+          {evolving && (
+            <p className="text-xs text-fg-muted">
+              This keeps running if you navigate away — watch the status bar.
+            </p>
+          )}
+          {evolution?.state === 'failed' && (
+            <p className="text-sm text-danger">{evolution.error}</p>
+          )}
+        </section>
+      </div>
 
       {interviewing && (
         <InterviewDialog

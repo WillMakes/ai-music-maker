@@ -13,7 +13,7 @@ import {
   Strikethrough,
   type LucideIcon,
 } from 'lucide-react'
-import {useEffect, useRef, useState} from 'react'
+import {useEffect, useLayoutEffect, useRef, useState} from 'react'
 import {Markdown} from './Markdown'
 
 /**
@@ -43,6 +43,8 @@ export function MarkdownField({
   copyable,
   autoEdit,
   autoFocus,
+  collapsedHeight,
+  fill,
 }: {
   label: string
   value: string
@@ -76,10 +78,42 @@ export function MarkdownField({
    * field remounted each time its dialog opens, so the focus lands on each open.
    */
   autoFocus?: boolean
+  /**
+   * Cap the rendered prose at this many pixels, with Show all to open it
+   * (#98). For a field that shares a row with something of fixed height: a
+   * long value otherwise pushes the row open and leaves a gap beside it as
+   * tall as the overflow. Only the reading view is capped — the editor keeps
+   * its own size, because hiding text somebody is writing is worse than a gap.
+   */
+  collapsedHeight?: number
+  /**
+   * Grow the reading view to the height its flex parent leaves (#98), so a
+   * short value in a tall panel reads as a box of text rather than a box with
+   * an empty strip of panel under it.
+   */
+  fill?: boolean
 }) {
   const [editing, setEditing] = useState(autoEdit || !value.trim())
   const [copied, setCopied] = useState(false)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const proseRef = useRef<HTMLDivElement>(null)
+  const [expanded, setExpanded] = useState(false)
+  const [overflows, setOverflows] = useState(false)
+
+  // Whether the capped prose actually hides anything, so a short value gets
+  // no toggle and no fade. Measured rather than guessed from the length: the
+  // answer depends on the width the field is given, which changes with the
+  // window. Only measured while collapsed — expanded, the cap is off and the
+  // comparison would always say it fits.
+  useLayoutEffect(() => {
+    const el = proseRef.current
+    if (!el || !collapsedHeight || expanded) return
+    const measure = () => setOverflows(el.scrollHeight > el.clientHeight + 1)
+    measure()
+    const observer = new ResizeObserver(measure)
+    observer.observe(el)
+    return () => observer.disconnect()
+  }, [collapsedHeight, expanded, value, editing])
 
   // Focus the editor on open when asked, with the caret at the end so editing an
   // existing value continues where it left off rather than before its first
@@ -102,10 +136,35 @@ export function MarkdownField({
 
   if (!editing) {
     return (
-      <div className="flex flex-col gap-1">
+      <div className={'flex flex-col gap-1' + (fill ? ' flex-1' : '')}>
         <span className="text-sm font-medium">{label}</span>
-        <div className="group relative rounded-lg border border-edge bg-bg px-4 py-3">
-        <Markdown>{value}</Markdown>
+        <div
+          className={
+            'group relative rounded-lg border border-edge bg-bg px-4 py-3' + (fill ? ' flex-1' : '')
+          }
+        >
+        <div
+          ref={proseRef}
+          className="relative overflow-hidden"
+          style={collapsedHeight && !expanded ? {maxHeight: collapsedHeight} : undefined}
+        >
+          <Markdown>{value}</Markdown>
+          {/* A fade into the field's own background says the text goes on, so
+              the cut line never reads as the end of it. */}
+          {overflows && !expanded && (
+            <div className="pointer-events-none absolute inset-x-0 bottom-0 h-10 bg-gradient-to-t from-bg to-transparent" />
+          )}
+        </div>
+        {overflows && (
+          <button
+            type="button"
+            onClick={() => setExpanded((open) => !open)}
+            aria-expanded={expanded}
+            className="mt-1 text-xs font-semibold text-accent hover:underline"
+          >
+            {expanded ? 'Show less' : 'Show all'}
+          </button>
+        )}
         {/* Both controls in one corner, revealed together. They are the two
             things anybody does to a document they are looking at, and a button
             that is always there over prose is a button in the way of reading
