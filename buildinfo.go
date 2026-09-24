@@ -41,7 +41,7 @@ func (a *App) GetBuildInfo() BuildInfo {
 		Version:   appVersion,
 		GoVersion: runtime.Version(),
 		Platform:  runtime.GOOS + "/" + runtime.GOARCH,
-		Repo:      currentBugRepo(),
+		Repo:      a.bugRepo(),
 		StoreOK:   a.store != nil && a.store.db != nil,
 	}
 	built, ok := debug.ReadBuildInfo()

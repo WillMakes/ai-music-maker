@@ -77,11 +77,6 @@ var jaxClient = &http.Client{Timeout: 10 * time.Second}
 type jaxTarget struct {
 	url   string
 	token string
-	// app is the repository slug ("owner/repo"), which is the whole of how Jax
-	// separates one application's queue from another's. Empty would mean Jax's
-	// own queue, so a report with no slug is not filed at all rather than filed
-	// into the wrong one.
-	app string
 }
 
 // fileReportInJax gives a report a counterpart in Jax and returns the id it was
@@ -90,13 +85,21 @@ type jaxTarget struct {
 // A free function rather than a method so App.toJax can hold it as a field and a
 // test can substitute one — filing reaches out to another application on
 // loopback, and a test suite must never depend on whether Jax is open.
-func fileReportInJax(report BugReport) (int, error) {
+//
+// app is the repository the report was filed against, which is how Jax names
+// the app. It is handed in rather than looked up here because looking it up
+// here meant reading the working directory, which named whichever project the
+// process was started in (#94).
+func fileReportInJax(report BugReport, app string) (int, error) {
+	if app == "" {
+		return 0, errJaxUnavailable
+	}
 	target, err := findJax()
 	if err != nil {
 		return 0, err
 	}
 	result, err := target.call(jaxSaveTool, map[string]any{
-		"app":         target.app,
+		"app":         app,
 		"description": report.Description,
 		"route":       report.Route,
 		"global":      report.Global,
@@ -131,11 +134,7 @@ func findJax() (jaxTarget, error) {
 	if url == "" || token == "" {
 		return jaxTarget{}, errJaxUnavailable
 	}
-	app := currentBugRepo().Slug
-	if app == "" {
-		return jaxTarget{}, errJaxUnavailable
-	}
-	return jaxTarget{url: url, token: token, app: app}, nil
+	return jaxTarget{url: url, token: token}, nil
 }
 
 // jaxRuntimeURL reads ~/.jax/mcp.json, which Jax writes at launch and removes on
@@ -323,7 +322,7 @@ func (a *App) linkToJax(report BugReport) BugReport {
 	if a.toJax == nil || report.JaxReportID != 0 {
 		return report
 	}
-	id, err := a.toJax(report)
+	id, err := a.toJax(report, a.bugRepo().Slug)
 	if err != nil || id == 0 {
 		return report
 	}

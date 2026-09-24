@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -94,6 +96,24 @@ func (f *stubForge) start(t *testing.T) {
 	githubAPI = server.URL
 	githubToken = func() string { return "stub-token" }
 	t.Cleanup(func() { githubAPI, githubToken = previousAPI, previousToken })
+	standInAppCheckout(t, "https://github.com/WillMakes/suno-maker.git")
+}
+
+// standInAppCheckout makes the process look as if it runs in a checkout of
+// SunoMaker whose origin is remote. These tests used to get a repository by
+// running inside the real checkout, which is the dependence on the working
+// directory #94 removed; now they say where they stand.
+func standInAppCheckout(t *testing.T, remote string) string {
+	t.Helper()
+	root := t.TempDir()
+	if err := os.WriteFile(filepath.Join(root, "go.mod"), []byte(appModule+"\n\ngo 1.25.0\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	previousDir, previousCheckout := workingDir, checkoutAt
+	workingDir = func() (string, error) { return root, nil }
+	checkoutAt = func(string) (string, string) { return root, remote }
+	t.Cleanup(func() { workingDir, checkoutAt = previousDir, previousCheckout })
+	return root
 }
 
 // allowReconcile clears the rate limit, which is package-level state and would

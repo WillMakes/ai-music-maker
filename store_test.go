@@ -27,7 +27,7 @@ func newTestApp(t *testing.T) *App {
 	// No credential, so findIssueQueue answers errIssuesUnavailable at once.
 	//
 	// This one is not optional and is not about isolation in the abstract: the
-	// tests run inside this checkout, so currentBugRepo finds the real remote and
+	// tests run inside this checkout, so the repository resolves to the real one and
 	// `gh auth token` answers with the producer's real credential. Without this
 	// line, `go test` opens real issues on the real repository — which it did,
 	// once, and which is why the line is here rather than in a comment about what
@@ -37,9 +37,16 @@ func newTestApp(t *testing.T) *App {
 	// by accident. A test of the conversion sets its own.
 	previousEncode := encodeMP3
 	encodeMP3 = func(string, string) error { return errNoEncoder }
+	// Standing in no checkout, so no test pins the real repository into its
+	// database or runs git to find out (#94). A test of the resolution stands
+	// where it needs to.
+	previousCheckout, previousCheck := checkoutAt, checkRepoTakesIssues
+	checkoutAt = func(string) (string, string) { return "", "" }
+	checkRepoTakesIssues = func(string) error { return nil }
 	t.Cleanup(func() {
 		dataDir, osMusicDir, githubToken = previousData, previousMusic, previousToken
 		encodeMP3 = previousEncode
+		checkoutAt, checkRepoTakesIssues = previousCheckout, previousCheck
 	})
 
 	// The same file openStore() would choose, not a test-only name: the bug CLI
@@ -55,7 +62,7 @@ func newTestApp(t *testing.T) *App {
 	// machine with Jax closed is in — and the state a test must be in, because
 	// the alternative is a suite whose results depend on whether the producer
 	// happens to have another application running.
-	return &App{store: store, toJax: func(BugReport) (int, error) { return 0, errJaxUnavailable }}
+	return &App{store: store, toJax: func(BugReport, string) (int, error) { return 0, errJaxUnavailable }}
 }
 
 func TestSlugify(t *testing.T) {

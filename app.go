@@ -24,8 +24,9 @@ type App struct {
 	// toJax files a bug report into Jax and returns the id it was given there
 	// (see jax.go). A field rather than a direct call so tests can substitute
 	// one — filing reaches out to another application on loopback, and a test
-	// suite must never depend on whether the producer has Jax open.
-	toJax func(BugReport) (int, error)
+	// suite must never depend on whether the producer has Jax open. app is the
+	// repository the report belongs to, which is how Jax names this app (#94).
+	toJax func(report BugReport, app string) (int, error)
 
 	// emitMu serialises the "data:changed" emits. The store's onChange hook is
 	// called from whichever goroutine wrote — a bridge request, an MCP call, the
