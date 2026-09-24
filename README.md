@@ -1,185 +1,251 @@
 # SunoMaker
 
-A desktop app for planning music before Suno makes it, and for keeping what Suno
-gives back.
+**Plan music before [Suno](https://suno.com) makes it, and keep what Suno gives back.**
 
-Wails v2: Go backend, React 18 + TypeScript + Tailwind v4 frontend, one binary
-for Windows, macOS and Linux. A Chrome extension puts the app's tracks into
-Suno's own create form.
+SunoMaker is a free, open-source desktop app for Windows, macOS and Linux. It keeps
+your artists, albums and tracks in one library, writes Suno style prompts and
+lyrics with the AI you already use, fills Suno's create form for you, and files
+the finished songs where your music player will find them.
+
+**Website:** [sunomaker.willmakes.tv](https://sunomaker.willmakes.tv) ·
+**License:** [MIT](LICENSE)
+
+> SunoMaker is distributed as source code only. There are no installers or
+> prebuilt binaries: you build it yourself with Go, which takes a few minutes
+> and is described below.
 
 ---
 
-## What it holds
+## Contents
 
-```
-Artist    a name, a base technical style, and the YouTube references that style
-          was decided from — the sound that is recognisably theirs across every
-          record.
-  Album   a name, a cover, and a technical style of its own: only what differs
-          from the artist's. Plus Apple Music, Spotify and YouTube Music links,
-          once the record is out.
-    Track a title, a Suno style prompt, lyrics, a target length, and the files
-          Suno gave back. One of those files is marked as the take that is the
-          track.
-```
+- [What it does](#what-it-does)
+- [Requirements](#requirements)
+- [Build and install](#build-and-install)
+- [First run](#first-run)
+- [Using SunoMaker](#using-sunomaker)
+- [Command line](#command-line)
+- [Where your files live](#where-your-files-live)
+- [Development](#development)
+- [Reporting bugs and contributing](#reporting-bugs-and-contributing)
+- [License](#license)
 
-The artist's base style and the album's own are **joined when a track prompt is
-written**, in that order, rather than copied together when the album is saved.
-Editing the artist's base style therefore corrects every album under them,
-instead of only the ones made afterwards.
+## What it does
 
-## The workflow
+- **A library shaped like a discography.** Each artist has a base style and the
+  references it came from. Each album has a cover, its own style and its release
+  links. Each track has a title, a Suno style prompt, lyrics, a target length,
+  and every take Suno gave back.
+- **AI interviews that write for you.** A conversation settles an artist's
+  sound, an album's concept and cover, and a batch of tracks with prompts and
+  lyrics. It works with Claude, ChatGPT, Gemini, Antigravity or Grok, through
+  your signed-in CLI or an API key.
+- **Album artwork.** Covers are generated from the album's description or
+  dropped in from a file.
+- **A Chrome extension for Suno.** One click fills Suno's Lyrics, Style, Title
+  and Duration fields from a track. With recording switched on, a song you
+  listen to all the way through in Suno is saved onto the matching track.
+- **Your takes, filed properly.** Audio is copied into your music folder as
+  `Artist/Album/01 Track.mp3`. WAVs become 320 kbps MP3s when ffmpeg is
+  installed.
+- **A built-in music player** for listening back through an album's takes.
+- **Works with AI assistants.** An MCP server gives Claude Code, Claude Desktop,
+  Codex, Gemini CLI, Antigravity and Grok everything the window can do.
 
-1. **Create an artist.** An AI-led interview asks what the music is — the
-   instruments, the vocal, the tempo, the production — settles on a name, and
-   gathers YouTube or YouTube Music references with a note against each saying
-   what it is there for. It writes the base technical style from the answers.
+## Requirements
 
-2. **Create an album** for that artist. Another interview: what is different
-   about this record, what to call it, and what the cover should look like. The
-   name is the only thing required. The cover is generated from that description
-   or dropped in from a file.
+Everyone needs:
 
-3. **Fill the album with tracks.** A third interview, briefed with the combined
-   style and the tracks already on the record, writes a title, a Suno style
-   prompt, lyrics and a target length — several at once when you ask for
-   several.
+| Tool | Version | Get it |
+| --- | --- | --- |
+| Go | 1.25 or newer | [go.dev/dl](https://go.dev/dl/) |
+| Node.js | 20 or newer, with npm | [nodejs.org](https://nodejs.org/) |
+| Wails CLI | v2.13 | `go install github.com/wailsapp/wails/v2/cmd/wails@v2.13.0` |
+| Git | any recent | [git-scm.com](https://git-scm.com/) |
 
-4. **Make them in Suno.** The Chrome extension puts a button on Suno's Lyrics,
-   Style and Title fields. Press one, pick a track, and the field is filled.
+Plus what your platform needs to host a desktop web view:
 
-5. **Bring the files back.** With recording on, listen to a song all the way
-   through in Suno and the extension records it onto the track with the same
-   title; or import the finished audio against its track. Then mark the take
-   that is the song.
-
-   A WAV, downloaded or recorded, is kept as a 320 kbps MP3 when
-   [ffmpeg](https://ffmpeg.org) is installed (`mp3encode.go`). Without ffmpeg the
-   WAV is kept as it is.
-
-6. **Release it.** Once the record is out, its three streaming links go on the
-   album.
-
-## Where things live
-
-```
-~/.sunomaker/                    the database, album covers, the exported extension
-<OS music folder>/SunoMaker/     the audio, as Artist/Album/01 Track.mp3
-```
-
-The audio is deliberately **not** under `~/.sunomaker`: it is the output, it
-should outlive an uninstall, and it belongs where a music player will find it
-without being told. The music folder is `%USERPROFILE%\Music` on Windows,
-`~/Music` on macOS, and `$XDG_MUSIC_DIR` (else `~/Music`) on Linux — and can be
-pointed elsewhere in Settings.
-
-## Running it
-
-Requires Go 1.25+, Node 20+, and the [Wails CLI](https://wails.io):
-
-```bash
-go install github.com/wailsapp/wails/v2/cmd/wails@latest
-```
-
-Then:
-
-```bash
-wails dev      # the everyday loop: Go rebuild, Vite watcher, live reload
-wails build    # a packaged binary in build/bin
-```
-
-Verifying a change:
-
-```bash
-go vet ./... && go test ./...   # backend
-cd frontend && npm run build    # tsc + vite; tsc is strict, unused locals fail
-```
-
-Bindings in `frontend/wailsjs/` are regenerated by `wails build` (or
-`wails generate module`). After adding an exported method to `App`, regenerate
-before the frontend can call it.
-
-GoLand run configurations for all of the above are committed under
-`.idea/runConfigurations`.
-
-## Settings
-
-| Tab | What it does |
+| Platform | Also install |
 | --- | --- |
-| **AI** | Claude, ChatGPT and Grok. Each connects either by its signed-in CLI (`claude`, `codex`) — which bills your subscription — or by an API key, validated against the provider before it is stored. One is starred as the default; it is what the interviews use. |
-| **AI assistants** | Registers this app as an MCP server with Claude Code, Claude Desktop, Codex, Gemini CLI, Antigravity and Grok. Every operation the window has is a tool — the library and its files, the interviews, artwork, skills, settings and the bug queue; `suno-maker docs` lists them. |
-| **Skills** | The app's own briefs: how it interviews, how it writes a Suno prompt, what a cover should look like. Built-ins can be edited and reset; you can write your own. |
-| **Chrome extension** | Exports the extension with this app's bridge token in it, says where to point "Load unpacked", and turns off recording the songs you listen to in Suno. |
-| **Bug reports** | The open queue and what has been fixed. |
-| **About** | What is running, and the same documentation `suno-maker docs` prints. |
+| **Windows 10/11** | Nothing. The WebView2 runtime ships with Windows 11 and current Windows 10. |
+| **macOS** | Xcode Command Line Tools: `xcode-select --install` |
+| **Linux** | A C compiler, GTK 3 and WebKit2GTK. Debian/Ubuntu: `sudo apt install build-essential pkg-config libgtk-3-dev libwebkit2gtk-4.1-dev` (see the note below on 4.0 and 4.1) |
 
-## The Chrome extension
+Run `wails doctor` after installing. It checks all of the above and tells you
+what is missing.
 
-Exported rather than installed from a store: it has to carry a token generated on
-this machine, so a copy from anywhere else would have no way to reach the app.
+**Optional, but worth having:**
 
-It reaches SunoMaker over `127.0.0.1:8799` — loopback only, so nothing off the
-machine can see it — gated by that token in an `Authorization` header. It reads
-your library, and writes one thing: recordings. Pressing its toolbar button on
-the Suno tab starts capturing that tab's sound, which Chrome allows only after
-that press, and pressing it again stops. A song heard from its start to its end
-is recorded (`chromeextension/offscreen.js`) and filed onto the track with the
-same title (`sunocapture.go`). Joining a song part-way or seeking inside
-it leaves it unrecorded, a clip is filed once, and a title no track has is left
-alone. On a Suno page with the app closed it stays silent.
+| Tool | What it adds |
+| --- | --- |
+| [Google Chrome](https://www.google.com/chrome/) | The Suno extension: form filling and recording. |
+| [ffmpeg](https://ffmpeg.org/download.html) | WAV takes are converted to 320 kbps MP3. Without it they stay WAV. |
+| An AI CLI: [`claude`](https://docs.anthropic.com/en/docs/claude-code), [`codex`](https://github.com/openai/codex), [`gemini`](https://github.com/google-gemini/gemini-cli) or `agy` | Use your existing subscription instead of an API key. |
+| [GitHub CLI](https://cli.github.com/) (`gh`) | Signs the in-app bug reporter in to GitHub. |
 
-Suno's markup carries no stable ids, so each of the three fields is found by a
-list of candidate selectors and then by a label match. Those will break when Suno
-redesigns; `FIELDS` in `chromeextension/content.js` is written as a list
-precisely so it can be extended by looking at the page.
-
-## The bug queue
-
-A button in the top bar, on every page. **A report is a GitHub issue** on this
-repository, and it gets a counterpart in Jax, which is where the queue is watched
-from.
-
-The repository is pinned in the app's settings (`gitrepo.go`): the first run from
-a SunoMaker checkout pins that checkout's GitHub repository, and every process
-files there afterwards — including an MCP server an agent started in another
-project, which used to file into that project's issues. Settings → Bug reports
-shows it and changes it; so does `bugs repo <owner/repo>`.
+## Build and install
 
 ```bash
-suno-maker bugs list                 # open reports, oldest first
-suno-maker bugs claim <id>           # here, on the issue, and in Jax
-suno-maker bugs resolve <id> --sha <sha> --url <url>
-suno-maker bugs workflow             # the whole process
+# 1. Get the source
+git clone https://github.com/WillMakes/suno-maker.git
+cd suno-maker
+
+# 2. Install the Wails CLI (once)
+go install github.com/wailsapp/wails/v2/cmd/wails@v2.13.0
+
+# 3. Check your machine has everything
+wails doctor
+
+# 4. Build
+wails build
 ```
 
-An issue written on github.com the ordinary way joins the queue at the next read;
-closing an issue there resolves the report. Filing needs a GitHub token, from
-`GITHUB_TOKEN`, `GH_TOKEN`, or `gh auth token` — none of which this app stores.
+`wails build` installs the frontend's npm packages, compiles the React UI,
+embeds it, and produces one self-contained program:
 
-Nothing about the tracker can fail a filing: with no network, no credential or no
-Jax, the report is still written locally and gets its issue and its counterpart
-on a later sweep.
+| Platform | Output |
+| --- | --- |
+| Windows | `build/bin/suno-maker.exe` |
+| macOS | `build/bin/suno-maker.app` |
+| Linux | `build/bin/suno-maker` |
 
-## The other two command surfaces
+Run it from there, or move it wherever you keep applications. The program has
+no other files to carry with it.
 
-The same binary, short-circuited before the window opens:
+> **Linux: WebKit2GTK 4.0 or 4.1.** Wails links WebKit2GTK 4.0 unless told
+> otherwise. Newer distributions (Ubuntu 24.04, Debian 13, Fedora 40 and later)
+> ship only 4.1. With `libwebkit2gtk-4.1-dev` installed, build with
+> `wails build -tags webkit2_41` (and `wails dev -tags webkit2_41`). On Ubuntu
+> 22.04 and older, install `libwebkit2gtk-4.0-dev` and build without the tag.
+
+**Updating** is a pull and a rebuild. Your library is stored outside the source
+folder and carries over.
 
 ```bash
-suno-maker mcp     # JSON-RPC on stdio, for an AI client (see Settings → AI assistants)
-suno-maker docs    # what this app is, generated from what it actually holds
+git pull
+wails build
 ```
 
-The MCP server reads the database directly rather than talking to a running
-window, which is what makes it work when the app is closed — and why the store
-sets `busy_timeout`: two processes share the file.
+> `go build` on its own will not produce a working app. The UI has to be built
+> and embedded first, which is what `wails build` does.
 
-Its `describe_app` tool is the application's map of itself: every page, the
-components it renders, the bindings it calls, and the tool that reaches each
-one. The page half is written by `frontend/scripts/app-map.mjs` on every
-frontend build, from `navigation.ts`, the route guards in `App.tsx` and the
-import graph, into `dist/app-map.json`; the binary embeds it and joins the
-tool surface to it at read time. Nothing in the map is maintained by hand.
+## First run
 
-## House style
+1. **Connect an AI.** Open **Settings → AI**. Pick a provider and either use
+   its signed-in CLI or paste an API key. Keys are checked with the provider
+   before they are saved. Star one as the default. Album artwork is generated
+   with ChatGPT, through the `codex` CLI or an OpenAI API key.
+2. **Check the music folder.** **Settings → Library** shows where audio is
+   filed. It defaults to your system's Music folder.
+3. **Install the Chrome extension** if you use Suno in Chrome. In **Settings →
+   Chrome extension**, choose **Export the extension**. Then open
+   `chrome://extensions`, turn on **Developer mode**, choose **Load unpacked**,
+   and select the folder the panel shows. Export again after each update so
+   Chrome gets the new version.
+4. **Optionally, connect your AI assistant.** Under **Settings → AI → AI
+   assistants**, one click registers SunoMaker as an MCP server with each
+   supported client.
 
-See [CLAUDE.md](CLAUDE.md).
+## Using SunoMaker
+
+1. **Create an artist.** An interview asks what the music is: instruments,
+   vocal, tempo, production. It settles on a name, gathers YouTube references,
+   and writes the artist's base style.
+2. **Create an album.** A second interview covers what is different about this
+   record, what to call it, and what the cover should look like. Only the name
+   is required.
+3. **Fill it with tracks.** A third interview writes titles, Suno style prompts,
+   lyrics and target lengths, several at a time. The artist's style and the
+   album's are combined when each prompt is written. Editing the artist's
+   style therefore updates every album.
+4. **Make them in Suno.** With SunoMaker open, the extension adds a **Fill from
+   SunoMaker** button to Suno's create page. It also adds a button to each
+   field. Pick a track, and the form is filled.
+5. **Bring the songs back.** Import finished audio onto its track, or drop a
+   batch of downloads on the album and each file is matched to its track by
+   name. To record instead, press SunoMaker's button in Chrome's toolbar on the
+   Suno tab. Each song you then hear from start to finish is saved onto the
+   track with the same title. Mark the take that is the song.
+6. **Release it.** Add the album's Apple Music, Spotify and YouTube Music links
+   once it is out.
+
+**Skills**, in the sidebar, are the briefs the AI works from: how it
+interviews, how it writes a Suno prompt, what a cover should look like. Edit
+the built-ins, reset them, or write your own.
+
+## Command line
+
+The same program has three command-line modes that run without opening a
+window:
+
+```bash
+suno-maker docs          # an overview of the app and everything in it
+suno-maker mcp           # the MCP server, on stdio, for AI clients
+suno-maker bugs help     # the bug-report queue (see below)
+```
+
+On Windows the program is `suno-maker.exe`, and on macOS it is
+`suno-maker.app/Contents/MacOS/suno-maker`. In a source checkout, `go run .
+docs` and similar work too. The MCP server reads the database directly, so
+assistants can work with your library while the window is closed.
+
+## Where your files live
+
+```
+~/.sunomaker/                    the library database, album covers, the exported extension
+<Music folder>/SunoMaker/        your audio, as Artist/Album/01 Track.mp3
+```
+
+The audio is kept in your Music folder, not the app's data folder. That way it
+survives an uninstall and your music player finds it. The Music folder is
+`%USERPROFILE%\Music` on Windows, `~/Music` on macOS, and `$XDG_MUSIC_DIR` (or
+`~/Music`) on Linux, and it can be changed in **Settings → Library**.
+
+To back up everything, copy those two folders.
+
+## Development
+
+```bash
+wails dev                       # run with live reload of the Go and React code
+go vet ./... && go test ./...   # backend checks
+cd frontend && npm run build    # TypeScript (strict) and the production UI build
+```
+
+- **Stack:** [Wails v2](https://wails.io) with a Go backend, and React 18 +
+  TypeScript + Tailwind CSS v4 for the frontend. SQLite storage uses the pure-Go
+  [modernc.org/sqlite](https://pkg.go.dev/modernc.org/sqlite).
+- **Layout:** the backend is `package main` at the repository root, one file per
+  domain. The UI is in `frontend/src`. The Chrome extension is in
+  `chromeextension/` and is embedded in the binary.
+- **Bindings:** `frontend/wailsjs/` is generated. After adding an exported
+  method to `App`, run `wails build` or `wails generate module` before the
+  frontend can call it.
+- **Tests** run against a temporary database and a temporary music folder. They
+  never touch your real library.
+- **House style:** conventions for code, comments and UI colour tokens are in
+  [CLAUDE.md](CLAUDE.md).
+
+## Reporting bugs and contributing
+
+Bugs and ideas go on the
+[issue tracker](https://github.com/WillMakes/suno-maker/issues). Pull requests
+are welcome. Please run the three checks under [Development](#development)
+first.
+
+The bug button in the app's top bar files a GitHub issue. It needs a GitHub
+credential from `GITHUB_TOKEN`, `GH_TOKEN` or `gh auth login`, and SunoMaker
+stores none of them. Reports go to the repository shown in **Settings → Bug
+reports**. It is set automatically the first time SunoMaker runs from its own
+source checkout. To send reports to your own fork instead, change it there or
+run:
+
+```bash
+suno-maker bugs repo your-name/suno-maker
+```
+
+With no network or no credential, a report is kept locally and filed later.
+
+## License
+
+SunoMaker is released under the [MIT License](LICENSE).
+
+It is an independent project, not affiliated with or endorsed by Suno, Inc.
