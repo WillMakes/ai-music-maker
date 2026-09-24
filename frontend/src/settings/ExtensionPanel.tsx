@@ -136,8 +136,8 @@ export function ExtensionPanel() {
             Record the songs I listen to all the way through
             <span className="block text-xs text-fg-muted">
               Press SunoMaker's button in Chrome's toolbar on the Suno tab to start recording,
-              and again to stop. A song heard from its start to its end is recorded as a WAV
-              and added to the track with the same title. Joining a song part-way or skipping
+              and again to stop. A song heard from its start to its end is recorded and added
+              to the track with the same title, as an MP3 when ffmpeg is installed. Joining a song part-way or skipping
               inside it leaves it unrecorded. A song heard twice is filed once, and a title no
               track has is left alone.
             </span>

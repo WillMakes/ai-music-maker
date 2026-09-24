@@ -138,11 +138,14 @@ func (a *App) importTrackFile(trackID, sourcePath, label, sunoClip string) (Trac
 	// suffix keeps two takes of the same track apart without either overwriting
 	// the other.
 	base := fmt.Sprintf("%02d %s", track.Position, slugify(track.Name))
-	destination, err := uniquePath(dir, base, ext)
+	destination, err := fileTake(sourcePath, dir, base, ext)
 	if err != nil {
 		return Track{}, err
 	}
-	if err := copyFile(sourcePath, destination); err != nil {
+	// The size of what was kept, which for an encoded WAV is not the size of
+	// what was picked.
+	stored, err := os.Stat(destination)
+	if err != nil {
 		return Track{}, err
 	}
 
@@ -155,7 +158,7 @@ func (a *App) importTrackFile(trackID, sourcePath, label, sunoClip string) (Trac
 		Label:    strings.TrimSpace(label),
 		Name:     filepath.Base(destination),
 		Path:     destination,
-		Bytes:    info.Size(),
+		Bytes:    stored.Size(),
 		Seconds:  audioDurationSeconds(destination),
 		At:       nowStamp(),
 		SunoClip: sunoClip,
@@ -176,6 +179,31 @@ func (a *App) importTrackFile(trackID, sourcePath, label, sunoClip string) (Trac
 	}
 	a.store.changed(scopeTracks)
 	return a.store.track(trackID)
+}
+
+// fileTake puts a take into the album folder and answers where it went. A
+// WAV is encoded to MP3 on the way in (#93); anything else, and a WAV the
+// encoder could not take, is copied as it is.
+func fileTake(sourcePath, dir, base, ext string) (string, error) {
+	if ext == ".wav" {
+		destination, err := uniquePath(dir, base, ".mp3")
+		if err != nil {
+			return "", err
+		}
+		if err := encodeMP3(sourcePath, destination); err == nil {
+			return destination, nil
+		}
+		// Falls through to the copy: the WAV is the take, and keeping it is
+		// what an import did before there was an encoder to ask.
+	}
+	destination, err := uniquePath(dir, base, ext)
+	if err != nil {
+		return "", err
+	}
+	if err := copyFile(sourcePath, destination); err != nil {
+		return "", err
+	}
+	return destination, nil
 }
 
 // ChooseTrackFile marks one take as the track, unmarking the others.
