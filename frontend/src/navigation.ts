@@ -142,8 +142,8 @@ export const RETIRED_ROUTES: Record<string, ViewId> = {
   // The redesign (#34) moved the skills list to the Skills page it always
   // duplicated, and the tab's two preferences to Settings — Library.
   'settings-skills': 'skills',
-  // The track page folded into the album's Tracks tab (#40); the route keeps
-  // its trackId, which the album page uses to select the same track.
+  // The track page folded into the album page (#40, #97); the route keeps its
+  // trackId, which the album page selects and scrolls to.
   'track-details': 'album-details',
 }
 
