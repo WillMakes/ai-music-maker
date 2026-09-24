@@ -26,8 +26,8 @@ import (
 // Recorded, not downloaded (#92). The first version fetched Suno's MP3 for the
 // clip, which the producer did not ask for: what they want kept is what they
 // listened to, and only a song they sat through all of. The capture is taken as
-// raw samples and stored as WAV, so it is not squeezed through a second lossy
-// codec on top of the one Suno already used.
+// raw samples and sent as WAV, so the one lossy step between Suno's player and
+// the library is the MP3 it is filed as (#93, see mp3encode.go).
 //
 // This file owns the decision — which track, whether it was already filed,
 // whether filing is switched off — and the extension owns the listening; see

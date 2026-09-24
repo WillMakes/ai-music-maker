@@ -75,8 +75,10 @@ func captureFixture(t *testing.T, app *App, albumName string, names ...string) (
 }
 
 // TestHeardTakeIsRecordedOntoItsTrack is #91 and #92: a song recorded while it
-// played on Suno lands on the track of the same name as a WAV, with nobody
-// importing it — and hearing it again does not file it twice.
+// played on Suno lands on the track of the same name, with nobody importing
+// it — and hearing it again does not file it twice. The test app has no
+// encoder, so the recording is kept as the WAV it arrived as; the MP3 it
+// becomes where there is one is mp3encode_test.go's business (#93).
 func TestHeardTakeIsRecordedOntoItsTrack(t *testing.T) {
 	app := newTestApp(t)
 	written := 0
@@ -104,7 +106,7 @@ func TestHeardTakeIsRecordedOntoItsTrack(t *testing.T) {
 		t.Errorf("the take does not say where it came from: %+v", file)
 	}
 	if !strings.HasSuffix(file.Name, ".wav") || file.Seconds != 3 {
-		t.Errorf("the recording should be kept as the WAV it arrived as: %+v", file)
+		t.Errorf("with no encoder, the recording should be kept as the WAV it arrived as: %+v", file)
 	}
 	if _, err := os.Stat(file.Path); err != nil {
 		t.Errorf("the take was not copied into the music folder: %v", err)

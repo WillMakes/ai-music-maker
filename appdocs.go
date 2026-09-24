@@ -86,7 +86,8 @@ the ones made afterwards.
    onto the track with the same title. Or import the finished audio against
    its track. Files are copied into the operating
    system's music folder under SunoMaker/Artist/Album, so a music player finds
-   them without being told to.
+   them without being told to. A WAV is kept as a 320 kbps MP3 when ffmpeg is
+   installed, and as the WAV when it is not.
 
 6. **Release it.** Once the record is out, its Apple Music, Spotify and YouTube
    Music links go on the album.

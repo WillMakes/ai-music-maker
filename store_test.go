@@ -33,8 +33,13 @@ func newTestApp(t *testing.T) *App {
 	// once, and which is why the line is here rather than in a comment about what
 	// might happen.
 	githubToken = func() string { return "" }
+	// No encoder, so a WAV import files the WAV (#93) and no test runs ffmpeg
+	// by accident. A test of the conversion sets its own.
+	previousEncode := encodeMP3
+	encodeMP3 = func(string, string) error { return errNoEncoder }
 	t.Cleanup(func() {
 		dataDir, osMusicDir, githubToken = previousData, previousMusic, previousToken
+		encodeMP3 = previousEncode
 	})
 
 	// The same file openStore() would choose, not a test-only name: the bug CLI

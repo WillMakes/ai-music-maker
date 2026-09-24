@@ -53,6 +53,10 @@ instead of only the ones made afterwards.
    title; or import the finished audio against its track. Then mark the take
    that is the song.
 
+   A WAV, downloaded or recorded, is kept as a 320 kbps MP3 when
+   [ffmpeg](https://ffmpeg.org) is installed (`mp3encode.go`). Without ffmpeg the
+   WAV is kept as it is.
+
 6. **Release it.** Once the record is out, its three streaming links go on the
    album.
 
@@ -119,8 +123,8 @@ machine can see it — gated by that token in an `Authorization` header. It read
 your library, and writes one thing: recordings. Pressing its toolbar button on
 the Suno tab starts capturing that tab's sound, which Chrome allows only after
 that press, and pressing it again stops. A song heard from its start to its end
-is recorded as a WAV (`chromeextension/offscreen.js`) and filed onto the track
-with the same title (`sunocapture.go`). Joining a song part-way or seeking inside
+is recorded (`chromeextension/offscreen.js`) and filed onto the track with the
+same title (`sunocapture.go`). Joining a song part-way or seeking inside
 it leaves it unrecorded, a clip is filed once, and a title no track has is left
 alone. On a Suno page with the app closed it stays silent.
 
