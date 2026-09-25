@@ -18,7 +18,15 @@ before the frontend can call it.
 
 ## Backend
 
-- Everything is `package main` at the repository root, one file per domain.
+- The app is `package app` in `internal/app`, one file per domain. The root
+  holds only `main.go`, which calls `app.Main()`; keep it that way (#99).
+- Code that needs nothing from `App` or `Store` gets a package of its own under
+  `internal/` (`platform` for per-OS helpers, `audio` for audio files). Files
+  that declare `App` or `Store` methods stay in `internal/app`: Go keeps a
+  type's methods in its own package.
+- Embedded files are embedded by a package in their own folder, since
+  `go:embed` cannot reach up: `frontend.Dist`, `skills.Files`,
+  `chromeextension.Files`.
 - `store.go` owns the connection, the schema and settings. Domain files own
   their own table's SQL, as `*Store` methods below the types they populate.
 - Bindings are methods on `App`. They validate, fill defaults, and return the
