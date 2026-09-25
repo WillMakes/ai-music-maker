@@ -1,37 +1,14 @@
 package main
 
 import (
-	"bytes"
-	"encoding/binary"
 	"errors"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"sunomaker/internal/audio"
 )
-
-// realEncodeMP3 is the encoder as shipped, captured before any test app
-// replaces it.
-var realEncodeMP3 = encodeMP3
-
-// stereoWAV is a real 44.1 kHz stereo 16-bit WAV of silence — the shape Suno
-// downloads and #92's recordings have — for the one test that runs ffmpeg.
-func stereoWAV(seconds int) []byte {
-	const rate, channels, bits = 44100, 2, 16
-	data := make([]byte, seconds*rate*channels*bits/8)
-	var b bytes.Buffer
-	b.WriteString("RIFF")
-	_ = binary.Write(&b, binary.LittleEndian, uint32(36+len(data)))
-	b.WriteString("WAVEfmt ")
-	for _, v := range []any{uint32(16), uint16(1), uint16(channels), uint32(rate),
-		uint32(rate * channels * bits / 8), uint16(channels * bits / 8), uint16(bits)} {
-		_ = binary.Write(&b, binary.LittleEndian, v)
-	}
-	b.WriteString("data")
-	_ = binary.Write(&b, binary.LittleEndian, uint32(len(data)))
-	b.Write(data)
-	return b.Bytes()
-}
 
 // importFixture is one track on one album, and a WAV to import onto it.
 func importFixture(t *testing.T, app *App) (Track, string) {
@@ -76,7 +53,7 @@ func TestWAVTakesAreFiledAsMP3(t *testing.T) {
 	track, wav := importFixture(t, app)
 	encoded := []byte("an mp3, as far as this test cares")
 	calls := 0
-	encodeMP3 = func(src, dest string) error {
+	audio.EncodeMP3 = func(src, dest string) error {
 		calls++
 		if src != wav || filepath.Ext(dest) != ".mp3" {
 			t.Errorf("asked to encode %s into %s", src, dest)
@@ -117,7 +94,7 @@ func TestWAVTakesAreFiledAsMP3(t *testing.T) {
 func TestRecordedTakesAreFiledAsMP3(t *testing.T) {
 	app := newTestApp(t)
 	captureFixture(t, app, "Late Checkout", "Late Checkout")
-	encodeMP3 = func(_, dest string) error { return os.WriteFile(dest, []byte("mp3"), 0o600) }
+	audio.EncodeMP3 = func(_, dest string) error { return os.WriteFile(dest, []byte("mp3"), 0o600) }
 	written := 0
 
 	got, err := app.captureSunoPlay(SunoPlay{ClipID: testClip, Title: "Late Checkout"}, recording(&written))
@@ -135,7 +112,7 @@ func TestRecordedTakesAreFiledAsMP3(t *testing.T) {
 // WAV as it is and leaves no half-written MP3 behind.
 func TestAWAVTheEncoderCannotTakeIsKept(t *testing.T) {
 	for name, encoder := range map[string]func(string, string) error{
-		"no encoder": func(string, string) error { return errNoEncoder },
+		"no encoder": func(string, string) error { return audio.ErrNoEncoder },
 		"encoder fails": func(_, dest string) error {
 			_ = os.WriteFile(dest, []byte("half"), 0o600)
 			_ = os.Remove(dest)
@@ -145,7 +122,7 @@ func TestAWAVTheEncoderCannotTakeIsKept(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			app := newTestApp(t)
 			track, wav := importFixture(t, app)
-			encodeMP3 = encoder
+			audio.EncodeMP3 = encoder
 
 			got, err := app.ImportTrackFile(track.ID, wav, "")
 			if err != nil {
@@ -169,7 +146,7 @@ func TestAWAVTheEncoderCannotTakeIsKept(t *testing.T) {
 func TestOtherFormatsAreNotReencoded(t *testing.T) {
 	app := newTestApp(t)
 	track, _ := importFixture(t, app)
-	encodeMP3 = func(src, _ string) error {
+	audio.EncodeMP3 = func(src, _ string) error {
 		t.Errorf("asked to encode %s", src)
 		return nil
 	}
@@ -186,30 +163,5 @@ func TestOtherFormatsAreNotReencoded(t *testing.T) {
 		if filepath.Ext(last.Name) != filepath.Ext(name) {
 			t.Errorf("%s was filed as %s", name, last.Name)
 		}
-	}
-}
-
-// TestFFmpegMakesAPlayableMP3 runs the real encoder, where there is one, so
-// the arguments it is given are known to produce an MP3 of the right length.
-func TestFFmpegMakesAPlayableMP3(t *testing.T) {
-	if _, ok := lookUpCommand("ffmpeg"); !ok {
-		t.Skip("ffmpeg is not installed on this machine")
-	}
-	dir := t.TempDir()
-	src := filepath.Join(dir, "take.wav")
-	if err := os.WriteFile(src, stereoWAV(3), 0o600); err != nil {
-		t.Fatal(err)
-	}
-	dest := filepath.Join(dir, "take.mp3")
-	if err := realEncodeMP3(src, dest); err != nil {
-		t.Fatal(err)
-	}
-	if got := audioDurationSeconds(dest); got != 3 {
-		t.Errorf("the MP3 should be 3 seconds long, read %d", got)
-	}
-	wavInfo, _ := os.Stat(src)
-	mp3Info, _ := os.Stat(dest)
-	if mp3Info.Size() >= wavInfo.Size() {
-		t.Errorf("the MP3 (%d bytes) is not smaller than the WAV (%d)", mp3Info.Size(), wavInfo.Size())
 	}
 }

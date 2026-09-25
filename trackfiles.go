@@ -7,6 +7,8 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+
+	"sunomaker/internal/audio"
 	"sunomaker/internal/platform"
 )
 
@@ -160,7 +162,7 @@ func (a *App) importTrackFile(trackID, sourcePath, label, sunoClip string) (Trac
 		Name:     filepath.Base(destination),
 		Path:     destination,
 		Bytes:    stored.Size(),
-		Seconds:  audioDurationSeconds(destination),
+		Seconds:  audio.DurationSeconds(destination),
 		At:       nowStamp(),
 		SunoClip: sunoClip,
 	}
@@ -191,7 +193,7 @@ func fileTake(sourcePath, dir, base, ext string) (string, error) {
 		if err != nil {
 			return "", err
 		}
-		if err := encodeMP3(sourcePath, destination); err == nil {
+		if err := audio.EncodeMP3(sourcePath, destination); err == nil {
 			return destination, nil
 		}
 		// Falls through to the copy: the WAV is the take, and keeping it is

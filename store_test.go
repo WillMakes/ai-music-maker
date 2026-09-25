@@ -3,6 +3,8 @@ package main
 import (
 	"path/filepath"
 	"testing"
+
+	"sunomaker/internal/audio"
 )
 
 // newTestApp builds an app backed by a temp-dir database and a temp music
@@ -35,8 +37,8 @@ func newTestApp(t *testing.T) *App {
 	githubToken = func() string { return "" }
 	// No encoder, so a WAV import files the WAV (#93) and no test runs ffmpeg
 	// by accident. A test of the conversion sets its own.
-	previousEncode := encodeMP3
-	encodeMP3 = func(string, string) error { return errNoEncoder }
+	previousEncode := audio.EncodeMP3
+	audio.EncodeMP3 = func(string, string) error { return audio.ErrNoEncoder }
 	// Standing in no checkout, so no test pins the real repository into its
 	// database or runs git to find out (#94). A test of the resolution stands
 	// where it needs to.
@@ -45,7 +47,7 @@ func newTestApp(t *testing.T) *App {
 	checkRepoTakesIssues = func(string) error { return nil }
 	t.Cleanup(func() {
 		dataDir, osMusicDir, githubToken = previousData, previousMusic, previousToken
-		encodeMP3 = previousEncode
+		audio.EncodeMP3 = previousEncode
 		checkoutAt, checkRepoTakesIssues = previousCheckout, previousCheck
 	})
 
