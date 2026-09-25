@@ -12,6 +12,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"sunomaker/internal/platform"
 	"time"
 )
 
@@ -139,7 +140,7 @@ func realGitHubToken() string {
 		return ""
 	}
 	cmd := exec.Command(path, "auth", "token")
-	hideWindow(cmd)
+	platform.HideWindow(cmd)
 	// Output rather than CombinedOutput: an unauthenticated gh writes its
 	// complaint to stderr and exits non-zero, and folding that into the value
 	// would hand back an error message as a bearer token.

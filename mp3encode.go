@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"strings"
+	"sunomaker/internal/platform"
 	"time"
 )
 
@@ -54,7 +55,7 @@ var encodeMP3 = func(src, dest string) error {
 	cmd := exec.CommandContext(ctx, ffmpeg,
 		"-nostdin", "-hide_banner", "-loglevel", "error", "-y",
 		"-i", src, "-vn", "-codec:a", "libmp3lame", "-b:a", "320k", dest)
-	hideWindow(cmd)
+	platform.HideWindow(cmd)
 	out, err := cmd.CombinedOutput()
 	if err != nil {
 		_ = os.Remove(dest)
