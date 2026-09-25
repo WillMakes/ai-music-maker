@@ -234,8 +234,10 @@ cd frontend && npm run build    # TypeScript (strict) and the production UI buil
 - **Stack:** [Wails v2](https://wails.io) with a Go backend, and React 18 +
   TypeScript + Tailwind CSS v4 for the frontend. SQLite storage uses the pure-Go
   [modernc.org/sqlite](https://pkg.go.dev/modernc.org/sqlite).
-- **Layout:** the backend is `package main` at the repository root, one file per
-  domain. The UI is in `frontend/src`. The Chrome extension is in
+- **Layout:** the backend is the `app` package in `internal/app`, one file per
+  domain. Helpers that stand alone are in `internal/platform` and
+  `internal/audio`, and `main.go` at the root only starts the app. The UI is in
+  `frontend/src`. The Chrome extension is in
   `chromeextension/` and is embedded in the binary.
 - **Bindings:** `frontend/wailsjs/` is generated. After adding an exported
   method to `App`, run `wails build` or `wails generate module` before the

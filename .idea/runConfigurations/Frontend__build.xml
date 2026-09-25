@@ -1,6 +1,6 @@
 <component name="ProjectRunConfigurationManager">
-  <!-- `npm run build` — tsc then vite — filling frontend/dist, which main.go
-       embeds with `//go:embed all:frontend/dist`. Without this, a debug run
+  <!-- `npm run build` — tsc then vite — filling frontend/dist, which
+       frontend/frontend.go embeds with `//go:embed all:dist`. Without this, a debug run
        compiles the current Go source around whatever dist happened to be left on
        disk, so UI edits appear to have no effect and the window shows a build
        from some earlier session.
