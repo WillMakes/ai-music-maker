@@ -1,7 +1,7 @@
 import {useState} from 'react'
 import {Music4, Plus, Sparkles} from 'lucide-react'
-import {SaveArtist} from '../../wailsjs/go/main/App'
-import {main} from '../../wailsjs/go/models'
+import {SaveArtist} from '../../wailsjs/go/app/App'
+import {app} from '../../wailsjs/go/models'
 import {EmptyState} from '../components/EmptyState'
 import {PageHeader} from '../components/PageHeader'
 import {useArtists} from '../artists/ArtistsProvider'
@@ -33,7 +33,7 @@ export function Artists({
     setProblem('')
     try {
       const artist = await SaveArtist(
-        main.Artist.createFrom({name: 'New artist', inspirations: []}),
+        app.Artist.createFrom({name: 'New artist', inspirations: []}),
       )
       onOpen(artist.id)
     } catch (err) {

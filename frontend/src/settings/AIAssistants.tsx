@@ -5,8 +5,8 @@ import {
   DisconnectMCPClient,
   GetMCPStatus,
   ListMCPTools,
-} from '../../wailsjs/go/main/App'
-import {main} from '../../wailsjs/go/models'
+} from '../../wailsjs/go/app/App'
+import {app} from '../../wailsjs/go/models'
 import {TextField} from '../components/Field'
 import {StatusPill} from '../components/StatusPill'
 import {toMessage} from '../lib/errors'
@@ -24,7 +24,7 @@ import {toMessage} from '../lib/errors'
  * work and does nothing.
  */
 export function AIAssistants() {
-  const [status, setStatus] = useState<main.MCPStatus | null>(null)
+  const [status, setStatus] = useState<app.MCPStatus | null>(null)
   const [busy, setBusy] = useState('')
   const [error, setError] = useState('')
 
@@ -43,7 +43,7 @@ export function AIAssistants() {
     return <p className="text-sm text-fg-muted">{error || 'Loading…'}</p>
   }
 
-  const act = async (id: string, work: Promise<main.MCPStatus>) => {
+  const act = async (id: string, work: Promise<app.MCPStatus>) => {
     setBusy(id)
     setError('')
     try {
@@ -144,7 +144,7 @@ export function AIAssistants() {
  * shown here can be called and a tool that can be called is shown.
  */
 function ToolList({count}: {count: number}) {
-  const [tools, setTools] = useState<main.MCPToolInfo[]>([])
+  const [tools, setTools] = useState<app.MCPToolInfo[]>([])
   const [open, setOpen] = useState(false)
   const [query, setQuery] = useState('')
   const [error, setError] = useState('')
@@ -160,7 +160,7 @@ function ToolList({count}: {count: number}) {
   // looking for "the one that imports takes" has words, not a tool name.
   const groups = useMemo(() => {
     const needle = query.trim().toLowerCase()
-    const out: {name: string; tools: main.MCPToolInfo[]}[] = []
+    const out: {name: string; tools: app.MCPToolInfo[]}[] = []
     for (const tool of tools) {
       if (
         needle &&

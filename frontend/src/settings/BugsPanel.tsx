@@ -1,7 +1,7 @@
 import {useCallback, useEffect, useState} from 'react'
 import {ChevronLeft, ChevronRight, ExternalLink} from 'lucide-react'
-import {GetBugRepo, MarkFixesSeen, OpenURL, SetBugRepo} from '../../wailsjs/go/main/App'
-import {main} from '../../wailsjs/go/models'
+import {GetBugRepo, MarkFixesSeen, OpenURL, SetBugRepo} from '../../wailsjs/go/app/App'
+import {app} from '../../wailsjs/go/models'
 import {useBugs} from '../bugs/BugsProvider'
 import {TextField} from '../components/Field'
 import {StatusPill} from '../components/StatusPill'
@@ -196,7 +196,7 @@ const BUG_REPO_SETTING = 'bug_repo'
  * to be running in is named, so it is plain that it was not used.
  */
 function RepoSection() {
-  const [repo, setRepo] = useState<main.BugRepo | null>(null)
+  const [repo, setRepo] = useState<app.BugRepo | null>(null)
   const [draft, setDraft] = useState('')
   const [editing, setEditing] = useState(false)
   const [busy, setBusy] = useState(false)

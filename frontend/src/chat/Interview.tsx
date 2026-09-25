@@ -6,8 +6,8 @@ import {
   ClearChat,
   GetAIReadiness,
   GetChat,
-} from '../../wailsjs/go/main/App'
-import {main} from '../../wailsjs/go/models'
+} from '../../wailsjs/go/app/App'
+import {app} from '../../wailsjs/go/models'
 import {Markdown} from '../components/Markdown'
 import {toMessage} from '../lib/errors'
 import {fileName, isAudioPath, readAsDataURL} from '../lib/files'
@@ -36,14 +36,14 @@ import {WORKING_VERBS, WORKING_VERB_MS, otherVerb} from '../lib/workingVerbs'
 
 /** What useInterview hands back — the state a shell draws and the verbs it wires. */
 export interface Interview {
-  messages: main.InterviewMessage[]
+  messages: app.InterviewMessage[]
   draft: string
   setDraft: (next: string) => void
   busy: boolean
   finishing: boolean
   error: string
   /** Null until the readiness check answers; !ready.ready means it cannot run. */
-  ready: main.AIReadiness | null
+  ready: app.AIReadiness | null
   blocked: boolean
   verb: string
   send: () => Promise<void>
@@ -77,14 +77,14 @@ export function useInterview({
    * until it exists, so the thread hangs off its parent.
    */
   subjectId: string
-  onFinish: (messages: main.InterviewMessage[]) => Promise<string>
+  onFinish: (messages: app.InterviewMessage[]) => Promise<string>
 }): Interview {
-  const [messages, setMessages] = useState<main.InterviewMessage[]>([])
+  const [messages, setMessages] = useState<app.InterviewMessage[]>([])
   const [draft, setDraft] = useState('')
   const [busy, setBusy] = useState(false)
   const [finishing, setFinishing] = useState(false)
   const [error, setError] = useState('')
-  const [ready, setReady] = useState<main.AIReadiness | null>(null)
+  const [ready, setReady] = useState<app.AIReadiness | null>(null)
   const [verb, setVerb] = useState(WORKING_VERBS[0])
   // Files staged for the next send (#24). They ride the message they are sent
   // with — staged rather than sent at once, so the producer can drop three
@@ -155,7 +155,7 @@ export function useInterview({
     if ((!text && pending.length === 0) || busy) return
     const next = [
       ...messages,
-      main.InterviewMessage.createFrom({role: 'user', text, note: '', attachments: pending}),
+      app.InterviewMessage.createFrom({role: 'user', text, note: '', attachments: pending}),
     ]
     setPending([])
     setMessages(next)

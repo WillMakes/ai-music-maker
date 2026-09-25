@@ -6,8 +6,8 @@ import {
   GetSkill,
   ResetSkill,
   SaveSkill,
-} from '../../wailsjs/go/main/App'
-import {main} from '../../wailsjs/go/models'
+} from '../../wailsjs/go/app/App'
+import {app} from '../../wailsjs/go/models'
 import {Markdown} from '../components/Markdown'
 import {PageHeader} from '../components/PageHeader'
 import {StatusPill} from '../components/StatusPill'
@@ -24,8 +24,8 @@ import {toMessage} from '../lib/errors'
  * scrollbar and a monospace face between the producer and their own prose.
  */
 export function SkillDetails({skillId, onBack}: {skillId: string; onBack: () => void}) {
-  const [skill, setSkill] = useState<main.Skill | null>(null)
-  const [draft, setDraft] = useState<main.Skill | null>(null)
+  const [skill, setSkill] = useState<app.Skill | null>(null)
+  const [draft, setDraft] = useState<app.Skill | null>(null)
   const [editing, setEditing] = useState(false)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
@@ -44,7 +44,7 @@ export function SkillDetails({skillId, onBack}: {skillId: string; onBack: () => 
     GetSkill(skillId)
       .then((found) => {
         setSkill(found)
-        setDraft(main.Skill.createFrom(found))
+        setDraft(app.Skill.createFrom(found))
         setError('')
       })
       .catch((err) => setError(toMessage(err)))
@@ -56,8 +56,8 @@ export function SkillDetails({skillId, onBack}: {skillId: string; onBack: () => 
     return <p className="text-sm text-fg-muted">{error || 'Loading…'}</p>
   }
 
-  const update = (patch: Partial<main.Skill>) =>
-    setDraft((current) => (current ? main.Skill.createFrom({...current, ...patch}) : current))
+  const update = (patch: Partial<app.Skill>) =>
+    setDraft((current) => (current ? app.Skill.createFrom({...current, ...patch}) : current))
 
   const save = async () => {
     setSaving(true)
@@ -65,7 +65,7 @@ export function SkillDetails({skillId, onBack}: {skillId: string; onBack: () => 
     try {
       const saved = await SaveSkill(draft)
       setSkill(saved)
-      setDraft(main.Skill.createFrom(saved))
+      setDraft(app.Skill.createFrom(saved))
       setEditing(false)
     } catch (err) {
       setError(toMessage(err))
@@ -96,7 +96,7 @@ export function SkillDetails({skillId, onBack}: {skillId: string; onBack: () => 
                   try {
                     const reset = await ResetSkill(skill.id)
                     setSkill(reset)
-                    setDraft(main.Skill.createFrom(reset))
+                    setDraft(app.Skill.createFrom(reset))
                     setEditing(false)
                   } catch (err) {
                     setError(toMessage(err))
@@ -141,7 +141,7 @@ export function SkillDetails({skillId, onBack}: {skillId: string; onBack: () => 
                 // Leaving edit mode throws the draft away rather than keeping it
                 // — "stop editing" is how somebody abandons a change, and
                 // silently holding it would have it saved by the next Save.
-                setDraft(main.Skill.createFrom(skill))
+                setDraft(app.Skill.createFrom(skill))
                 setEditing((on) => !on)
               }}
             >

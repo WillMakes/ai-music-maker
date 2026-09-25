@@ -1,4 +1,4 @@
-import {GetSetting, SetSetting} from '../../wailsjs/go/main/App'
+import {GetSetting, SetSetting} from '../../wailsjs/go/app/App'
 
 /**
  * The settings keys the frontend reads and writes.

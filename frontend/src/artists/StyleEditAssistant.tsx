@@ -1,7 +1,7 @@
 import {useEffect, useRef, useState} from 'react'
 import {AudioLines, Loader2, Send, Sparkles} from 'lucide-react'
-import {AskStyleEdit, ExtractStyleEdit} from '../../wailsjs/go/main/App'
-import {main} from '../../wailsjs/go/models'
+import {AskStyleEdit, ExtractStyleEdit} from '../../wailsjs/go/app/App'
+import {app} from '../../wailsjs/go/models'
 import {Markdown} from '../components/Markdown'
 import {Modal} from '../components/Modal'
 import {toMessage} from '../lib/errors'
@@ -29,7 +29,7 @@ export function StyleEditAssistant({
   onApply: (baseStyle: string) => void
   onClose: () => void
 }) {
-  const [transcript, setTranscript] = useState<main.InterviewMessage[]>([])
+  const [transcript, setTranscript] = useState<app.InterviewMessage[]>([])
   const [input, setInput] = useState('')
   const [thinking, setThinking] = useState(false)
   const [applying, setApplying] = useState(false)
@@ -47,7 +47,7 @@ export function StyleEditAssistant({
     setError('')
     const sent = [
       ...transcript,
-      main.InterviewMessage.createFrom({role: 'user', text}),
+      app.InterviewMessage.createFrom({role: 'user', text}),
     ]
     setTranscript(sent)
     setThinking(true)

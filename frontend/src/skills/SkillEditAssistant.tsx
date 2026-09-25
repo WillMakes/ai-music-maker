@@ -1,7 +1,7 @@
 import {useEffect, useRef, useState} from 'react'
 import {Loader2, Send, Sparkles} from 'lucide-react'
-import {AskSkillEdit, ExtractSkillEdit} from '../../wailsjs/go/main/App'
-import {main} from '../../wailsjs/go/models'
+import {AskSkillEdit, ExtractSkillEdit} from '../../wailsjs/go/app/App'
+import {app} from '../../wailsjs/go/models'
 import {Markdown} from '../components/Markdown'
 import {Modal} from '../components/Modal'
 import {toMessage} from '../lib/errors'
@@ -27,10 +27,10 @@ export function SkillEditAssistant({
 }: {
   skillId: string
   /** Receives the revised draft; the caller drops it into the edit form. */
-  onApply: (draft: main.SkillEditDraft) => void
+  onApply: (draft: app.SkillEditDraft) => void
   onClose: () => void
 }) {
-  const [transcript, setTranscript] = useState<main.InterviewMessage[]>([])
+  const [transcript, setTranscript] = useState<app.InterviewMessage[]>([])
   const [input, setInput] = useState('')
   const [thinking, setThinking] = useState(false)
   const [applying, setApplying] = useState(false)
@@ -49,7 +49,7 @@ export function SkillEditAssistant({
     setError('')
     const sent = [
       ...transcript,
-      main.InterviewMessage.createFrom({role: 'user', text}),
+      app.InterviewMessage.createFrom({role: 'user', text}),
     ]
     setTranscript(sent)
     setThinking(true)

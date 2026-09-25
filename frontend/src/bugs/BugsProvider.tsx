@@ -6,8 +6,8 @@ import {
   useState,
   type ReactNode,
 } from 'react'
-import {GetBugCounts, ListBugReports, ListResolvedReports} from '../../wailsjs/go/main/App'
-import {main} from '../../wailsjs/go/models'
+import {GetBugCounts, ListBugReports, ListResolvedReports} from '../../wailsjs/go/app/App'
+import {app} from '../../wailsjs/go/models'
 import {useDataChanged} from '../lib/dataChanged'
 import {toMessage} from '../lib/errors'
 
@@ -26,16 +26,16 @@ import {toMessage} from '../lib/errors'
  * what turns "somebody opened an issue" into a badge.
  */
 interface BugsValue {
-  counts: main.BugCounts
-  reports: main.BugReport[]
-  resolved: main.ResolvedReport[]
+  counts: app.BugCounts
+  reports: app.BugReport[]
+  resolved: app.ResolvedReport[]
   loading: boolean
   error: string
   reload: () => void
   reloadCounts: () => void
 }
 
-const emptyCounts = main.BugCounts.createFrom({open: 0, resolved: 0, unseen: 0})
+const emptyCounts = app.BugCounts.createFrom({open: 0, resolved: 0, unseen: 0})
 
 const BugsContext = createContext<BugsValue>({
   counts: emptyCounts,
@@ -52,9 +52,9 @@ const BugsContext = createContext<BugsValue>({
 const COUNT_POLL_MS = 30000
 
 export function BugsProvider({children}: {children: ReactNode}) {
-  const [counts, setCounts] = useState<main.BugCounts>(emptyCounts)
-  const [reports, setReports] = useState<main.BugReport[]>([])
-  const [resolved, setResolved] = useState<main.ResolvedReport[]>([])
+  const [counts, setCounts] = useState<app.BugCounts>(emptyCounts)
+  const [reports, setReports] = useState<app.BugReport[]>([])
+  const [resolved, setResolved] = useState<app.ResolvedReport[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
 

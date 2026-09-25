@@ -1,7 +1,7 @@
 import {useEffect, useRef, useState, type ClipboardEvent, type DragEvent} from 'react'
 import {ChevronRight, FileArchive, Film, Paperclip, X} from 'lucide-react'
-import {AttachBugMedia, FileBugReport, ReadBugImage} from '../../wailsjs/go/main/App'
-import {main} from '../../wailsjs/go/models'
+import {AttachBugMedia, FileBugReport, ReadBugImage} from '../../wailsjs/go/app/App'
+import {app} from '../../wailsjs/go/models'
 import {MarkdownField} from '../components/MarkdownField'
 import {Modal} from '../components/Modal'
 import {toMessage} from '../lib/errors'
@@ -149,7 +149,7 @@ export function ReportBugModal({
     setError('')
     try {
       await FileBugReport(
-        main.BugReport.createFrom({
+        app.BugReport.createFrom({
           description,
           // The route is kept whether or not the bug is app-wide (#20): global
           // says the problem is not confined to that screen; the route still

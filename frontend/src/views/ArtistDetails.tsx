@@ -16,8 +16,8 @@ import {
   SaveAlbum,
   SaveTrack,
   SaveArtist,
-} from '../../wailsjs/go/main/App'
-import {main} from '../../wailsjs/go/models'
+} from '../../wailsjs/go/app/App'
+import {app} from '../../wailsjs/go/models'
 import {EmptyState} from '../components/EmptyState'
 import {PageHeader} from '../components/PageHeader'
 import {TextField} from '../components/Field'
@@ -49,9 +49,9 @@ export function ArtistDetails({
   onOpenAlbum: (albumId: string) => void
   onDeleted: () => void
 }) {
-  const [artist, setArtist] = useState<main.Artist | null>(null)
-  const [albums, setAlbums] = useState<main.Album[]>([])
-  const [draft, setDraft] = useState<main.Artist | null>(null)
+  const [artist, setArtist] = useState<app.Artist | null>(null)
+  const [albums, setAlbums] = useState<app.Album[]>([])
+  const [draft, setDraft] = useState<app.Artist | null>(null)
   const [saveState, setSaveState] = useState<'idle' | 'saving' | 'saved'>('idle')
   // Only a draft the producer has touched is auto-saved. Without this gate, a
   // background write (MCP, the bridge) that reloads `artist` would make the
@@ -76,7 +76,7 @@ export function ArtistDetails({
         setArtist(found)
         // The draft is only seeded when there is not one, so a reload triggered
         // by a background write does not throw away what is being typed.
-        setDraft((current) => current ?? main.Artist.createFrom(found))
+        setDraft((current) => current ?? app.Artist.createFrom(found))
         setAlbums(rows ?? [])
         setError('')
       })
@@ -86,9 +86,9 @@ export function ArtistDetails({
   useEffect(reload, [reload])
   useDataChanged(['artists', 'albums'], reload)
 
-  const update = (patch: Partial<main.Artist>) => {
+  const update = (patch: Partial<app.Artist>) => {
     editedRef.current = true
-    setDraft((current) => (current ? main.Artist.createFrom({...current, ...patch}) : current))
+    setDraft((current) => (current ? app.Artist.createFrom({...current, ...patch}) : current))
   }
 
   // The auto-save itself (#52): a debounce off the draft, so one write per
@@ -110,7 +110,7 @@ export function ArtistDetails({
         setArtist(saved)
         setDraft((current) =>
           current && JSON.stringify(current) === sent
-            ? main.Artist.createFrom(saved)
+            ? app.Artist.createFrom(saved)
             : current,
         )
         // A keystroke during the flight re-armed the debounce before this
@@ -439,9 +439,9 @@ export function ArtistDetails({
               // writes the rest, with the style built on the artist's base
               // style and references. Its failure is the dialog's error, not
               // a silently trackless record.
-              const plan: main.AlbumPlan = await PlanAlbum(artist.id, messages)
+              const plan: app.AlbumPlan = await PlanAlbum(artist.id, messages)
               const album = await SaveAlbum(
-                main.Album.createFrom({
+                app.Album.createFrom({
                   artistId: artist.id,
                   name: plan.name || 'New album',
                   technicalStyle: plan.technicalStyle,
@@ -453,7 +453,7 @@ export function ArtistDetails({
               const attached = attachmentPathsByName(messages)
               for (const track of plan.tracks ?? []) {
                 const saved = await SaveTrack(
-                  main.Track.createFrom({
+                  app.Track.createFrom({
                     albumId: album.id,
                     name: track.name || 'Untitled',
                     prompt: track.prompt,
@@ -519,7 +519,7 @@ function Stat({value, label, ok = false}: {value: number; label: string; ok?: bo
  * and the next step by name. "Written" is a track with a style prompt, "made"
  * one with a take imported - the two gates every song passes in order.
  */
-function AlbumCard({album, onOpen}: {album: main.Album; onOpen: () => void}) {
+function AlbumCard({album, onOpen}: {album: app.Album; onOpen: () => void}) {
   const total = album.trackCount
   const written = album.writtenCount
   const made = album.madeCount
@@ -705,8 +705,8 @@ function Inspirations({
   onChange,
   onMergeStyle,
 }: {
-  inspirations: main.Inspiration[]
-  onChange: (next: main.Inspiration[]) => void
+  inspirations: app.Inspiration[]
+  onChange: (next: app.Inspiration[]) => void
   /** Folds a fresh analysis into the base style draft (#31). */
   onMergeStyle: (analysis: string) => Promise<void>
 }) {
@@ -723,16 +723,16 @@ function Inspirations({
   // auto-save (#52) fired, and the modal — keyed by index into the draft —
   // closed itself under the producer's cursor. The row joins the draft on its
   // first real content instead.
-  const [pending, setPending] = useState<main.Inspiration | null>(null)
+  const [pending, setPending] = useState<app.Inspiration | null>(null)
 
   const openRow = pending ?? (openIndex !== null ? inspirations[openIndex] : null)
   const closeModal = () => {
     setPending(null)
     setOpenIndex(null)
   }
-  const editOpen = (patch: Partial<main.Inspiration>) => {
+  const editOpen = (patch: Partial<app.Inspiration>) => {
     if (pending) {
-      const next = main.Inspiration.createFrom({...pending, ...patch})
+      const next = app.Inspiration.createFrom({...pending, ...patch})
       if (next.url.trim() || next.note.trim()) {
         onChange([...inspirations, next])
         setPending(null)
@@ -773,10 +773,10 @@ function Inspirations({
     }
   }
 
-  const update = (index: number, patch: Partial<main.Inspiration>) =>
+  const update = (index: number, patch: Partial<app.Inspiration>) =>
     onChange(
       inspirations.map((row, i) =>
-        i === index ? main.Inspiration.createFrom({...row, ...patch}) : row,
+        i === index ? app.Inspiration.createFrom({...row, ...patch}) : row,
       ),
     )
 
@@ -791,7 +791,7 @@ function Inspirations({
             // Straight into the modal (#58), but as a pending row (#61) — it
             // only enters the draft once something is written on it.
             setPending(
-              main.Inspiration.createFrom({
+              app.Inspiration.createFrom({
                 id: '',
                 url: '',
                 title: '',
