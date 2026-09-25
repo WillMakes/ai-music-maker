@@ -1,7 +1,7 @@
 import {useCallback, useEffect, useState} from 'react'
 import {Check, Star} from 'lucide-react'
-import {GetAIServices, SetDefaultAIService} from '../../wailsjs/go/main/App'
-import {main} from '../../wailsjs/go/models'
+import {GetAIServices, SetDefaultAIService} from '../../wailsjs/go/app/App'
+import {app} from '../../wailsjs/go/models'
 import {StatusPill} from '../components/StatusPill'
 import {ProviderLogo} from './ProviderLogo'
 import {useDataChanged} from '../lib/dataChanged'
@@ -16,7 +16,7 @@ import {toMessage} from '../lib/errors'
  * action here; everything else is on the service's own page.
  */
 export function AIServices({onOpen}: {onOpen: (serviceId: string) => void}) {
-  const [services, setServices] = useState<main.AIServiceStatus[]>([])
+  const [services, setServices] = useState<app.AIServiceStatus[]>([])
   const [error, setError] = useState('')
 
   const reload = useCallback(() => {

@@ -6,8 +6,8 @@ import {
   useState,
   type ReactNode,
 } from 'react'
-import {ListArtists} from '../../wailsjs/go/main/App'
-import {main} from '../../wailsjs/go/models'
+import {ListArtists} from '../../wailsjs/go/app/App'
+import {app} from '../../wailsjs/go/models'
 import {useDataChanged} from '../lib/dataChanged'
 import {toMessage} from '../lib/errors'
 
@@ -23,7 +23,7 @@ import {toMessage} from '../lib/errors'
  * interview appears without anybody navigating.
  */
 interface ArtistsValue {
-  artists: main.Artist[]
+  artists: app.Artist[]
   loading: boolean
   error: string
   reload: () => void
@@ -37,7 +37,7 @@ const ArtistsContext = createContext<ArtistsValue>({
 })
 
 export function ArtistsProvider({children}: {children: ReactNode}) {
-  const [artists, setArtists] = useState<main.Artist[]>([])
+  const [artists, setArtists] = useState<app.Artist[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
 

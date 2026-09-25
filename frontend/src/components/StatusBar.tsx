@@ -14,8 +14,8 @@ import {
   GetBuildInfo,
   GetExtensionStatus,
   GetMCPStatus,
-} from '../../wailsjs/go/main/App'
-import {main} from '../../wailsjs/go/models'
+} from '../../wailsjs/go/app/App'
+import {app} from '../../wailsjs/go/models'
 import {useArtists} from '../artists/ArtistsProvider'
 import {useArtworks} from '../artworks/ArtworksProvider'
 import {useEvolutions} from '../evolutions/EvolutionsProvider'
@@ -52,10 +52,10 @@ export function StatusBar({
   const {evolutions, dismiss} = useEvolutions()
   const {artworks, dismiss: dismissArtwork} = useArtworks()
 
-  const [info, setInfo] = useState<main.BuildInfo | null>(null)
-  const [services, setServices] = useState<main.AIServiceStatus[]>([])
-  const [mcp, setMcp] = useState<main.MCPStatus | null>(null)
-  const [extension, setExtension] = useState<main.ExtensionStatus | null>(null)
+  const [info, setInfo] = useState<app.BuildInfo | null>(null)
+  const [services, setServices] = useState<app.AIServiceStatus[]>([])
+  const [mcp, setMcp] = useState<app.MCPStatus | null>(null)
+  const [extension, setExtension] = useState<app.ExtensionStatus | null>(null)
 
   // Read once: whether the database opened is decided before the window exists
   // and cannot change while it is up.
@@ -297,7 +297,7 @@ function AssistantsSegment({
   mcp,
   onOpen,
 }: {
-  mcp: main.MCPStatus
+  mcp: app.MCPStatus
   onOpen: () => void
 }) {
   const present = mcp.clients.filter((client) => client.present)

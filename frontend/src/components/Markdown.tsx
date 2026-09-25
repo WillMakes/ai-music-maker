@@ -1,6 +1,6 @@
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
-import {OpenURL} from '../../wailsjs/go/main/App'
+import {OpenURL} from '../../wailsjs/go/app/App'
 
 /**
  * Markdown, as the interview's replies and the skill pages render it.

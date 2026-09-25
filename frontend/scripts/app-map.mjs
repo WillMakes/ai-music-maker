@@ -2,7 +2,7 @@
 //
 // Every page of this app is a ViewId in navigation.ts, rendered by a component
 // App.tsx picks behind a `current.view === '…'` guard, and every backend
-// function a page can call is a named import from wailsjs/go/main/App
+// function a page can call is a named import from wailsjs/go/app/App
 // somewhere under that component. This script reads all three — the view
 // table, the guards, the import graph — and writes dist/app-map.json: which
 // pages exist, what each one renders, and which bindings each one reaches.
@@ -90,7 +90,7 @@ function load(file) {
 function resolve(from, spec) {
   if (!spec.startsWith('.')) return null
   const base = path.resolve(path.dirname(from), spec)
-  if (/[\\/]wailsjs[\\/]go[\\/]main[\\/]App$/.test(base)) return BINDINGS
+  if (/[\\/]wailsjs[\\/]go[\\/]app[\\/]App$/.test(base)) return BINDINGS
   if (base.includes(`${path.sep}wailsjs${path.sep}`)) return null
   if (/\.(css|png|jpg|svg)$/.test(spec)) return null
   for (const candidate of [base, `${base}.ts`, `${base}.tsx`,

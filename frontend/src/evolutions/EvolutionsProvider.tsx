@@ -1,5 +1,5 @@
 import {createContext, useContext, useRef, useState, type ReactNode} from 'react'
-import {EvolveAlbum} from '../../wailsjs/go/main/App'
+import {EvolveAlbum} from '../../wailsjs/go/app/App'
 import {toMessage} from '../lib/errors'
 
 /**

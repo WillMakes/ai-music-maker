@@ -1,6 +1,6 @@
 import {useCallback, useEffect, useState} from 'react'
 import {FolderOpen} from 'lucide-react'
-import {MusicRoot, SetMusicRoot} from '../../wailsjs/go/main/App'
+import {MusicRoot, SetMusicRoot} from '../../wailsjs/go/app/App'
 import {TextField} from '../components/Field'
 import {SETTING_KEYS, loadSetting, saveSetting} from '../lib/settings'
 import {duration, parseDuration} from '../lib/format'

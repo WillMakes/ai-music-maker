@@ -1,7 +1,7 @@
 import {useEffect, useState} from 'react'
 import {ExternalLink} from 'lucide-react'
-import {Documentation, GetBuildInfo, OpenURL} from '../../wailsjs/go/main/App'
-import {main} from '../../wailsjs/go/models'
+import {Documentation, GetBuildInfo, OpenURL} from '../../wailsjs/go/app/App'
+import {app} from '../../wailsjs/go/models'
 import {StatusPill} from '../components/StatusPill'
 import logo from '../assets/logo.png'
 import {toMessage} from '../lib/errors'
@@ -15,7 +15,7 @@ import {toMessage} from '../lib/errors'
  * can drift from the others.
  */
 export function AboutPanel() {
-  const [info, setInfo] = useState<main.BuildInfo | null>(null)
+  const [info, setInfo] = useState<app.BuildInfo | null>(null)
   const [docs, setDocs] = useState('')
   const [error, setError] = useState('')
 
