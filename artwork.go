@@ -14,6 +14,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sunomaker/internal/platform"
 	"time"
 
 	wruntime "github.com/wailsapp/wails/v2/pkg/runtime"
@@ -391,7 +392,7 @@ func coverViaCodex(ctx context.Context, prompt string, current []byte) ([]byte, 
 	cmd.Dir = work
 	cmd.Stdin = strings.NewReader(instruction.String())
 	cmd.Env = envWithout("OPENAI_API_KEY")
-	hideWindow(cmd)
+	platform.HideWindow(cmd)
 
 	var output bytes.Buffer
 	cmd.Stdout = &output

@@ -8,6 +8,7 @@ import (
 	"os/exec"
 	"sort"
 	"strings"
+	"sunomaker/internal/platform"
 	"time"
 )
 
@@ -616,12 +617,12 @@ func (a *App) aiKey(id string) string {
 // When the inherited PATH misses, the registry PATH is tried (#28): a CLI
 // installed after this app's environment was inherited exists on the machine
 // and in every new terminal, and "not found on this machine" about that CLI is
-// wrong in the way that costs a producer half an hour. See freshPathLookup.
+// wrong in the way that costs a producer half an hour. See platform.FreshPathLookup.
 var lookUpCommand = func(name string) (string, bool) {
 	if path, err := exec.LookPath(name); err == nil {
 		return path, true
 	}
-	return freshPathLookup(name)
+	return platform.FreshPathLookup(name)
 }
 
 // envWithout returns the current environment with the named variables removed.

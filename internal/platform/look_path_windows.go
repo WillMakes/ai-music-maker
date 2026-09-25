@@ -1,6 +1,6 @@
 //go:build windows
 
-package main
+package platform
 
 import (
 	"os"
@@ -10,7 +10,7 @@ import (
 	"golang.org/x/sys/windows/registry"
 )
 
-// freshPathLookup finds a command on the PATH Windows would hand a *new*
+// FreshPathLookup finds a command on the PATH Windows would hand a *new*
 // process, for commands this process cannot see (#28).
 //
 // A CLI installer appends its folder to the PATH kept in the registry, but a
@@ -25,7 +25,7 @@ import (
 // read directly — the same two values a new logon combines — and only the
 // directories the inherited PATH does not already have are searched, since the
 // rest were just searched by exec.LookPath.
-func freshPathLookup(name string) (string, bool) {
+func FreshPathLookup(name string) (string, bool) {
 	seen := map[string]bool{}
 	for _, dir := range filepath.SplitList(os.Getenv("PATH")) {
 		seen[strings.ToLower(strings.TrimSpace(dir))] = true

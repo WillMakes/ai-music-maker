@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/exec"
 	"strings"
+	"sunomaker/internal/platform"
 	"time"
 )
 
@@ -345,7 +346,7 @@ func chatViaCLI(ctx context.Context, id, model, system string, turns []chatMsg) 
 	// An account-mode run must not inherit an API key — the CLIs prefer one over
 	// the subscription login, and would quietly bill the wrong thing.
 	cmd.Env = envWithout("ANTHROPIC_API_KEY", "OPENAI_API_KEY", "GEMINI_API_KEY", "GOOGLE_API_KEY")
-	hideWindow(cmd)
+	platform.HideWindow(cmd)
 
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout

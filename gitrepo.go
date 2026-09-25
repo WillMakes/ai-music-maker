@@ -7,6 +7,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"sunomaker/internal/platform"
 )
 
 // ---------------------------------------------------------------------------
@@ -75,7 +76,7 @@ var checkoutAt = func(dir string) (root, remote string) {
 	run := func(args ...string) string {
 		cmd := exec.Command(git, args...)
 		cmd.Dir = dir
-		hideWindow(cmd)
+		platform.HideWindow(cmd)
 		// Output rather than CombinedOutput: outside a checkout git writes its
 		// complaint to stderr and exits non-zero, and folding that in would
 		// hand back an error message as a path or a URL.
