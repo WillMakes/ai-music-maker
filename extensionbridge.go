@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"crypto/rand"
-	"embed"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
@@ -15,6 +14,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sunomaker/chromeextension"
 	"time"
 )
 
@@ -56,8 +56,7 @@ const extensionBridgePort = 8799
 // exported extension keeps working across launches.
 const keyExtensionToken = "extension_bridge_token"
 
-//go:embed chromeextension
-var extensionFiles embed.FS
+var extensionFiles = chromeextension.Files
 
 // extensionToken returns the bridge token, minting and storing one the first
 // time. Its own token rather than a provider credential: it authorises a browser
@@ -484,7 +483,7 @@ func (a *App) ExportExtension() (ExtensionStatus, error) {
 		return ExtensionStatus{}, err
 	}
 
-	entries, err := fs.ReadDir(extensionFiles, "chromeextension")
+	entries, err := fs.ReadDir(extensionFiles, ".")
 	if err != nil {
 		return ExtensionStatus{}, err
 	}
@@ -492,7 +491,7 @@ func (a *App) ExportExtension() (ExtensionStatus, error) {
 		if entry.IsDir() {
 			continue
 		}
-		data, err := extensionFiles.ReadFile("chromeextension/" + entry.Name())
+		data, err := extensionFiles.ReadFile(entry.Name())
 		if err != nil {
 			return ExtensionStatus{}, err
 		}

@@ -8,6 +8,7 @@ import (
 	"io"
 	"os"
 	"strings"
+	"sunomaker/skills"
 )
 
 // ---------------------------------------------------------------------------
@@ -28,9 +29,7 @@ import (
 // with the binary rather than left in the repository for the same reason the
 // commands are: an agent that has to be told the workflow every session will do
 // it differently every session.
-//
-//go:embed skills/bug-reports.md
-var bugWorkflow string
+var bugWorkflow = skills.BugReports
 
 const bugUsage = `SunoMaker — bug queue
 

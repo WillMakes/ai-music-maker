@@ -2,11 +2,11 @@ package main
 
 import (
 	"database/sql"
-	"embed"
 	"encoding/json"
 	"fmt"
 	"sort"
 	"strings"
+	"sunomaker/skills"
 )
 
 // ---------------------------------------------------------------------------
@@ -34,8 +34,7 @@ import (
 // will read a diff of.
 // ---------------------------------------------------------------------------
 
-//go:embed skills
-var builtInSkillFiles embed.FS
+var builtInSkillFiles = skills.Files
 
 // Built-in skill ids. Named constants because the code that runs each brief
 // looks its skill up by id, and a typo in a string literal would silently fall
@@ -66,35 +65,35 @@ var builtInSkills = []builtIn{
 		title:       "Artist interview",
 		description: "The questions asked when an artist is created, and how the base technical style is written from the answers.",
 		tags:        []string{"interview", "artist"},
-		file:        "skills/artist-interview.md",
+		file:        "artist-interview.md",
 	},
 	{
 		id:          skillAlbumInterview,
 		title:       "Album interview",
 		description: "How an album is named and how its own technical style is decided against the artist's.",
 		tags:        []string{"interview", "album"},
-		file:        "skills/album-interview.md",
+		file:        "album-interview.md",
 	},
 	{
 		id:          skillTrackGeneration,
 		title:       "Track generation",
 		description: "How a track's Suno prompt and lyrics are written from the album's combined style and the target length.",
 		tags:        []string{"interview", "track", "suno"},
-		file:        "skills/track-generation.md",
+		file:        "track-generation.md",
 	},
 	{
 		id:          skillAlbumArtwork,
 		title:       "Album artwork",
 		description: "The creative brief the album cover is generated from.",
 		tags:        []string{"album", "artwork"},
-		file:        "skills/album-artwork.md",
+		file:        "album-artwork.md",
 	},
 	{
 		id:          skillBugReports,
 		title:       "Bug reports",
 		description: "How a report filed from the app becomes an issue on the repository, and how an agent works the queue.",
 		tags:        []string{"bugs", "workflow"},
-		file:        "skills/bug-reports.md",
+		file:        "bug-reports.md",
 	},
 }
 
