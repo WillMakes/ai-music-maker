@@ -1,4 +1,4 @@
-package main
+package audio
 
 import (
 	"encoding/binary"
@@ -17,10 +17,10 @@ import (
 // without a known length is still a take.
 // ---------------------------------------------------------------------------
 
-// audioDurationSeconds answers a file's playing time in whole seconds, or 0
+// DurationSeconds answers a file's playing time in whole seconds, or 0
 // when the format is not one this reads or the file is malformed. Never an
 // error: the length is a nicety on top of an import that has already worked.
-func audioDurationSeconds(path string) int {
+func DurationSeconds(path string) int {
 	f, err := os.Open(path)
 	if err != nil {
 		return 0

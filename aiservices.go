@@ -5,11 +5,11 @@ import (
 	"fmt"
 	"net/http"
 	"os"
-	"os/exec"
 	"sort"
 	"strings"
-	"sunomaker/internal/platform"
 	"time"
+
+	"sunomaker/internal/platform"
 )
 
 // ---------------------------------------------------------------------------
@@ -608,22 +608,13 @@ func (a *App) aiKey(id string) string {
 // The machine
 // ---------------------------------------------------------------------------
 
-// lookUpCommand finds a command on PATH.
+// lookUpCommand finds a command on PATH, including a PATH changed since this
+// app started (see platform.LookUp).
 //
-// A thin wrapper on exec.LookPath, and a variable, so tests can say what is
-// installed. Without it every test of a connection depends on whether the
-// machine running it happens to have the Claude CLI.
-//
-// When the inherited PATH misses, the registry PATH is tried (#28): a CLI
-// installed after this app's environment was inherited exists on the machine
-// and in every new terminal, and "not found on this machine" about that CLI is
-// wrong in the way that costs a producer half an hour. See platform.FreshPathLookup.
-var lookUpCommand = func(name string) (string, bool) {
-	if path, err := exec.LookPath(name); err == nil {
-		return path, true
-	}
-	return platform.FreshPathLookup(name)
-}
+// A variable, so tests can say what is installed. Without it every test of a
+// connection depends on whether the machine running it happens to have the
+// Claude CLI.
+var lookUpCommand = platform.LookUp
 
 // envWithout returns the current environment with the named variables removed.
 //
