@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sunomaker/internal/platform"
 )
 
 // ---------------------------------------------------------------------------
@@ -251,7 +252,7 @@ func (a *App) RevealTrackFile(path string) error {
 	if strings.TrimSpace(path) == "" {
 		return fmt.Errorf("no file to show")
 	}
-	return revealInFileManager(path)
+	return platform.RevealInFileManager(path)
 }
 
 // uniquePath finds a free name in dir: base.ext, then base (2).ext, and so on.

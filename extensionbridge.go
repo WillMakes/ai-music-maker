@@ -15,6 +15,7 @@ import (
 	"strconv"
 	"strings"
 	"sunomaker/chromeextension"
+	"sunomaker/internal/platform"
 	"time"
 )
 
@@ -518,8 +519,8 @@ func (a *App) RevealExtension() error {
 	if !status.Exported {
 		return fmt.Errorf("the extension has not been exported yet")
 	}
-	// A file inside it rather than the folder: revealInFileManager takes a file
+	// A file inside it rather than the folder: platform.RevealInFileManager takes a file
 	// and shows its container, which on Windows is the difference between
 	// selecting the folder in its parent and opening it.
-	return revealInFileManager(filepath.Join(status.Dir, "manifest.json"))
+	return platform.RevealInFileManager(filepath.Join(status.Dir, "manifest.json"))
 }
