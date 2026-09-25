@@ -1,6 +1,6 @@
 import {createContext, useContext, useRef, useState, type ReactNode} from 'react'
-import {GenerateAlbumArtwork} from '../../wailsjs/go/main/App'
-import {main} from '../../wailsjs/go/models'
+import {GenerateAlbumArtwork} from '../../wailsjs/go/app/App'
+import {app} from '../../wailsjs/go/models'
 import {toMessage} from '../lib/errors'
 
 /**
@@ -20,7 +20,7 @@ export interface ArtworkJob {
    * The record as the generation returned it. The page adopts only the
    * artwork fields from this — the producer may have kept editing the rest.
    */
-  album: main.Album | null
+  album: app.Album | null
 }
 
 const ArtworksContext = createContext<{

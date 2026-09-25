@@ -9,8 +9,8 @@ import {
   RemoveTrackFile,
   RevealTrackFile,
   SaveTrack,
-} from '../../wailsjs/go/main/App'
-import {main} from '../../wailsjs/go/models'
+} from '../../wailsjs/go/app/App'
+import {app} from '../../wailsjs/go/models'
 import {CopyButton} from '../components/CopyButton'
 import {StatusPill} from '../components/StatusPill'
 import {TabStrip} from '../components/TabStrip'
@@ -38,7 +38,7 @@ export function TrackEditor({
   trackId: string
   onDeleted: () => void
 }) {
-  const [track, setTrack] = useState<main.Track | null>(null)
+  const [track, setTrack] = useState<app.Track | null>(null)
   const [editing, setEditing] = useState<FieldId | null>(null)
   // Which of the two Suno fields is showing (#49); the style prompt first.
   const [fieldTab, setFieldTab] = useState<'prompt' | 'lyrics'>('prompt')
@@ -66,11 +66,11 @@ export function TrackEditor({
   }, [reload])
   useDataChanged(['tracks'], reload)
 
-  const save = async (patch: Partial<main.Track>, field: FieldId) => {
+  const save = async (patch: Partial<app.Track>, field: FieldId) => {
     if (!track) return
     setError('')
     try {
-      setTrack(await SaveTrack(main.Track.createFrom({...track, ...patch})))
+      setTrack(await SaveTrack(app.Track.createFrom({...track, ...patch})))
       setEditing(null)
       setFlashed(field)
       setTimeout(() => setFlashed((f) => (f === field ? null : f)), 1600)
@@ -210,7 +210,7 @@ function TitleCard({
   onSave,
   onDelete,
 }: {
-  track: main.Track
+  track: app.Track
   editing: boolean
   onEdit: () => void
   onCancel: () => void
@@ -442,15 +442,15 @@ function Takes({
   onChanged,
   onError,
 }: {
-  track: main.Track
-  onChanged: (next: main.Track) => void
+  track: app.Track
+  onChanged: (next: app.Track) => void
   onError: (message: string) => void
 }) {
   const files = track.files ?? []
   // Whether a drag is hovering the panel (#57) — the ring is the "drop it
   // here" answer to the file being carried over the window.
   const [dragging, setDragging] = useState(false)
-  const act = async (work: Promise<main.Track>) => {
+  const act = async (work: Promise<app.Track>) => {
     try {
       onChanged(await work)
       onError('')

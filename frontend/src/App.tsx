@@ -14,7 +14,7 @@ import {
   routeTrail,
   type ViewId,
 } from './navigation'
-import {main} from '../wailsjs/go/models'
+import {app} from '../wailsjs/go/models'
 import {AIServiceDetail} from './settings/AIServiceDetail'
 import {AlbumDetails} from './views/AlbumDetails'
 import {ArtistDetails} from './views/ArtistDetails'
@@ -59,7 +59,7 @@ interface Crumb {
  * the same names the rail shows — and a tree that has not loaded yet falls
  * back to the view's title rather than an empty bar.
  */
-function buildCrumbs(current: Route, tree: main.LibraryArtist[]): Crumb[] {
+function buildCrumbs(current: Route, tree: app.LibraryArtist[]): Crumb[] {
   const home: Crumb = {label: 'Home', route: HOME}
   const artist = tree.find((one) => one.id === current.artistId)
   const albumOf = (albumId?: string) => {

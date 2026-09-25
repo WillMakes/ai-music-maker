@@ -1,5 +1,5 @@
 import {Sparkles, Trash2} from 'lucide-react'
-import {main} from '../../wailsjs/go/models'
+import {app} from '../../wailsjs/go/models'
 import {Modal} from '../components/Modal'
 import {InterviewConversation, useInterview} from './Interview'
 
@@ -26,7 +26,7 @@ export function InterviewDialog({
   subjectId: string
   opening: string
   finishLabel: string
-  onFinish: (messages: main.InterviewMessage[]) => Promise<string>
+  onFinish: (messages: app.InterviewMessage[]) => Promise<string>
   onClose: () => void
 }) {
   const interview = useInterview({subjectKind, subjectId, onFinish})

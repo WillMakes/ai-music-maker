@@ -6,8 +6,8 @@ import {
   GetSetting,
   RevealExtension,
   SetSetting,
-} from '../../wailsjs/go/main/App'
-import {main} from '../../wailsjs/go/models'
+} from '../../wailsjs/go/app/App'
+import {app} from '../../wailsjs/go/models'
 import {CopyButton} from '../components/CopyButton'
 import {StatusPill} from '../components/StatusPill'
 import {toMessage} from '../lib/errors'
@@ -26,7 +26,7 @@ const SUNO_CAPTURE = 'suno_capture'
  * button stays available after the first time.
  */
 export function ExtensionPanel() {
-  const [status, setStatus] = useState<main.ExtensionStatus | null>(null)
+  const [status, setStatus] = useState<app.ExtensionStatus | null>(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   // Recording takes as they are heard (#91, #92). On unless the setting says "off",

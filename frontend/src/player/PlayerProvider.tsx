@@ -7,8 +7,8 @@ import {
   useRef,
   useState,
 } from 'react'
-import {Playlist} from '../../wailsjs/go/main/App'
-import {main} from '../../wailsjs/go/models'
+import {Playlist} from '../../wailsjs/go/app/App'
+import {app} from '../../wailsjs/go/models'
 import {toMessage} from '../lib/errors'
 
 /**
@@ -23,7 +23,7 @@ import {toMessage} from '../lib/errors'
  */
 
 export type PlayerState = {
-  queue: main.PlayerTrack[]
+  queue: app.PlayerTrack[]
   index: number
   playing: boolean
   position: number
@@ -51,7 +51,7 @@ const PlayerContext = createContext<PlayerState | null>(null)
 
 export function PlayerProvider({children}: {children: React.ReactNode}) {
   const audioRef = useRef<HTMLAudioElement | null>(null)
-  const [queue, setQueue] = useState<main.PlayerTrack[]>([])
+  const [queue, setQueue] = useState<app.PlayerTrack[]>([])
   const [index, setIndex] = useState(0)
   const [playing, setPlaying] = useState(false)
   const [position, setPosition] = useState(0)

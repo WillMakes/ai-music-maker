@@ -8,8 +8,8 @@ import {
   ListAIModels,
   OpenURL,
   SetAIServiceModel,
-} from '../../wailsjs/go/main/App'
-import {main} from '../../wailsjs/go/models'
+} from '../../wailsjs/go/app/App'
+import {app} from '../../wailsjs/go/models'
 import {PageHeader} from '../components/PageHeader'
 import {SelectField, TextField} from '../components/Field'
 import {StatusPill} from '../components/StatusPill'
@@ -24,7 +24,7 @@ import {toMessage} from '../lib/errors'
  * can read the window.
  */
 export function AIServiceDetail({serviceId}: {serviceId: string}) {
-  const [service, setService] = useState<main.AIServiceStatus | null>(null)
+  const [service, setService] = useState<app.AIServiceStatus | null>(null)
   const [models, setModels] = useState<string[]>([])
   const [key, setKey] = useState('')
   const [busy, setBusy] = useState(false)
@@ -56,7 +56,7 @@ export function AIServiceDetail({serviceId}: {serviceId: string}) {
     return <p className="text-sm text-fg-muted">{error || 'Loading…'}</p>
   }
 
-  const act = async (work: Promise<main.AIServiceStatus>) => {
+  const act = async (work: Promise<app.AIServiceStatus>) => {
     setBusy(true)
     setError('')
     try {
@@ -210,7 +210,7 @@ export function AIServiceDetail({serviceId}: {serviceId: string}) {
               }
               value={service.model}
               onChange={(model) =>
-                setService(main.AIServiceStatus.createFrom({...service, model}))
+                setService(app.AIServiceStatus.createFrom({...service, model}))
               }
             />
           )}

@@ -1,6 +1,6 @@
 import {createContext, useCallback, useContext, useEffect, useState, type ReactNode} from 'react'
-import {LibraryTree} from '../../wailsjs/go/main/App'
-import {main} from '../../wailsjs/go/models'
+import {LibraryTree} from '../../wailsjs/go/app/App'
+import {app} from '../../wailsjs/go/models'
 import {useDataChanged} from '../lib/dataChanged'
 
 /**
@@ -9,10 +9,10 @@ import {useDataChanged} from '../lib/dataChanged'
  * the top bar and the Home view's resume cards read the same names — three
  * fetchers of the same tree would be three ways for it to disagree.
  */
-const LibraryContext = createContext<{tree: main.LibraryArtist[]}>({tree: []})
+const LibraryContext = createContext<{tree: app.LibraryArtist[]}>({tree: []})
 
 export function LibraryProvider({children}: {children: ReactNode}) {
-  const [tree, setTree] = useState<main.LibraryArtist[]>([])
+  const [tree, setTree] = useState<app.LibraryArtist[]>([])
 
   const reload = useCallback(() => {
     LibraryTree()

@@ -1,7 +1,7 @@
 import {useCallback, useEffect, useState} from 'react'
 import {Plus, Sparkles} from 'lucide-react'
-import {ListSkills, SaveSkill} from '../../wailsjs/go/main/App'
-import {main} from '../../wailsjs/go/models'
+import {ListSkills, SaveSkill} from '../../wailsjs/go/app/App'
+import {app} from '../../wailsjs/go/models'
 import {PageHeader} from '../components/PageHeader'
 import {StatusPill} from '../components/StatusPill'
 import {useDataChanged} from '../lib/dataChanged'
@@ -16,7 +16,7 @@ import {toMessage} from '../lib/errors'
  * the producer's, belongs to nothing, and is theirs to delete.
  */
 export function Skills({onOpen}: {onOpen: (skillId: string) => void}) {
-  const [skills, setSkills] = useState<main.Skill[]>([])
+  const [skills, setSkills] = useState<app.Skill[]>([])
   const [error, setError] = useState('')
 
   const reload = useCallback(() => {
@@ -46,7 +46,7 @@ export function Skills({onOpen}: {onOpen: (skillId: string) => void}) {
             onClick={async () => {
               try {
                 const skill = await SaveSkill(
-                  main.Skill.createFrom({
+                  app.Skill.createFrom({
                     title: 'New skill',
                     description: '',
                     body: '',
@@ -81,7 +81,7 @@ function Group({
   onOpen,
 }: {
   title: string
-  skills: main.Skill[]
+  skills: app.Skill[]
   onOpen: (skillId: string) => void
 }) {
   return (

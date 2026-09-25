@@ -18,8 +18,8 @@ import {
   SaveAlbum,
   SaveTrack,
   WriteAlbumTracks,
-} from '../../wailsjs/go/main/App'
-import {main} from '../../wailsjs/go/models'
+} from '../../wailsjs/go/app/App'
+import {app} from '../../wailsjs/go/models'
 import {CopyButton} from '../components/CopyButton'
 import {EmptyState} from '../components/EmptyState'
 import {PageHeader} from '../components/PageHeader'
@@ -68,9 +68,9 @@ export function AlbumDetails({
   onOpenArtist: (artistId: string) => void
   onDeleted: (artistId: string) => void
 }) {
-  const [album, setAlbum] = useState<main.Album | null>(null)
-  const [tracks, setTracks] = useState<main.Track[]>([])
-  const [draft, setDraft] = useState<main.Album | null>(null)
+  const [album, setAlbum] = useState<app.Album | null>(null)
+  const [tracks, setTracks] = useState<app.Track[]>([])
+  const [draft, setDraft] = useState<app.Album | null>(null)
   const [saveState, setSaveState] = useState<'idle' | 'saving' | 'saved'>('idle')
   // Only a draft the producer has touched is auto-saved — same guard as the
   // artist page (#52): without it a background write reloading `album` would
@@ -161,7 +161,7 @@ export function AlbumDetails({
     Promise.all([GetAlbum(albumId), ListTracks(albumId)])
       .then(([found, rows]) => {
         setAlbum(found)
-        setDraft((current) => current ?? main.Album.createFrom(found))
+        setDraft((current) => current ?? app.Album.createFrom(found))
         setTracks(rows ?? [])
         setError('')
       })
@@ -179,9 +179,9 @@ export function AlbumDetails({
     requestAnimationFrame(() => tracksRef.current?.scrollIntoView({block: 'start'}))
   }, [trackId])
 
-  const update = (patch: Partial<main.Album>) => {
+  const update = (patch: Partial<app.Album>) => {
     editedRef.current = true
-    setDraft((current) => (current ? main.Album.createFrom({...current, ...patch}) : current))
+    setDraft((current) => (current ? app.Album.createFrom({...current, ...patch}) : current))
   }
 
   // The auto-save, ported whole from the artist page (#52) because renaming
@@ -200,7 +200,7 @@ export function AlbumDetails({
         setAlbum(saved)
         setDraft((current) =>
           current && JSON.stringify(current) === sent
-            ? main.Album.createFrom(saved)
+            ? app.Album.createFrom(saved)
             : current,
         )
         // A keystroke during the flight re-armed the debounce before this
@@ -228,7 +228,7 @@ export function AlbumDetails({
     setAlbum(updated)
     setDraft((current) =>
       current
-        ? main.Album.createFrom({
+        ? app.Album.createFrom({
             ...current,
             artworkFile: updated.artworkFile,
             artworkUrl: updated.artworkUrl,
@@ -750,7 +750,7 @@ export function AlbumDetails({
               // read the same one and land on the same number.
               for (const track of drafts) {
                 const saved = await SaveTrack(
-                  main.Track.createFrom({
+                  app.Track.createFrom({
                     albumId: album.id,
                     name: track.name || 'Untitled',
                     prompt: track.prompt,

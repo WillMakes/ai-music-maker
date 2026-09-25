@@ -1,6 +1,6 @@
 import {Sparkles, Trash2} from 'lucide-react'
-import {ClearChat, ExtractArtist, SaveArtist} from '../../wailsjs/go/main/App'
-import {main} from '../../wailsjs/go/models'
+import {ClearChat, ExtractArtist, SaveArtist} from '../../wailsjs/go/app/App'
+import {app} from '../../wailsjs/go/models'
 import {PageHeader} from '../components/PageHeader'
 import {InterviewConversation, useInterview} from '../chat/Interview'
 import {toMessage} from '../lib/errors'
@@ -30,11 +30,11 @@ export function NewArtist({
     // "" — there is no artist yet. The thread is keyed to the artist that does
     // not exist, and cleared once one does.
     subjectId: '',
-    onFinish: async (messages: main.InterviewMessage[]) => {
+    onFinish: async (messages: app.InterviewMessage[]) => {
       try {
         const draft = await ExtractArtist(messages)
         const artist = await SaveArtist(
-          main.Artist.createFrom({
+          app.Artist.createFrom({
             name: draft.name || 'New artist',
             summary: draft.summary,
             baseStyle: draft.baseStyle,
