@@ -1,4 +1,4 @@
-package main
+package audio
 
 import (
 	"context"
@@ -7,8 +7,9 @@ import (
 	"os"
 	"os/exec"
 	"strings"
-	"sunomaker/internal/platform"
 	"time"
+
+	"sunomaker/internal/platform"
 )
 
 // ---------------------------------------------------------------------------
@@ -31,21 +32,21 @@ import (
 // missing encoder should stop an import that would otherwise have worked.
 // ---------------------------------------------------------------------------
 
-// errNoEncoder is encodeMP3's answer when ffmpeg is not on this machine.
-var errNoEncoder = errors.New("ffmpeg is not installed, so WAV takes are kept as WAV")
+// ErrNoEncoder is EncodeMP3's answer when ffmpeg is not on this machine.
+var ErrNoEncoder = errors.New("ffmpeg is not installed, so WAV takes are kept as WAV")
 
 // mp3EncodeTimeout bounds one encode. A five-minute song encodes in seconds;
 // an encoder still running after this is stuck, and the import falls back to
 // keeping the WAV rather than waiting on it.
 const mp3EncodeTimeout = 5 * time.Minute
 
-// encodeMP3 encodes the audio at src into an MP3 at dest. A variable so tests
+// EncodeMP3 encodes the audio at src into an MP3 at dest. A variable so tests
 // can file a take without running ffmpeg — and so a test of the real encoder
 // can say, by skipping, that this machine has none.
-var encodeMP3 = func(src, dest string) error {
-	ffmpeg, ok := lookUpCommand("ffmpeg")
+var EncodeMP3 = func(src, dest string) error {
+	ffmpeg, ok := platform.LookUp("ffmpeg")
 	if !ok {
-		return errNoEncoder
+		return ErrNoEncoder
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), mp3EncodeTimeout)
 	defer cancel()

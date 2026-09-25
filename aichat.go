@@ -9,8 +9,9 @@ import (
 	"os"
 	"os/exec"
 	"strings"
-	"sunomaker/internal/platform"
 	"time"
+
+	"sunomaker/internal/platform"
 )
 
 // ---------------------------------------------------------------------------
