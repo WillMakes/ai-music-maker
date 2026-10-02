@@ -45,10 +45,16 @@ func newTestApp(t *testing.T) *App {
 	previousCheckout, previousCheck := checkoutAt, checkRepoTakesIssues
 	checkoutAt = func(string) (string, string) { return "", "" }
 	checkRepoTakesIssues = func(string) error { return nil }
+	// A music analysis adds a rule to agy's settings (#100); in a test that
+	// file is a temp one, never the producer's own agy install.
+	previousAgySettings := agySettingsPath
+	agySettings := filepath.Join(dir, "agy-settings.json")
+	agySettingsPath = func() (string, error) { return agySettings, nil }
 	t.Cleanup(func() {
 		dataDir, osMusicDir, githubToken = previousData, previousMusic, previousToken
 		audio.EncodeMP3 = previousEncode
 		checkoutAt, checkRepoTakesIssues = previousCheckout, previousCheck
+		agySettingsPath = previousAgySettings
 	})
 
 	// The same file openStore() would choose, not a test-only name: the bug CLI

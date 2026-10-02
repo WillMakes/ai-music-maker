@@ -63,7 +63,11 @@ character, estimated tempo and feel, song structure, vocal treatment and
 effects, mix character, and what defines the sound. Dense, concrete and
 comma-led, ten to sixteen lines, the language a style prompt is written in.
 No preamble, no disclaimers, nothing outside the JSON object; if the song
-cannot be found, say so in the style value and leave the other fields "".`
+cannot be found, say so in the style value and leave the other fields "".
+
+Research with your web search and URL reading tools only. Do not run terminal
+commands, write files or call any other tool: this run cannot approve them,
+and a refused tool ends it with no answer.`
 
 // MusicAnalysis is what one research run brings home: the song's identity —
 // title, artist, album, cover — alongside the markdown style breakdown (#51).
@@ -114,10 +118,24 @@ func (a *App) AnalyzeMusicURL(url string) (MusicAnalysis, error) {
 		return MusicAnalysis{}, fmt.Errorf(
 			"music analysis runs on Antigravity's signed-in CLI — connect it in Settings → AI")
 	}
+	// The research needs agy's URL-reading tool, which headless mode denies
+	// without a standing rule (#100). Best-effort: a settings file this app
+	// cannot update should not stop a run that may already be allowed, and if
+	// the run then fails, the reason the rule is missing rides along with agy's
+	// own error.
+	permErr := error(nil)
+	if path, err := agySettingsPath(); err != nil {
+		permErr = err
+	} else {
+		permErr = allowAgyURLReading(path)
+	}
 	answer, err := chatViaCLI(a.interviewContext(), serviceAntigravity,
 		a.aiServiceModel(serviceAntigravity), analysisBrief,
 		[]chatMsg{{Role: "user", Text: "Analyze this song: " + url}})
 	if err != nil {
+		if permErr != nil {
+			return MusicAnalysis{}, fmt.Errorf("%w (agy could not be allowed to read web pages: %v)", err, permErr)
+		}
 		return MusicAnalysis{}, err
 	}
 	return parseAnalysis(answer), nil
