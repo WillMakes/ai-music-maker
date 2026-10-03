@@ -63,17 +63,15 @@ func TestPlaylistBuildsTheQueue(t *testing.T) {
 		t.Fatalf("entry incomplete: %+v", queue[0])
 	}
 
-	// One track queues its whole record (#55): the frontend starts at the
-	// pressed track, but next and previous need the rest of the album there.
+	// One track plays just that track (#106). #55 had it queue the whole
+	// record from the pressed track; the producer asked for the song on its
+	// own, with the album's Play for the whole record.
 	fromTrack, err := app.Playlist("track", third.ID)
 	if err != nil {
 		t.Fatalf("track playlist: %v", err)
 	}
-	if len(fromTrack) != 2 {
-		t.Fatalf("a track press should queue the record, got %d entries", len(fromTrack))
-	}
-	if fromTrack[1].TrackID != third.ID {
-		t.Fatalf("the pressed track is missing from its own queue: %+v", fromTrack)
+	if len(fromTrack) != 1 || fromTrack[0].TrackID != third.ID {
+		t.Fatalf("a track press should queue only that track, got %+v", fromTrack)
 	}
 
 	// The artist and everything both reach the same songs.

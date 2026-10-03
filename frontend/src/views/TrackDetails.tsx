@@ -267,8 +267,8 @@ function TitleCard({
               >
                 <Play size={15} />
               </button>
-              {/* Just this track, behind the queue (#60) — play here queues
-                  the whole record (#55); adding composes one song at a time. */}
+              {/* Just this track, behind the queue (#60), where play starts
+                  it now (#106). */}
               <button
                 className="sm-button sm-button-quiet px-2"
                 type="button"

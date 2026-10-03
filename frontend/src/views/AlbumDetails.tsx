@@ -650,22 +650,31 @@ export function AlbumDetails({
                             type="button"
                             onClick={() => setSelectedId(track.id)}
                           >
-                            <span
-                              className="group/pos flex w-5 shrink-0 items-center justify-center text-xs tabular-nums text-fg-muted"
-                              onClick={(e) => {
-                                if (!hasPlayableTake(track)) return
-                                e.stopPropagation()
-                                void player.play('track', track.id)
-                              }}
-                            >
-                              {hasPlayableTake(track) ? (
-                                <>
-                                  <span className="group-hover/pos:hidden">{track.position}</span>
-                                  <Play size={13} className="hidden text-accent group-hover/pos:block" />
-                                </>
-                              ) : (
-                                track.position
-                              )}
+                            {/* Play this track and only this track (#106), shown on
+                                every row that has a take to play rather than swapped
+                                in over the number on hover, where it was easy to miss.
+                                The album's Play in the header is the whole record.
+                                A span, not a button: the row is already a button. A
+                                row with nothing to play keeps the slot so the numbers
+                                stay in one column. */}
+                            {hasPlayableTake(track) ? (
+                              <span
+                                role="button"
+                                aria-label={`Play ${track.name}`}
+                                title="Play this track"
+                                className="flex w-6 shrink-0 items-center justify-center text-fg-muted transition-colors hover:text-accent"
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  void player.play('track', track.id)
+                                }}
+                              >
+                                <Play size={14} />
+                              </span>
+                            ) : (
+                              <span className="w-6 shrink-0" aria-hidden="true" />
+                            )}
+                            <span className="w-5 shrink-0 text-center text-xs tabular-nums text-fg-muted">
+                              {track.position}
                             </span>
                             <span className="min-w-0 flex-1">
                               <span className="block truncate text-sm font-medium">{track.name}</span>
