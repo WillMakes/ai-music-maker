@@ -45,13 +45,6 @@ import {hasPlayableTake, takeSummary} from '../lib/takes'
  * so it has its own busy state rather than sharing the page's. A producer
  * waiting on a cover can still edit the fields beside it.
  */
-/**
- * How much of the record's sound shows before Show all, in pixels (#98, #104).
- * The sound sits above the track tabs, and a real sound runs to paragraphs:
- * uncapped it pushed the tracks a screen down the page.
- */
-const SOUND_HEIGHT = 200
-
 export function AlbumDetails({
   albumId,
   trackId,
@@ -88,10 +81,11 @@ export function AlbumDetails({
   const [confirmDelete, setConfirmDelete] = useState(false)
   // The tracks section, scrolled to when a route names a track (#97).
   const tracksRef = useRef<HTMLElement>(null)
-  // The tabs under the record's sound (#102, #104), Tracks the default: it is
-  // where the producer spends the session, and the release links are filled
-  // in once, after the record is out.
-  const [pageTab, setPageTab] = useState<'tracks' | 'releases'>('tracks')
+  // The tabs on the right of the cover (#102, #104, #110), Tracks the
+  // default: it is where the producer spends the session, the sound is
+  // written once and then read, and the release links are filled in once,
+  // after the record is out.
+  const [pageTab, setPageTab] = useState<'tracks' | 'sound' | 'releases'>('tracks')
   // The style distillation (#38) has its own busy state, like the artwork's.
   const [generating, setGenerating] = useState(false)
   // The record's two style panes as tabs (#48), this record's own style the
@@ -384,10 +378,10 @@ export function AlbumDetails({
       )}
 
       {/* The cover with the record that follows it on the left; on the right,
-          the record's sound always in view above the tabs — capped, with Show
-          all for a long one — and the tracks and release links as tabs (#104).
-          #102 had the sound as a tab of its own, which hid the style the track
-          prompts are joined from while the tracks were being worked on. */}
+          the record's tracks, sound and release links as tabs (#110). #104 had
+          the sound always in view above the tabs, capped with Show all; the
+          producer asked for it back in the tab strip, where it has the room to
+          be read whole. */}
       <div className="grid items-start gap-4 md:grid-cols-[232px_minmax(0,1fr)]">
         <div className="space-y-4">
           {/* Always mounted, with no tab to hide it behind: a cover generation
@@ -504,81 +498,81 @@ export function AlbumDetails({
         </div>
 
         <div className="min-w-0 space-y-4">
-          <section className="sm-panel flex flex-col gap-3 p-4" aria-label="The record's sound">
-            <div className="flex flex-wrap items-center gap-2">
-              <h2 className="flex-1 text-sm font-semibold">The record's sound</h2>
-              {/* Back by request (#38, reversing #37), with the button that
-                  earns its place: it distils the tracks' own style prompts into
-                  the record's shared core. Into the draft, not the database —
-                  the producer edits and the auto-save keeps it. */}
-              {styleTab === 'style' && (
-                <button
-                  className="sm-button sm-button-quiet"
-                  type="button"
-                  disabled={generating}
-                  onClick={async () => {
-                    setGenerating(true)
-                    setError('')
-                    try {
-                      update({technicalStyle: await GenerateAlbumStyle(albumId)})
-                    } catch (err) {
-                      setError(toMessage(err))
-                    } finally {
-                      setGenerating(false)
-                    }
-                  }}
-                >
-                  {generating ? <Loader2 size={15} className="animate-spin" /> : <Wand2 size={15} />}
-                  {generating ? 'Distilling…' : 'Generate from the tracks'}
-                </button>
-              )}
-            </div>
-            {/* Tabs rather than a two-column grid (#48): the two halves of
-                combinedStyle are read one at a time, and side by side they
-                halved the room the style is actually written in. */}
-            <TabStrip
-              tabs={[
-                {id: 'style', label: 'This record'},
-                {id: 'inherited', label: 'Inherited from ' + album.artistName},
-              ]}
-              current={styleTab}
-              onSelect={setStyleTab}
-            />
-            {styleTab === 'style' && (
-              /* Markdown with a preview (#44), matching the artist's base style:
-                 the style is read far more often than written, and the rendered
-                 form is what it is read in. */
-              <MarkdownField
-                label=""
-                hint="Joined with the artist's base style when a track prompt is written."
-                placeholder="Analog synths, colder mix than the debut, 100-110 BPM…"
-                value={draft.technicalStyle}
-                onChange={(technicalStyle) => update({technicalStyle})}
-                collapsedHeight={SOUND_HEIGHT}
-                fill
-              />
-            )}
-            {styleTab === 'inherited' && (
-              /* The other half of combinedStyle, shown where the joining
-                 happens (#40). Read-only: the base style belongs to the artist,
-                 and two editable copies of it would drift. */
-              <div className="flex flex-1 flex-col gap-1">
-                <pre style={{maxHeight: SOUND_HEIGHT}} className="flex-1 overflow-auto whitespace-pre-wrap rounded-md border border-edge bg-surface px-3 py-2 font-mono text-xs leading-relaxed text-fg-muted">
-                  {album.artistBaseStyle || 'No base style written yet.'}
-                </pre>
-                <p className="text-xs text-fg-muted">Read-only here — edit it on the artist.</p>
-              </div>
-            )}
-          </section>
-
           <TabStrip
             tabs={[
               {id: 'tracks', label: tracks.length ? 'Tracks (' + tracks.length + ')' : 'Tracks'},
+              {id: 'sound', label: 'Sound'},
               {id: 'releases', label: 'Releases'},
             ]}
             current={pageTab}
             onSelect={setPageTab}
           />
+          {pageTab === 'sound' && (
+            <section className="sm-panel flex flex-col gap-3 p-4" aria-label="The record's sound">
+              <div className="flex flex-wrap items-center justify-end gap-2">
+                {/* Back by request (#38, reversing #37), with the button that
+                    earns its place: it distils the tracks' own style prompts into
+                    the record's shared core. Into the draft, not the database —
+                    the producer edits and the auto-save keeps it. */}
+                {styleTab === 'style' && (
+                  <button
+                    className="sm-button sm-button-quiet"
+                    type="button"
+                    disabled={generating}
+                    onClick={async () => {
+                      setGenerating(true)
+                      setError('')
+                      try {
+                        update({technicalStyle: await GenerateAlbumStyle(albumId)})
+                      } catch (err) {
+                        setError(toMessage(err))
+                      } finally {
+                        setGenerating(false)
+                      }
+                    }}
+                  >
+                    {generating ? <Loader2 size={15} className="animate-spin" /> : <Wand2 size={15} />}
+                    {generating ? 'Distilling…' : 'Generate from the tracks'}
+                  </button>
+                )}
+              </div>
+              {/* Tabs rather than a two-column grid (#48): the two halves of
+                  combinedStyle are read one at a time, and side by side they
+                  halved the room the style is actually written in. */}
+              <TabStrip
+                tabs={[
+                  {id: 'style', label: 'This record'},
+                  {id: 'inherited', label: 'Inherited from ' + album.artistName},
+                ]}
+                current={styleTab}
+                onSelect={setStyleTab}
+              />
+              {styleTab === 'style' && (
+                /* Markdown with a preview (#44), matching the artist's base style:
+                   the style is read far more often than written, and the rendered
+                   form is what it is read in. */
+                <MarkdownField
+                  label=""
+                  hint="Joined with the artist's base style when a track prompt is written."
+                  placeholder="Analog synths, colder mix than the debut, 100-110 BPM…"
+                  value={draft.technicalStyle}
+                  onChange={(technicalStyle) => update({technicalStyle})}
+                />
+              )}
+              {styleTab === 'inherited' && (
+                /* The other half of combinedStyle, shown where the joining
+                   happens (#40). Read-only: the base style belongs to the artist,
+                   and two editable copies of it would drift. */
+                <div className="flex flex-1 flex-col gap-1">
+                  <pre className="flex-1 overflow-auto whitespace-pre-wrap rounded-md border border-edge bg-surface px-3 py-2 font-mono text-xs leading-relaxed text-fg-muted">
+                    {album.artistBaseStyle || 'No base style written yet.'}
+                  </pre>
+                  <p className="text-xs text-fg-muted">Read-only here — edit it on the artist.</p>
+                </div>
+              )}
+            </section>
+          )}
+
           {pageTab === 'tracks' && (
             <section ref={tracksRef} className="scroll-mt-4 space-y-3" aria-label="Tracks">
               <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
