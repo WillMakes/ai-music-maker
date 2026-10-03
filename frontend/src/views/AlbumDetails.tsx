@@ -46,9 +46,8 @@ import {useArtworks} from '../artworks/ArtworksProvider'
  */
 /**
  * How much of the record's sound shows before Show all, in pixels (#98). Sized
- * so the sound panel ends level with the cover panel beside it: a real sound
- * runs to paragraphs, and uncapped it opened a gap under the cover as tall as
- * the rest of it.
+ * so the Sound tab ends near the cover panel beside it: a real sound runs to
+ * paragraphs, and uncapped it pushed the release row a screen down.
  */
 const SOUND_HEIGHT = 200
 
@@ -88,6 +87,10 @@ export function AlbumDetails({
   const [confirmDelete, setConfirmDelete] = useState(false)
   // The tracks section, scrolled to when a route names a track (#97).
   const tracksRef = useRef<HTMLElement>(null)
+  // The page's two working halves as tabs beside the cover (#102), Tracks the
+  // default: it is where the producer spends the session, and the sound is
+  // written once and then only read.
+  const [pageTab, setPageTab] = useState<'tracks' | 'sound'>('tracks')
   // The style distillation (#38) has its own busy state, like the artwork's.
   const [generating, setGenerating] = useState(false)
   // The record's two style panes as tabs (#48), this record's own style the
@@ -174,8 +177,9 @@ export function AlbumDetails({
   useEffect(() => {
     if (!trackId) return
     setSelectedId(trackId)
-    // One page now (#97), so arriving for a track means scrolling to it
-    // rather than switching tabs — after the list has rendered.
+    // Arriving for a track opens the Tracks tab (#102) and scrolls to it once
+    // the list has rendered.
+    setPageTab('tracks')
     requestAnimationFrame(() => tracksRef.current?.scrollIntoView({block: 'start'}))
   }, [trackId])
 
@@ -378,13 +382,12 @@ export function AlbumDetails({
         </div>
       )}
 
-      {/* One page rather than four tabs (#97): the cover, the record's sound,
-          its tracks and its release sit where each is read, top to bottom in
-          the order the workflow reaches them. The tabs hid the cover and the
-          style from the Tracks tab this page usually sits on, and the record
-          is easier to judge whole — the cover beside the style it should
-          match, the style above the prompts it is joined into. */}
-      <div className="grid gap-4 md:grid-cols-[232px_minmax(0,1fr)]">
+      {/* The cover on the left, the record's sound and its tracks as tabs on
+          the right (#102). #97 took the page out of four tabs so the cover
+          stayed in view while the tracks were worked on; it still does, and
+          the sound and the tracks — each a screen of its own — no longer stack
+          into one long scroll. Release links stay below, whole-page. */}
+      <div className="grid items-start gap-4 md:grid-cols-[232px_minmax(0,1fr)]">
         {/* Always mounted, now that there is no tab to hide it behind: a
             cover generation runs for minutes and its busy state lives here. */}
         <section className="sm-panel space-y-3 p-4" aria-label="Artwork">
@@ -467,199 +470,213 @@ export function AlbumDetails({
           )}
         </section>
 
-        <section className="sm-panel flex flex-col gap-3 p-4">
-          <div className="flex flex-wrap items-center gap-2">
-            <h2 className="flex-1 text-sm font-semibold">The record's sound</h2>
-            {/* Back by request (#38, reversing #37), with the button that
-                earns its place: it distils the tracks' own style prompts into
-                the record's shared core. Into the draft, not the database —
-                the producer edits and the auto-save keeps it. */}
-            {styleTab === 'style' && (
-              <button
-                className="sm-button sm-button-quiet"
-                type="button"
-                disabled={generating}
-                onClick={async () => {
-                  setGenerating(true)
-                  setError('')
-                  try {
-                    update({technicalStyle: await GenerateAlbumStyle(albumId)})
-                  } catch (err) {
-                    setError(toMessage(err))
-                  } finally {
-                    setGenerating(false)
-                  }
-                }}
-              >
-                {generating ? <Loader2 size={15} className="animate-spin" /> : <Wand2 size={15} />}
-                {generating ? 'Distilling…' : 'Generate from the tracks'}
-              </button>
-            )}
-          </div>
-          {/* Tabs rather than a two-column grid (#48): the two halves of
-              combinedStyle are read one at a time, and side by side they
-              halved the room the style is actually written in. */}
+        <div className="min-w-0 space-y-4">
           <TabStrip
             tabs={[
-              {id: 'style', label: 'This record'},
-              {id: 'inherited', label: 'Inherited from ' + album.artistName},
+              {id: 'tracks', label: tracks.length ? 'Tracks (' + tracks.length + ')' : 'Tracks'},
+              {id: 'sound', label: "The record's sound"},
             ]}
-            current={styleTab}
-            onSelect={setStyleTab}
+            current={pageTab}
+            onSelect={setPageTab}
           />
-          {styleTab === 'style' && (
-            /* Markdown with a preview (#44), matching the artist's base style:
-               the style is read far more often than written, and the rendered
-               form is what it is read in. */
-            <MarkdownField
-              label=""
-              hint="Joined with the artist's base style when a track prompt is written."
-              placeholder="Analog synths, colder mix than the debut, 100-110 BPM…"
-              value={draft.technicalStyle}
-              onChange={(technicalStyle) => update({technicalStyle})}
-              collapsedHeight={SOUND_HEIGHT}
-              fill
-            />
+          {pageTab === 'sound' && (
+            <section className="sm-panel flex flex-col gap-3 p-4" aria-label="The record's sound">
+              <div className="flex flex-wrap items-center justify-end gap-2">
+                {/* Back by request (#38, reversing #37), with the button that
+                    earns its place: it distils the tracks' own style prompts into
+                    the record's shared core. Into the draft, not the database —
+                    the producer edits and the auto-save keeps it. */}
+                {styleTab === 'style' && (
+                  <button
+                    className="sm-button sm-button-quiet"
+                    type="button"
+                    disabled={generating}
+                    onClick={async () => {
+                      setGenerating(true)
+                      setError('')
+                      try {
+                        update({technicalStyle: await GenerateAlbumStyle(albumId)})
+                      } catch (err) {
+                        setError(toMessage(err))
+                      } finally {
+                        setGenerating(false)
+                      }
+                    }}
+                  >
+                    {generating ? <Loader2 size={15} className="animate-spin" /> : <Wand2 size={15} />}
+                    {generating ? 'Distilling…' : 'Generate from the tracks'}
+                  </button>
+                )}
+              </div>
+              {/* Tabs rather than a two-column grid (#48): the two halves of
+                  combinedStyle are read one at a time, and side by side they
+                  halved the room the style is actually written in. */}
+              <TabStrip
+                tabs={[
+                  {id: 'style', label: 'This record'},
+                  {id: 'inherited', label: 'Inherited from ' + album.artistName},
+                ]}
+                current={styleTab}
+                onSelect={setStyleTab}
+              />
+              {styleTab === 'style' && (
+                /* Markdown with a preview (#44), matching the artist's base style:
+                   the style is read far more often than written, and the rendered
+                   form is what it is read in. */
+                <MarkdownField
+                  label=""
+                  hint="Joined with the artist's base style when a track prompt is written."
+                  placeholder="Analog synths, colder mix than the debut, 100-110 BPM…"
+                  value={draft.technicalStyle}
+                  onChange={(technicalStyle) => update({technicalStyle})}
+                  collapsedHeight={SOUND_HEIGHT}
+                  fill
+                />
+              )}
+              {styleTab === 'inherited' && (
+                /* The other half of combinedStyle, shown where the joining
+                   happens (#40). Read-only: the base style belongs to the artist,
+                   and two editable copies of it would drift. */
+                <div className="flex flex-1 flex-col gap-1">
+                  <pre style={{maxHeight: SOUND_HEIGHT}} className="flex-1 overflow-auto whitespace-pre-wrap rounded-md border border-edge bg-surface px-3 py-2 font-mono text-xs leading-relaxed text-fg-muted">
+                    {album.artistBaseStyle || 'No base style written yet.'}
+                  </pre>
+                  <p className="text-xs text-fg-muted">Read-only here — edit it on the artist.</p>
+                </div>
+              )}
+            </section>
           )}
-          {styleTab === 'inherited' && (
-            /* The other half of combinedStyle, shown where the joining
-               happens (#40). Read-only: the base style belongs to the artist,
-               and two editable copies of it would drift. */
-            <div className="flex flex-1 flex-col gap-1">
-              <pre style={{maxHeight: SOUND_HEIGHT}} className="flex-1 overflow-auto whitespace-pre-wrap rounded-md border border-edge bg-surface px-3 py-2 font-mono text-xs leading-relaxed text-fg-muted">
-                {album.artistBaseStyle || 'No base style written yet.'}
-              </pre>
-              <p className="text-xs text-fg-muted">Read-only here — edit it on the artist.</p>
-            </div>
-          )}
-        </section>
-      </div>
 
-      <section ref={tracksRef} className="scroll-mt-4 space-y-3" aria-label="Tracks">
-        <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-          <h2 className="text-sm font-semibold">Tracks</h2>
-          {tracks.length > 0 && (
-            /* The batch import's words (#76), where the tracks the files land
-               on are in view; the button is in the header. */
-            <p className="text-xs text-fg-muted">
-              Drop a batch of takes anywhere on this page — each file lands on the track it
-              is named after.
-            </p>
+          {pageTab === 'tracks' && (
+            <section ref={tracksRef} className="scroll-mt-4 space-y-3" aria-label="Tracks">
+              <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+                {tracks.length > 0 && (
+                  /* The batch import's words (#76), where the tracks the files land
+                     on are in view; the button is in the header. */
+                  <p className="text-xs text-fg-muted">
+                    Drop a batch of takes anywhere on this page — each file lands on the track it
+                    is named after.
+                  </p>
+                )}
+              </div>
+              {tracks.length === 0 ? (
+                <div className="sm-panel space-y-3 p-4">
+                  <EmptyState
+                    icon={ListMusic}
+                    title="No tracks yet"
+                    body="Write the whole list from this record's style in one press, or talk it through — the interview knows the combined style and takes requests."
+                  />
+                  <div className="flex justify-center gap-2">
+                    {/* The one-press repair (#71): a record with a style but no
+                        tracks gets its list written directly, no second
+                        conversation required. */}
+                    <button
+                      className="sm-button sm-button-primary"
+                      type="button"
+                      disabled={writingTracks}
+                      onClick={async () => {
+                        setWritingTracks(true)
+                        setError('')
+                        try {
+                          await WriteAlbumTracks(albumId)
+                          await reload()
+                        } catch (err) {
+                          setError(toMessage(err))
+                        } finally {
+                          setWritingTracks(false)
+                        }
+                      }}
+                    >
+                      {writingTracks ? <Loader2 size={15} className="animate-spin" /> : <Wand2 size={15} />}
+                      {writingTracks ? 'Writing…' : 'Write the track list'}
+                    </button>
+                    <button
+                      className="sm-button sm-button-quiet"
+                      type="button"
+                      onClick={() => setInterviewing(true)}
+                    >
+                      <Sparkles size={15} />
+                      Talk it through
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                /* Master-detail (#40): the running order on the left, the selected
+                   track edited in place on the right. Side by side only from xl now
+                   that the cover takes the page's left column (#102) — at md the
+                   editor would be left a sliver. */
+                <div className="grid items-start gap-4 xl:grid-cols-[260px_minmax(0,1fr)]">
+                  <div className="sm-panel overflow-hidden">
+                    <ul className="divide-y divide-edge">
+                      {tracks.map((track) => (
+                        <li key={track.id}>
+                          <button
+                            className={
+                              'flex w-full items-center gap-2 px-3 py-2 text-left ' +
+                              (track.id === selected?.id ? 'bg-surface-hover' : 'hover:bg-surface-hover')
+                            }
+                            type="button"
+                            onClick={() => setSelectedId(track.id)}
+                          >
+                            <span
+                              className="group/pos flex w-5 shrink-0 items-center justify-center text-xs tabular-nums text-fg-muted"
+                              onClick={(e) => {
+                                if (!track.files?.length) return
+                                e.stopPropagation()
+                                void player.play('track', track.id)
+                              }}
+                            >
+                              {track.files?.length ? (
+                                <>
+                                  <span className="group-hover/pos:hidden">{track.position}</span>
+                                  <Play size={13} className="hidden text-accent group-hover/pos:block" />
+                                </>
+                              ) : (
+                                track.position
+                              )}
+                            </span>
+                            <span className="min-w-0 flex-1">
+                              <span className="block truncate text-sm font-medium">{track.name}</span>
+                              <span className="block text-xs text-fg-muted">
+                                {track.files?.length
+                                  ? track.files.length + (track.files.length === 1 ? ' take' : ' takes')
+                                  : 'not made'}
+                              </span>
+                            </span>
+                            <span className="shrink-0 text-xs tabular-nums text-fg-muted">
+                              {duration(track.targetSeconds)}
+                            </span>
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                    <div className="p-2">
+                      <button
+                        className="flex w-full items-center justify-center gap-2 rounded-md border border-dashed border-edge py-1.5 text-xs text-fg-muted hover:border-accent hover:text-accent"
+                        type="button"
+                        onClick={() => setInterviewing(true)}
+                      >
+                        <Sparkles size={13} />
+                        Write more tracks
+                      </button>
+                    </div>
+                  </div>
+                  {selected && (
+                    <TrackEditor
+                      key={selected.id}
+                      trackId={selected.id}
+                      onDeleted={() => {
+                        setSelectedId('')
+                        reload()
+                      }}
+                    />
+                  )}
+                </div>
+              )}
+            </section>
           )}
         </div>
-        {tracks.length === 0 ? (
-          <div className="sm-panel space-y-3 p-4">
-            <EmptyState
-              icon={ListMusic}
-              title="No tracks yet"
-              body="Write the whole list from this record's style in one press, or talk it through — the interview knows the combined style and takes requests."
-            />
-            <div className="flex justify-center gap-2">
-              {/* The one-press repair (#71): a record with a style but no
-                  tracks gets its list written directly, no second
-                  conversation required. */}
-              <button
-                className="sm-button sm-button-primary"
-                type="button"
-                disabled={writingTracks}
-                onClick={async () => {
-                  setWritingTracks(true)
-                  setError('')
-                  try {
-                    await WriteAlbumTracks(albumId)
-                    await reload()
-                  } catch (err) {
-                    setError(toMessage(err))
-                  } finally {
-                    setWritingTracks(false)
-                  }
-                }}
-              >
-                {writingTracks ? <Loader2 size={15} className="animate-spin" /> : <Wand2 size={15} />}
-                {writingTracks ? 'Writing…' : 'Write the track list'}
-              </button>
-              <button
-                className="sm-button sm-button-quiet"
-                type="button"
-                onClick={() => setInterviewing(true)}
-              >
-                <Sparkles size={15} />
-                Talk it through
-              </button>
-            </div>
-          </div>
-        ) : (
-          /* Master-detail (#40): the running order on the left, the selected
-             track edited in place on the right. */
-          <div className="grid items-start gap-4 md:grid-cols-[280px_minmax(0,1fr)]">
-            <div className="sm-panel overflow-hidden">
-              <ul className="divide-y divide-edge">
-                {tracks.map((track) => (
-                  <li key={track.id}>
-                    <button
-                      className={
-                        'flex w-full items-center gap-2 px-3 py-2 text-left ' +
-                        (track.id === selected?.id ? 'bg-surface-hover' : 'hover:bg-surface-hover')
-                      }
-                      type="button"
-                      onClick={() => setSelectedId(track.id)}
-                    >
-                      <span
-                        className="group/pos flex w-5 shrink-0 items-center justify-center text-xs tabular-nums text-fg-muted"
-                        onClick={(e) => {
-                          if (!track.files?.length) return
-                          e.stopPropagation()
-                          void player.play('track', track.id)
-                        }}
-                      >
-                        {track.files?.length ? (
-                          <>
-                            <span className="group-hover/pos:hidden">{track.position}</span>
-                            <Play size={13} className="hidden text-accent group-hover/pos:block" />
-                          </>
-                        ) : (
-                          track.position
-                        )}
-                      </span>
-                      <span className="min-w-0 flex-1">
-                        <span className="block truncate text-sm font-medium">{track.name}</span>
-                        <span className="block text-xs text-fg-muted">
-                          {track.files?.length
-                            ? track.files.length + (track.files.length === 1 ? ' take' : ' takes')
-                            : 'not made'}
-                        </span>
-                      </span>
-                      <span className="shrink-0 text-xs tabular-nums text-fg-muted">
-                        {duration(track.targetSeconds)}
-                      </span>
-                    </button>
-                  </li>
-                ))}
-              </ul>
-              <div className="p-2">
-                <button
-                  className="flex w-full items-center justify-center gap-2 rounded-md border border-dashed border-edge py-1.5 text-xs text-fg-muted hover:border-accent hover:text-accent"
-                  type="button"
-                  onClick={() => setInterviewing(true)}
-                >
-                  <Sparkles size={13} />
-                  Write more tracks
-                </button>
-              </div>
-            </div>
-            {selected && (
-              <TrackEditor
-                key={selected.id}
-                trackId={selected.id}
-                onDeleted={() => {
-                  setSelectedId('')
-                  reload()
-                }}
-              />
-            )}
-          </div>
-        )}
-      </section>
+      </div>
 
       {/* The last steps of the workflow, last on the page: where the record
           went once it was out, and the record that follows it. Down here
