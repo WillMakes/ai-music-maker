@@ -27,6 +27,7 @@ the finished songs where your music player will find them.
 - [First run](#first-run)
 - [Using AIMusicMaker](#using-aimusicmaker)
 - [Command line](#command-line)
+- [Now playing API](#now-playing-api)
 - [Where your files live](#where-your-files-live)
 - [Development](#development)
 - [Reporting bugs and contributing](#reporting-bugs-and-contributing)
@@ -208,6 +209,38 @@ On Windows the program is `aimusicmaker.exe`, and on macOS it is
 `aimusicmaker.app/Contents/MacOS/aimusicmaker`. In a source checkout, `go run .
 docs` and similar work too. The MCP server reads the database directly, so
 assistants can work with your library while the window is closed.
+
+## Now playing API
+
+While the app is open, it reports what its player is doing at a local address
+that needs no token, so a stream overlay, a status bar or a script can read it:
+
+```bash
+curl http://127.0.0.1:8799/now-playing
+```
+
+```json
+{
+  "state": "playing",
+  "trackId": "trk_…",
+  "albumId": "alb_…",
+  "title": "Threshold",
+  "artistName": "Primlocked",
+  "albumName": "The Long Quiet",
+  "positionSeconds": 42.3,
+  "durationSeconds": 200.1,
+  "artworkUrl": "http://127.0.0.1:8799/now-playing/artwork",
+  "updatedAt": "2026-10-03T20:41:47Z"
+}
+```
+
+`state` is `playing`, `paused` or `stopped`. When it is `stopped`, nothing is
+queued and the other fields are empty. `artworkUrl` always serves the current
+album's cover, and is empty when the album has none. Ask as often as you like:
+the position is worked out at the moment you ask. Web pages can read it too,
+which is what lets a browser overlay use it, but the address only answers on
+this computer. AI assistants connected over MCP get the same answer from the
+`now_playing` tool.
 
 ## Where your files live
 
