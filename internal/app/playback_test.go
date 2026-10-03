@@ -3,6 +3,7 @@ package app
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -88,5 +89,79 @@ func TestPlaylistBuildsTheQueue(t *testing.T) {
 
 	if _, err := app.Playlist("nonsense", ""); err == nil {
 		t.Fatal("an unknown kind was played")
+	}
+}
+
+// TestPlaylistSkipsTakesWhoseFileIsGone is #105. A take is filed by absolute
+// path, and files moved or deleted outside the app left rows pointing at
+// nothing. The queue was built from them anyway, so pressing play started a
+// queue in which nearly every song failed with "This take could not be played".
+// Now a take whose file is missing says so, the queue plays a take that still
+// exists, and a record with nothing left to play says why.
+func TestPlaylistSkipsTakesWhoseFileIsGone(t *testing.T) {
+	app := newTestApp(t)
+	artist, err := app.SaveArtist(Artist{Name: "Primlocked", Inspirations: []Inspiration{}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	album, err := app.SaveAlbum(Album{ArtistID: artist.ID, Name: "The Long Quiet"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	dir := t.TempDir()
+	makeTake := func(name string) string {
+		path := filepath.Join(dir, name+".mp3")
+		if err := os.WriteFile(path, []byte("bytes"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		return path
+	}
+
+	// Two takes; the chosen one's file is then deleted behind the app's back.
+	track, err := app.SaveTrack(Track{AlbumID: album.ID, Name: "It Knows"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	withFirst, err := app.ImportTrackFile(track.ID, makeTake("first"), "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	withBoth, err := app.ImportTrackFile(track.ID, makeTake("second"), "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	gone := withFirst.Files[0]
+	kept := withBoth.Files[1]
+	if _, err := app.ChooseTrackFile(track.ID, gone.ID); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Remove(gone.Path); err != nil {
+		t.Fatal(err)
+	}
+
+	got, err := app.GetTrack(track.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, f := range got.Files {
+		if want := f.ID == gone.ID; f.Missing != want {
+			t.Errorf("take %s: missing = %v, want %v", f.Name, f.Missing, want)
+		}
+	}
+
+	queue, err := app.Playlist("album", album.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(queue) != 1 || !strings.Contains(queue[0].AudioURL, kept.ID) {
+		t.Fatalf("the queue should play the take that still exists (%s): %+v", kept.ID, queue)
+	}
+
+	// Nothing left on disk: an error that says so, not an empty queue.
+	if err := os.Remove(kept.Path); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := app.Playlist("album", album.ID); err == nil || !strings.Contains(err.Error(), "moved or deleted") {
+		t.Fatalf("want an error about the missing files, got %v", err)
 	}
 }

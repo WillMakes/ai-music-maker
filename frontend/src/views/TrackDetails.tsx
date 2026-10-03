@@ -19,6 +19,7 @@ import {isAudioPath, readAsDataURL} from '../lib/files'
 import {duration, fileSize, parseDuration} from '../lib/format'
 import {toMessage} from '../lib/errors'
 import {usePlayer} from '../player/PlayerProvider'
+import {hasPlayableTake} from '../lib/takes'
 
 /**
  * One track, edited in place beside the album's track list (#40).
@@ -254,7 +255,7 @@ function TitleCard({
         </>
       ) : (
         <>
-          {(track.files?.length ?? 0) > 0 && (
+          {hasPlayableTake(track) && (
             <>
               <button
                 className="sm-button sm-button-quiet px-2"
@@ -546,6 +547,14 @@ function Takes({
                 <span className="block truncate font-mono text-xs text-fg-muted">
                   {file.name}
                 </span>
+                {/* Filed by path, and the file has gone from it (#105) —
+                    moved or deleted outside the app. Said here, on the take,
+                    rather than left for the player to fail on. */}
+                {file.missing && (
+                  <span className="block truncate text-xs text-danger">
+                    The file is no longer at {file.path}
+                  </span>
+                )}
               </span>
               {/* Both states carry their word (see StatusPill): the official
                   take and the remixes name themselves, rather than one pill

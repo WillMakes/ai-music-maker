@@ -42,7 +42,23 @@ type PlayerTrack struct {
 // an artist's albums oldest first, artists by name for "all". A track with no
 // takes is skipped rather than erroring — a half-written record should still
 // play the songs it has.
+//
+// So is a track whose takes' files are all gone (#105). But a queue with
+// nothing in it because every file is missing is an error, naming the cause:
+// "nothing to play" would send the producer looking for a bug in the player
+// when the answer is in their music folder.
 func (a *App) Playlist(kind, id string) ([]PlayerTrack, error) {
+	missing := 0
+	out, err := a.playlist(kind, id, &missing)
+	if err == nil && len(out) == 0 && missing > 0 {
+		return out, fmt.Errorf("nothing here can be played: the files of its takes have been moved or deleted from the music folder since they were filed")
+	}
+	return out, err
+}
+
+// playlist builds the queue, counting into missing the tracks skipped only
+// because their files are gone.
+func (a *App) playlist(kind, id string, missing *int) ([]PlayerTrack, error) {
 	out := []PlayerTrack{}
 	if a.store == nil {
 		return out, nil
@@ -65,7 +81,7 @@ func (a *App) Playlist(kind, id string) ([]PlayerTrack, error) {
 		if err != nil {
 			return nil, err
 		}
-		return a.appendPlayable(out, album, tracks), nil
+		return a.appendPlayable(out, album, tracks, missing), nil
 	case "album":
 		album, err := a.GetAlbum(id)
 		if err != nil {
@@ -75,16 +91,16 @@ func (a *App) Playlist(kind, id string) ([]PlayerTrack, error) {
 		if err != nil {
 			return nil, err
 		}
-		return a.appendPlayable(out, album, tracks), nil
+		return a.appendPlayable(out, album, tracks, missing), nil
 	case "artist":
-		return a.appendArtistPlayable(out, id)
+		return a.appendArtistPlayable(out, id, missing)
 	case "all":
 		artists, err := a.ListArtists()
 		if err != nil {
 			return nil, err
 		}
 		for _, artist := range artists {
-			out, err = a.appendArtistPlayable(out, artist.ID)
+			out, err = a.appendArtistPlayable(out, artist.ID, missing)
 			if err != nil {
 				return nil, err
 			}
@@ -94,7 +110,7 @@ func (a *App) Playlist(kind, id string) ([]PlayerTrack, error) {
 	return nil, fmt.Errorf("nothing called %q can be played", kind)
 }
 
-func (a *App) appendArtistPlayable(out []PlayerTrack, artistID string) ([]PlayerTrack, error) {
+func (a *App) appendArtistPlayable(out []PlayerTrack, artistID string, missing *int) ([]PlayerTrack, error) {
 	albums, err := a.ListAlbums(artistID)
 	if err != nil {
 		return nil, err
@@ -104,7 +120,7 @@ func (a *App) appendArtistPlayable(out []PlayerTrack, artistID string) ([]Player
 		if err != nil {
 			return nil, err
 		}
-		out = a.appendPlayable(out, album, tracks)
+		out = a.appendPlayable(out, album, tracks, missing)
 	}
 	return out, nil
 }
@@ -112,19 +128,32 @@ func (a *App) appendArtistPlayable(out []PlayerTrack, artistID string) ([]Player
 // appendPlayable turns tracks into queue entries. The chosen take is the file
 // that plays; a track whose takes are all unchosen falls back to the first,
 // because "not decided yet" should not silence the song.
-func (a *App) appendPlayable(out []PlayerTrack, album Album, tracks []Track) []PlayerTrack {
+//
+// Only takes whose file is still there count (#105). A chosen take that has
+// gone falls back the same way an unchosen set does, so the song still plays
+// from the take that exists; a track with no file left at all is skipped and
+// counted into missing.
+func (a *App) appendPlayable(out []PlayerTrack, album Album, tracks []Track, missing *int) []PlayerTrack {
 	for _, track := range tracks {
 		var file *TrackFile
 		for i := range track.Files {
-			if track.Files[i].Chosen {
+			if track.Files[i].Chosen && !track.Files[i].Missing {
 				file = &track.Files[i]
 				break
 			}
 		}
-		if file == nil && len(track.Files) > 0 {
-			file = &track.Files[0]
+		for i := range track.Files {
+			if file != nil {
+				break
+			}
+			if !track.Files[i].Missing {
+				file = &track.Files[i]
+			}
 		}
 		if file == nil {
+			if len(track.Files) > 0 {
+				*missing++
+			}
 			continue
 		}
 		audio := a.audioURL(file.ID)
