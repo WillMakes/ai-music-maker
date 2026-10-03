@@ -45,9 +45,9 @@ import {useArtworks} from '../artworks/ArtworksProvider'
  * waiting on a cover can still edit the fields beside it.
  */
 /**
- * How much of the record's sound shows before Show all, in pixels (#98). Sized
- * so the Sound tab ends near the cover panel beside it: a real sound runs to
- * paragraphs, and uncapped it pushed the release row a screen down.
+ * How much of the record's sound shows before Show all, in pixels (#98, #104).
+ * The sound sits above the track tabs, and a real sound runs to paragraphs:
+ * uncapped it pushed the tracks a screen down the page.
  */
 const SOUND_HEIGHT = 200
 
@@ -87,10 +87,10 @@ export function AlbumDetails({
   const [confirmDelete, setConfirmDelete] = useState(false)
   // The tracks section, scrolled to when a route names a track (#97).
   const tracksRef = useRef<HTMLElement>(null)
-  // The page's two working halves as tabs beside the cover (#102), Tracks the
-  // default: it is where the producer spends the session, and the sound is
-  // written once and then only read.
-  const [pageTab, setPageTab] = useState<'tracks' | 'sound'>('tracks')
+  // The tabs under the record's sound (#102, #104), Tracks the default: it is
+  // where the producer spends the session, and the release links are filled
+  // in once, after the record is out.
+  const [pageTab, setPageTab] = useState<'tracks' | 'releases'>('tracks')
   // The style distillation (#38) has its own busy state, like the artwork's.
   const [generating, setGenerating] = useState(false)
   // The record's two style panes as tabs (#48), this record's own style the
@@ -382,171 +382,202 @@ export function AlbumDetails({
         </div>
       )}
 
-      {/* The cover on the left, the record's sound and its tracks as tabs on
-          the right (#102). #97 took the page out of four tabs so the cover
-          stayed in view while the tracks were worked on; it still does, and
-          the sound and the tracks — each a screen of its own — no longer stack
-          into one long scroll. Release links stay below, whole-page. */}
+      {/* The cover with the record that follows it on the left; on the right,
+          the record's sound always in view above the tabs — capped, with Show
+          all for a long one — and the tracks and release links as tabs (#104).
+          #102 had the sound as a tab of its own, which hid the style the track
+          prompts are joined from while the tracks were being worked on. */}
       <div className="grid items-start gap-4 md:grid-cols-[232px_minmax(0,1fr)]">
-        {/* Always mounted, now that there is no tab to hide it behind: a
-            cover generation runs for minutes and its busy state lives here. */}
-        <section className="sm-panel space-y-3 p-4" aria-label="Artwork">
-          <Cover url={album.artworkUrl} name={album.name} size={200} />
-          <div className="flex flex-wrap gap-2">
-            <button
-              className="sm-button sm-button-primary"
-              type="button"
-              onClick={draw}
-              disabled={drawing}
-            >
-              {drawing ? (
-                <Loader2 size={15} className="animate-spin" />
-              ) : album.artworkFile ? (
-                <RefreshCw size={15} />
-              ) : (
-                <Wand2 size={15} />
-              )}
-              {drawing ? 'Drawing…' : album.artworkFile ? 'Redraw' : 'Generate'}
-            </button>
-            <button
-              className="sm-button sm-button-quiet"
-              type="button"
-              disabled={drawing}
-              aria-label="Use an image file"
-              title="Use an image file"
-              onClick={async () => {
-                // The OS's own picker (#39): the binding owns the window
-                // context the dialog needs, so the producer browses instead
-                // of pasting a path. An empty path is a cancel, not an error.
-                try {
-                  const path = await PickImageFile()
-                  if (!path) return
-                  setAlbum(await ImportAlbumArtwork(albumId, path))
-                } catch (err) {
-                  setError(toMessage(err))
-                }
-              }}
-            >
-              <ImagePlus size={15} />
-            </button>
-            {album.artworkFile && (
+        <div className="space-y-4">
+          {/* Always mounted, with no tab to hide it behind: a cover generation
+              runs for minutes and its busy state lives here. */}
+          <section className="sm-panel space-y-3 p-4" aria-label="Artwork">
+            <Cover url={album.artworkUrl} name={album.name} size={200} />
+            <div className="flex flex-wrap gap-2">
+              <button
+                className="sm-button sm-button-primary"
+                type="button"
+                onClick={draw}
+                disabled={drawing}
+              >
+                {drawing ? (
+                  <Loader2 size={15} className="animate-spin" />
+                ) : album.artworkFile ? (
+                  <RefreshCw size={15} />
+                ) : (
+                  <Wand2 size={15} />
+                )}
+                {drawing ? 'Drawing…' : album.artworkFile ? 'Redraw' : 'Generate'}
+              </button>
               <button
                 className="sm-button sm-button-quiet"
                 type="button"
                 disabled={drawing}
-                aria-label="Remove the cover"
-                title="Remove the cover"
+                aria-label="Use an image file"
+                title="Use an image file"
                 onClick={async () => {
+                  // The OS's own picker (#39): the binding owns the window
+                  // context the dialog needs, so the producer browses instead
+                  // of pasting a path. An empty path is a cancel, not an error.
                   try {
-                    setAlbum(await RemoveAlbumArtwork(albumId))
+                    const path = await PickImageFile()
+                    if (!path) return
+                    setAlbum(await ImportAlbumArtwork(albumId, path))
                   } catch (err) {
                     setError(toMessage(err))
                   }
                 }}
               >
-                <Trash2 size={15} />
+                <ImagePlus size={15} />
               </button>
+              {album.artworkFile && (
+                <button
+                  className="sm-button sm-button-quiet"
+                  type="button"
+                  disabled={drawing}
+                  aria-label="Remove the cover"
+                  title="Remove the cover"
+                  onClick={async () => {
+                    try {
+                      setAlbum(await RemoveAlbumArtwork(albumId))
+                    } catch (err) {
+                      setError(toMessage(err))
+                    }
+                  }}
+                >
+                  <Trash2 size={15} />
+                </button>
+              )}
+            </div>
+            <TextField
+              label={album.artworkFile ? 'What to change' : 'Describe the cover'}
+              hint={
+                album.artworkFile
+                  ? 'The rest of the cover is kept.'
+                  : 'Or leave it blank and let the style decide.'
+              }
+              value={feedback}
+              placeholder={album.artworkFile ? 'Colder, less busy' : 'A single lit window'}
+              onChange={setFeedback}
+              disabled={drawing}
+            />
+            {drawing && (
+              <p className="text-xs text-fg-muted">
+                This keeps running if you navigate away — watch the status bar.
+              </p>
             )}
-          </div>
-          <TextField
-            label={album.artworkFile ? 'What to change' : 'Describe the cover'}
-            hint={
-              album.artworkFile
-                ? 'The rest of the cover is kept.'
-                : 'Or leave it blank and let the style decide.'
-            }
-            value={feedback}
-            placeholder={album.artworkFile ? 'Colder, less busy' : 'A single lit window'}
-            onChange={setFeedback}
-            disabled={drawing}
-          />
-          {drawing && (
+            {artworkJob?.state === 'failed' && (
+              <p className="text-sm text-danger">{artworkJob.error}</p>
+            )}
+          </section>
+
+          {/* The successor (#42): a new record under the same artist, the
+              technical style evolved one step and a fresh track list written to
+              flow. Navigation happens only once the album exists — a failure
+              leaves the producer here, with the message. */}
+          <section className="sm-panel space-y-3 p-4">
+            <h2 className="text-sm font-semibold">The next record</h2>
             <p className="text-xs text-fg-muted">
-              This keeps running if you navigate away — watch the status bar.
+              A new album that evolves this one: the technical style moved a step forward, and
+              a whole new track list styled so each song flows into the next. Lyrics stay yours
+              — write them per track, or through the interview on the new record.
             </p>
-          )}
-          {artworkJob?.state === 'failed' && (
-            <p className="text-sm text-danger">{artworkJob.error}</p>
-          )}
-        </section>
+            <button
+              className="sm-button sm-button-primary"
+              type="button"
+              disabled={evolving}
+              onClick={() => evolve({id: album.id, name: album.name, artistId: album.artistId})}
+            >
+              {evolving ? <Loader2 size={15} className="animate-spin" /> : <Sparkles size={15} />}
+              {evolving ? 'Evolving…' : 'Create the next record'}
+            </button>
+            {evolving && (
+              <p className="text-xs text-fg-muted">
+                This keeps running if you navigate away — watch the status bar.
+              </p>
+            )}
+            {evolution?.state === 'failed' && (
+              <p className="text-sm text-danger">{evolution.error}</p>
+            )}
+          </section>
+        </div>
 
         <div className="min-w-0 space-y-4">
+          <section className="sm-panel flex flex-col gap-3 p-4" aria-label="The record's sound">
+            <div className="flex flex-wrap items-center gap-2">
+              <h2 className="flex-1 text-sm font-semibold">The record's sound</h2>
+              {/* Back by request (#38, reversing #37), with the button that
+                  earns its place: it distils the tracks' own style prompts into
+                  the record's shared core. Into the draft, not the database —
+                  the producer edits and the auto-save keeps it. */}
+              {styleTab === 'style' && (
+                <button
+                  className="sm-button sm-button-quiet"
+                  type="button"
+                  disabled={generating}
+                  onClick={async () => {
+                    setGenerating(true)
+                    setError('')
+                    try {
+                      update({technicalStyle: await GenerateAlbumStyle(albumId)})
+                    } catch (err) {
+                      setError(toMessage(err))
+                    } finally {
+                      setGenerating(false)
+                    }
+                  }}
+                >
+                  {generating ? <Loader2 size={15} className="animate-spin" /> : <Wand2 size={15} />}
+                  {generating ? 'Distilling…' : 'Generate from the tracks'}
+                </button>
+              )}
+            </div>
+            {/* Tabs rather than a two-column grid (#48): the two halves of
+                combinedStyle are read one at a time, and side by side they
+                halved the room the style is actually written in. */}
+            <TabStrip
+              tabs={[
+                {id: 'style', label: 'This record'},
+                {id: 'inherited', label: 'Inherited from ' + album.artistName},
+              ]}
+              current={styleTab}
+              onSelect={setStyleTab}
+            />
+            {styleTab === 'style' && (
+              /* Markdown with a preview (#44), matching the artist's base style:
+                 the style is read far more often than written, and the rendered
+                 form is what it is read in. */
+              <MarkdownField
+                label=""
+                hint="Joined with the artist's base style when a track prompt is written."
+                placeholder="Analog synths, colder mix than the debut, 100-110 BPM…"
+                value={draft.technicalStyle}
+                onChange={(technicalStyle) => update({technicalStyle})}
+                collapsedHeight={SOUND_HEIGHT}
+                fill
+              />
+            )}
+            {styleTab === 'inherited' && (
+              /* The other half of combinedStyle, shown where the joining
+                 happens (#40). Read-only: the base style belongs to the artist,
+                 and two editable copies of it would drift. */
+              <div className="flex flex-1 flex-col gap-1">
+                <pre style={{maxHeight: SOUND_HEIGHT}} className="flex-1 overflow-auto whitespace-pre-wrap rounded-md border border-edge bg-surface px-3 py-2 font-mono text-xs leading-relaxed text-fg-muted">
+                  {album.artistBaseStyle || 'No base style written yet.'}
+                </pre>
+                <p className="text-xs text-fg-muted">Read-only here — edit it on the artist.</p>
+              </div>
+            )}
+          </section>
+
           <TabStrip
             tabs={[
               {id: 'tracks', label: tracks.length ? 'Tracks (' + tracks.length + ')' : 'Tracks'},
-              {id: 'sound', label: "The record's sound"},
+              {id: 'releases', label: 'Releases'},
             ]}
             current={pageTab}
             onSelect={setPageTab}
           />
-          {pageTab === 'sound' && (
-            <section className="sm-panel flex flex-col gap-3 p-4" aria-label="The record's sound">
-              <div className="flex flex-wrap items-center justify-end gap-2">
-                {/* Back by request (#38, reversing #37), with the button that
-                    earns its place: it distils the tracks' own style prompts into
-                    the record's shared core. Into the draft, not the database —
-                    the producer edits and the auto-save keeps it. */}
-                {styleTab === 'style' && (
-                  <button
-                    className="sm-button sm-button-quiet"
-                    type="button"
-                    disabled={generating}
-                    onClick={async () => {
-                      setGenerating(true)
-                      setError('')
-                      try {
-                        update({technicalStyle: await GenerateAlbumStyle(albumId)})
-                      } catch (err) {
-                        setError(toMessage(err))
-                      } finally {
-                        setGenerating(false)
-                      }
-                    }}
-                  >
-                    {generating ? <Loader2 size={15} className="animate-spin" /> : <Wand2 size={15} />}
-                    {generating ? 'Distilling…' : 'Generate from the tracks'}
-                  </button>
-                )}
-              </div>
-              {/* Tabs rather than a two-column grid (#48): the two halves of
-                  combinedStyle are read one at a time, and side by side they
-                  halved the room the style is actually written in. */}
-              <TabStrip
-                tabs={[
-                  {id: 'style', label: 'This record'},
-                  {id: 'inherited', label: 'Inherited from ' + album.artistName},
-                ]}
-                current={styleTab}
-                onSelect={setStyleTab}
-              />
-              {styleTab === 'style' && (
-                /* Markdown with a preview (#44), matching the artist's base style:
-                   the style is read far more often than written, and the rendered
-                   form is what it is read in. */
-                <MarkdownField
-                  label=""
-                  hint="Joined with the artist's base style when a track prompt is written."
-                  placeholder="Analog synths, colder mix than the debut, 100-110 BPM…"
-                  value={draft.technicalStyle}
-                  onChange={(technicalStyle) => update({technicalStyle})}
-                  collapsedHeight={SOUND_HEIGHT}
-                  fill
-                />
-              )}
-              {styleTab === 'inherited' && (
-                /* The other half of combinedStyle, shown where the joining
-                   happens (#40). Read-only: the base style belongs to the artist,
-                   and two editable copies of it would drift. */
-                <div className="flex flex-1 flex-col gap-1">
-                  <pre style={{maxHeight: SOUND_HEIGHT}} className="flex-1 overflow-auto whitespace-pre-wrap rounded-md border border-edge bg-surface px-3 py-2 font-mono text-xs leading-relaxed text-fg-muted">
-                    {album.artistBaseStyle || 'No base style written yet.'}
-                  </pre>
-                  <p className="text-xs text-fg-muted">Read-only here — edit it on the artist.</p>
-                </div>
-              )}
-            </section>
-          )}
-
           {pageTab === 'tracks' && (
             <section ref={tracksRef} className="scroll-mt-4 space-y-3" aria-label="Tracks">
               <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
@@ -675,70 +706,36 @@ export function AlbumDetails({
               )}
             </section>
           )}
-        </div>
-      </div>
 
-      {/* The last steps of the workflow, last on the page: where the record
-          went once it was out, and the record that follows it. Down here
-          rather than under the sound (#98), where the space it took depended
-          on how long the sound ran and the cover's column went empty. */}
-      <div className="grid items-start gap-4 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
-      <section className="sm-panel space-y-3 p-4">
-        <div>
-          <h2 className="text-sm font-semibold">Released at</h2>
-          <p className="mt-1 text-xs text-fg-muted">Filled in once the record is out.</p>
-        </div>
-        <div className="grid gap-3 md:grid-cols-3">
-          <TextField
-            label="Apple Music"
-            type="url"
-            value={draft.appleMusicUrl}
-            onChange={(appleMusicUrl) => update({appleMusicUrl})}
-          />
-          <TextField
-            label="Spotify"
-            type="url"
-            value={draft.spotifyUrl}
-            onChange={(spotifyUrl) => update({spotifyUrl})}
-          />
-          <TextField
-            label="YouTube Music"
-            type="url"
-            value={draft.youtubeUrl}
-            onChange={(youtubeUrl) => update({youtubeUrl})}
-          />
-        </div>
-      </section>
-
-        {/* The successor (#42): a new record under the same artist, the
-            technical style evolved one step and a fresh track list written to
-            flow. Navigation happens only once the album exists — a failure
-            leaves the producer here, with the message. */}
-        <section className="sm-panel space-y-3 p-4">
-          <h2 className="text-sm font-semibold">The next record</h2>
-          <p className="text-xs text-fg-muted">
-            A new album that evolves this one: the technical style moved a step forward, and
-            a whole new track list styled so each song flows into the next. Lyrics stay yours
-            — write them per track, or through the interview on the new record.
-          </p>
-          <button
-            className="sm-button sm-button-primary"
-            type="button"
-            disabled={evolving}
-            onClick={() => evolve({id: album.id, name: album.name, artistId: album.artistId})}
-          >
-            {evolving ? <Loader2 size={15} className="animate-spin" /> : <Sparkles size={15} />}
-            {evolving ? 'Evolving…' : 'Create the next record'}
-          </button>
-          {evolving && (
-            <p className="text-xs text-fg-muted">
-              This keeps running if you navigate away — watch the status bar.
-            </p>
+          {pageTab === 'releases' && (
+            <section className="sm-panel space-y-3 p-4" aria-label="Releases">
+              <div>
+                <h2 className="text-sm font-semibold">Released at</h2>
+                <p className="mt-1 text-xs text-fg-muted">Filled in once the record is out.</p>
+              </div>
+              <div className="grid gap-3 md:grid-cols-3">
+                <TextField
+                  label="Apple Music"
+                  type="url"
+                  value={draft.appleMusicUrl}
+                  onChange={(appleMusicUrl) => update({appleMusicUrl})}
+                />
+                <TextField
+                  label="Spotify"
+                  type="url"
+                  value={draft.spotifyUrl}
+                  onChange={(spotifyUrl) => update({spotifyUrl})}
+                />
+                <TextField
+                  label="YouTube Music"
+                  type="url"
+                  value={draft.youtubeUrl}
+                  onChange={(youtubeUrl) => update({youtubeUrl})}
+                />
+              </div>
+            </section>
           )}
-          {evolution?.state === 'failed' && (
-            <p className="text-sm text-danger">{evolution.error}</p>
-          )}
-        </section>
+        </div>
       </div>
 
       {interviewing && (
