@@ -160,11 +160,9 @@ export function PlayerProvider({children}: {children: React.ReactNode}) {
         setError('Nothing here has a take to play yet.')
         return
       }
-      // Playing one track queues its whole record (#55), started at the
-      // track that was pressed — a single-entry queue left next and previous
-      // with nowhere to go.
-      // A song pressed inside a playlist (#107) does the same: the whole
-      // playlist, from that song.
+      // A track's own button plays that track alone (#106) — the backend
+      // queues just it, so it is entry 0. A song pressed inside a playlist
+      // (#107) plays the whole playlist from that song.
       let start = 0
       const startAt = kind === 'track' ? id : startTrackId
       if (startAt) {
@@ -182,10 +180,9 @@ export function PlayerProvider({children}: {children: React.ReactNode}) {
   }, [])
 
   // Add rather than replace (#60): the same backend queue-building as play,
-  // appended behind what is already lined up. One deliberate difference from
-  // play: enqueueing a track adds just that track, not its whole record — the
-  // producer is composing a queue, and the record is one press away if they
-  // want it. An idle player has nothing to add behind, so enqueue starts it.
+  // appended behind what is already lined up. A track adds just that track,
+  // the same as playing it does (#106). An idle player has nothing to add
+  // behind, so enqueue starts it.
   const enqueue = useCallback(
     async (kind: PlayKind, id: string) => {
       setError('')

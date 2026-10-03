@@ -518,7 +518,7 @@ func libraryTools() []mcpTool {
 		},
 		{
 			name: "playlist",
-			description: "The play queue for one track's record, an album, an artist, a saved " +
+			description: "The play queue for one track, an album, an artist, a saved " +
 				"playlist or the whole library, in playing order, with a loopback URL for each track's chosen take. " +
 				"The URLs are served by the running app; a track with no takes is skipped.",
 			binding: "Playlist",

@@ -142,9 +142,8 @@ export function PlaylistDetails({
         <ul className="sm-panel divide-y divide-edge overflow-hidden">
           {entries.map((entry, i) => (
             <li key={entry.id} className="group flex items-center gap-3 px-3 py-2">
-              {/* The position, or play from here on hover — the album list's
-                  convention (#55), here starting the whole playlist at this
-                  song rather than its record. */}
+              {/* The position, or play from here on hover: the whole
+                  playlist, starting at this song. */}
               <button
                 className="flex w-6 shrink-0 items-center justify-center text-xs tabular-nums text-fg-muted disabled:cursor-default"
                 type="button"
