@@ -24,6 +24,7 @@ export type ViewId =
   | 'artist-new'
   | 'artist-details'
   | 'album-details'
+  | 'playlist-details'
   | 'queue'
   | 'now-playing'
   | 'skills'
@@ -43,6 +44,7 @@ export const ROUTE_TITLES: Record<ViewId, string> = {
   'artist-new': 'Create an artist',
   'artist-details': 'Artist',
   'album-details': 'Album',
+  'playlist-details': 'Playlist',
   queue: 'Queue',
   'now-playing': 'Now Playing',
   skills: 'Skills',
@@ -69,6 +71,8 @@ export const SECTION_OF: Record<ViewId, ViewId> = {
   'artist-new': 'artists',
   'artist-details': 'artists',
   'album-details': 'artists',
+  // A playlist is lit by its own row in the rail (#107), as an album is.
+  'playlist-details': 'playlist-details',
   // The player's pages belong to no rail section; Home is the least wrong
   // thing to keep lit while one is open.
   queue: 'dashboard',

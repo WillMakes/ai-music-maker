@@ -56,6 +56,12 @@ gives back.
              files Suno gave back. One of those files is marked as the take
              that is the track.
 
+    Playlist a name and tracks from any album, in the order they were added.
+             It names the tracks rather than copying them, so a renamed song or
+             a new chosen take shows through. Listed in the sidebar under the
+             artists; tracks go in from the "Add to a playlist" button beside a
+             track's play button.
+
 The artist's base style and the album's own are joined when a track prompt is
 written, in that order, rather than copied together when the album is saved. So
 editing the artist's base style corrects every album under them instead of only
