@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"sunomaker/internal/platform"
+	"aimusicmaker/internal/platform"
 )
 
 // ---------------------------------------------------------------------------

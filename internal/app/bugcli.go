@@ -9,19 +9,19 @@ import (
 	"os"
 	"strings"
 
-	"sunomaker/skills"
+	"aimusicmaker/skills"
 )
 
 // ---------------------------------------------------------------------------
 // The bug queue's agent surface
 //
-// `suno-maker bugs …`: the same binary, short-circuited before the window is
+// `aimusicmaker bugs …`: the same binary, short-circuited before the window is
 // opened. A queue nothing can reach from outside the app is a queue only the
 // person who filed into it can work, so this is the half of the feature that
 // makes the other half worth having.
 //
 // In a development tree it is `go run . bugs <command>`; against an installed
-// build, `suno-maker bugs <command>`. Everything prints JSON on stdout — an
+// build, `aimusicmaker bugs <command>`. Everything prints JSON on stdout — an
 // agent parses it, and a person reading over its shoulder can still tell what
 // happened — and anything that went wrong on stderr with a non-zero exit.
 // ---------------------------------------------------------------------------
@@ -32,7 +32,7 @@ import (
 // it differently every session.
 var bugWorkflow = skills.BugReports
 
-const bugUsage = `SunoMaker — bug queue
+const bugUsage = `AIMusicMaker — bug queue
 
   bugs list [--unlinked]       Open reports, oldest first (the working order)
   bugs count                   Open and resolved totals

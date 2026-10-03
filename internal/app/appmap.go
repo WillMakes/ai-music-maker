@@ -7,7 +7,7 @@ import (
 	"sort"
 	"strings"
 
-	"sunomaker/frontend"
+	"aimusicmaker/frontend"
 )
 
 // ---------------------------------------------------------------------------

@@ -22,7 +22,7 @@ func TestAIConnectionsSurviveARestart(t *testing.T) {
 	if _, err := app.ConnectAIAccount(serviceAnthropic); err != nil {
 		t.Fatalf("connect: %v", err)
 	}
-	dbPath := filepath.Join(mustDataDir(t), "sunomaker.db")
+	dbPath := filepath.Join(mustDataDir(t), "aimusicmaker.db")
 
 	// Quit.
 	if err := app.store.Close(); err != nil {

@@ -4,8 +4,8 @@
 // and it is the one place the token lives outside the page.
 importScripts('config.js')
 
-const base = () => `http://127.0.0.1:${self.__SUNOMAKER.port}`
-const authed = () => ({Authorization: 'Bearer ' + self.__SUNOMAKER.token})
+const base = () => `http://127.0.0.1:${self.__AIMUSICMAKER.port}`
+const authed = () => ({Authorization: 'Bearer ' + self.__AIMUSICMAKER.token})
 
 chrome.runtime.onMessage.addListener((msg, _sender, reply) => {
   // The recorder's messages are the offscreen page's to answer. Answering
@@ -67,7 +67,7 @@ const ensureOffscreen = async () => {
     url: OFFSCREEN,
     reasons: ['USER_MEDIA'],
     justification:
-      "Records the Suno tab's sound so a song heard to the end is filed onto its track in SunoMaker.",
+      "Records the Suno tab's sound so a song heard to the end is filed onto its track in AIMusicMaker.",
   })
 }
 
@@ -85,7 +85,7 @@ const stopRecording = async () => {
   await chrome.runtime.sendMessage({target: 'offscreen', type: 'stop'}).catch(() => {})
   await chrome.offscreen.closeDocument().catch(() => {})
   if (tabId) {
-    setBadge(tabId, '', 'SunoMaker')
+    setBadge(tabId, '', 'AIMusicMaker')
     tellTab(tabId, {type: 'recording', on: false})
   }
 }
@@ -101,7 +101,7 @@ const startRecording = async (tab) => {
   })
   if (!r || !r.ok) throw new Error((r && r.error) || 'the recorder did not start')
   await chrome.storage.session.set({recordingTab: tab.id})
-  setBadge(tab.id, 'REC', 'SunoMaker is recording this tab — press to stop')
+  setBadge(tab.id, 'REC', 'AIMusicMaker is recording this tab — press to stop')
   tellTab(tab.id, {type: 'recording', on: true})
 }
 
@@ -121,7 +121,7 @@ chrome.action.onClicked.addListener(async (tab) => {
   try {
     await startRecording(tab)
   } catch (e) {
-    setBadge(tab.id, '!', 'SunoMaker could not record this tab: ' + (e && e.message ? e.message : e))
+    setBadge(tab.id, '!', 'AIMusicMaker could not record this tab: ' + (e && e.message ? e.message : e))
     await chrome.offscreen.closeDocument().catch(() => {})
   }
 })

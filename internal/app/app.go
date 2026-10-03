@@ -50,7 +50,7 @@ func NewApp() *App {
 	a := &App{toJax: fileReportInJax}
 	store, err := openStore()
 	if err != nil {
-		log.Printf("suno-maker: could not open the database: %v", err)
+		log.Printf("aimusicmaker: could not open the database: %v", err)
 		return a
 	}
 	a.store = store
@@ -104,7 +104,7 @@ func (a *App) shutdown(_ context.Context) {
 	_ = a.SetMediaKeys(false)
 	if a.store != nil {
 		if err := a.store.Close(); err != nil {
-			log.Printf("suno-maker: closing the database: %v", err)
+			log.Printf("aimusicmaker: closing the database: %v", err)
 		}
 	}
 }

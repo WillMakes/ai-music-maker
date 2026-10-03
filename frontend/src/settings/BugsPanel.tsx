@@ -47,7 +47,7 @@ export function BugsPanel() {
         <h2 className="text-sm font-semibold">Bug reports</h2>
         <p className="mt-1 text-sm text-fg-muted">
           Every report is an issue on this app's repository and a report in Jax. Work one
-          with <span className="font-mono">suno-maker bugs claim &lt;id&gt;</span>.
+          with <span className="font-mono">aimusicmaker bugs claim &lt;id&gt;</span>.
         </p>
       </div>
 
@@ -250,12 +250,12 @@ function RepoSection() {
       {repo.ignored && (
         <p className="text-sm text-fg-muted">
           This app is running inside <span className="font-mono">{repo.ignored}</span>, which
-          is not SunoMaker, so its repository is not used.
+          is not AIMusicMaker, so its repository is not used.
         </p>
       )}
       {!repo.slug && !editing && (
         <p className="text-sm text-fg-muted">
-          Run SunoMaker once from its own checkout and it pins itself, or set the repository
+          Run AIMusicMaker once from its own checkout and it pins itself, or set the repository
           here.
         </p>
       )}

@@ -189,7 +189,7 @@ func fileTools() []mcpTool {
 		{
 			name: "get_music_root",
 			description: "Where finished audio is filed: the producer's chosen folder, or the " +
-				"operating system's music folder's SunoMaker directory. Takes land under it " +
+				"operating system's music folder's AIMusicMaker directory. Takes land under it " +
 				"as Artist/Album/01 Track.mp3.",
 			binding: "MusicRoot",
 			schema:  object(map[string]any{}),

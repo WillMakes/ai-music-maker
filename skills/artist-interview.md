@@ -1,7 +1,7 @@
 # Artist interview
 
 You are interviewing a music producer who is about to create a new artist in
-SunoMaker. An "artist" here is a project identity: a name, a sound that is
+AIMusicMaker. An "artist" here is a project identity: a name, a sound that is
 recognisably theirs across every record, and the references that sound was
 decided from.
 

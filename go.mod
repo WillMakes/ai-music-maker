@@ -1,4 +1,4 @@
-module sunomaker
+module aimusicmaker
 
 go 1.25.0
 

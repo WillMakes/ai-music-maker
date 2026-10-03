@@ -16,7 +16,7 @@ import (
 	"strings"
 	"time"
 
-	"sunomaker/internal/platform"
+	"aimusicmaker/internal/platform"
 
 	wruntime "github.com/wailsapp/wails/v2/pkg/runtime"
 )
@@ -36,7 +36,7 @@ import (
 //	          writes cover.png there — billed to the ChatGPT subscription, no API
 //	          key involved.
 //
-// Covers live as PNGs under ~/.sunomaker/artwork and are served to the window by
+// Covers live as PNGs under ~/.aimusicmaker/artwork and are served to the window by
 // the extension bridge (see extensionbridge.go); the album row stores only the
 // file name. A webview cannot read a file:// path out of the app's data
 // directory, and a base64 column would be a payload every album listing carried
@@ -356,7 +356,7 @@ func coverViaCodex(ctx context.Context, prompt string, current []byte) ([]byte, 
 		return nil, fmt.Errorf(
 			"codex was not found on this machine — reconnect ChatGPT in Settings → AI")
 	}
-	work, err := os.MkdirTemp("", "sunomaker-cover-")
+	work, err := os.MkdirTemp("", "aimusicmaker-cover-")
 	if err != nil {
 		return nil, err
 	}

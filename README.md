@@ -1,8 +1,8 @@
-# SunoMaker
+# AIMusicMaker
 
 **Plan music before [Suno](https://suno.com) makes it, and keep what Suno gives back.**
 
-SunoMaker is a free, open-source desktop app for Windows, macOS and Linux. It keeps
+AIMusicMaker is a free, open-source desktop app for Windows, macOS and Linux. It keeps
 your artists, albums and tracks in one library, writes Suno style prompts and
 lyrics with the AI you already use, fills Suno's create form for you, and files
 the finished songs where your music player will find them.
@@ -10,9 +10,9 @@ the finished songs where your music player will find them.
 **Website:** [sunomaker.willmakes.tv](https://sunomaker.willmakes.tv) ·
 **License:** [MIT](LICENSE)
 
-![An album in SunoMaker: its cover and sound, the running order, a track's Suno style prompt, and its takes](docs/screenshots/album.png)
+![An album in AIMusicMaker: its cover and sound, the running order, a track's Suno style prompt, and its takes](docs/screenshots/album.png)
 
-> SunoMaker is distributed as source code only. There are no installers or
+> AIMusicMaker is distributed as source code only. There are no installers or
 > prebuilt binaries: you build it yourself with Go, which takes a few minutes
 > and is described below.
 
@@ -25,7 +25,7 @@ the finished songs where your music player will find them.
 - [Requirements](#requirements)
 - [Build and install](#build-and-install)
 - [First run](#first-run)
-- [Using SunoMaker](#using-sunomaker)
+- [Using AIMusicMaker](#using-aimusicmaker)
 - [Command line](#command-line)
 - [Where your files live](#where-your-files-live)
 - [Development](#development)
@@ -125,9 +125,9 @@ embeds it, and produces one self-contained program:
 
 | Platform | Output |
 | --- | --- |
-| Windows | `build/bin/suno-maker.exe` |
-| macOS | `build/bin/suno-maker.app` |
-| Linux | `build/bin/suno-maker` |
+| Windows | `build/bin/aimusicmaker.exe` |
+| macOS | `build/bin/aimusicmaker.app` |
+| Linux | `build/bin/aimusicmaker` |
 
 Run it from there, or move it wherever you keep applications. The program has
 no other files to carry with it.
@@ -163,10 +163,10 @@ wails build
    and select the folder the panel shows. Export again after each update so
    Chrome gets the new version.
 4. **Optionally, connect your AI assistant.** Under **Settings → AI → AI
-   assistants**, one click registers SunoMaker as an MCP server with each
+   assistants**, one click registers AIMusicMaker as an MCP server with each
    supported client.
 
-## Using SunoMaker
+## Using AIMusicMaker
 
 1. **Create an artist.** An interview asks what the music is: instruments,
    vocal, tempo, production. It settles on a name, gathers YouTube references,
@@ -178,12 +178,12 @@ wails build
    lyrics and target lengths, several at a time. The artist's style and the
    album's are combined when each prompt is written. Editing the artist's
    style therefore updates every album.
-4. **Make them in Suno.** With SunoMaker open, the extension adds a **Fill from
-   SunoMaker** button to Suno's create page. It also adds a button to each
+4. **Make them in Suno.** With AIMusicMaker open, the extension adds a **Fill from
+   AIMusicMaker** button to Suno's create page. It also adds a button to each
    field. Pick a track, and the form is filled.
 5. **Bring the songs back.** Import finished audio onto its track, or drop a
    batch of downloads on the album and each file is matched to its track by
-   name. To record instead, press SunoMaker's button in Chrome's toolbar on the
+   name. To record instead, press AIMusicMaker's button in Chrome's toolbar on the
    Suno tab. Each song you then hear from start to finish is saved onto the
    track with the same title. Mark the take that is the song.
 6. **Release it.** Add the album's Apple Music, Spotify and YouTube Music links
@@ -199,21 +199,21 @@ The same program has three command-line modes that run without opening a
 window:
 
 ```bash
-suno-maker docs          # an overview of the app and everything in it
-suno-maker mcp           # the MCP server, on stdio, for AI clients
-suno-maker bugs help     # the bug-report queue (see below)
+aimusicmaker docs          # an overview of the app and everything in it
+aimusicmaker mcp           # the MCP server, on stdio, for AI clients
+aimusicmaker bugs help     # the bug-report queue (see below)
 ```
 
-On Windows the program is `suno-maker.exe`, and on macOS it is
-`suno-maker.app/Contents/MacOS/suno-maker`. In a source checkout, `go run .
+On Windows the program is `aimusicmaker.exe`, and on macOS it is
+`aimusicmaker.app/Contents/MacOS/aimusicmaker`. In a source checkout, `go run .
 docs` and similar work too. The MCP server reads the database directly, so
 assistants can work with your library while the window is closed.
 
 ## Where your files live
 
 ```
-~/.sunomaker/                    the library database, album covers, the exported extension
-<Music folder>/SunoMaker/        your audio, as Artist/Album/01 Track.mp3
+~/.aimusicmaker/                    the library database, album covers, the exported extension
+<Music folder>/AIMusicMaker/        your audio, as Artist/Album/01 Track.mp3
 ```
 
 The audio is kept in your Music folder, not the app's data folder. That way it
@@ -222,6 +222,22 @@ survives an uninstall and your music player finds it. The Music folder is
 `~/Music`) on Linux, and it can be changed in **Settings → Library**.
 
 To back up everything, copy those two folders.
+
+### Upgrading from SunoMaker
+
+The app used to be called SunoMaker. On its first launch under the new name it
+moves `~/.sunomaker` to `~/.aimusicmaker`, so your library, settings and bug
+queue come with it. If an old copy of the app is still running, the move waits
+until a launch when it is not. A music library already at
+`<Music folder>/SunoMaker/` stays where it is and keeps being used.
+
+Two things need doing once by hand:
+
+- **The Chrome extension.** Chrome loads it from the old folder, which has moved.
+  Re-export it from **Settings → Chrome extension** and load it again from the
+  new folder.
+- **AI assistants.** Reconnect each one in **Settings → AI assistants**. This
+  replaces the old `suno-maker` server entry with `aimusicmaker`.
 
 ## Development
 
@@ -255,20 +271,20 @@ are welcome. Please run the three checks under [Development](#development)
 first.
 
 The bug button in the app's top bar files a GitHub issue. It needs a GitHub
-credential from `GITHUB_TOKEN`, `GH_TOKEN` or `gh auth login`, and SunoMaker
+credential from `GITHUB_TOKEN`, `GH_TOKEN` or `gh auth login`, and AIMusicMaker
 stores none of them. Reports go to the repository shown in **Settings → Bug
-reports**. It is set automatically the first time SunoMaker runs from its own
+reports**. It is set automatically the first time AIMusicMaker runs from its own
 source checkout. To send reports to your own fork instead, change it there or
 run:
 
 ```bash
-suno-maker bugs repo your-name/suno-maker
+aimusicmaker bugs repo your-name/suno-maker
 ```
 
 With no network or no credential, a report is kept locally and filed later.
 
 ## License
 
-SunoMaker is released under the [MIT License](LICENSE).
+AIMusicMaker is released under the [MIT License](LICENSE).
 
 It is an independent project, not affiliated with or endorsed by Suno, Inc.

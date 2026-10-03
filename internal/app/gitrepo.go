@@ -8,7 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"sunomaker/internal/platform"
+	"aimusicmaker/internal/platform"
 )
 
 // ---------------------------------------------------------------------------
@@ -25,10 +25,10 @@ import (
 // is working in, and a report filed from an agent in Jax's checkout became an
 // issue on Jax's repository — the right report in the wrong queue, found only
 // when somebody noticed it missing from this one. And the queue that agent then
-// listed was Jax's issues, offered as SunoMaker's reports.
+// listed was Jax's issues, offered as AIMusicMaker's reports.
 //
 // So the repository is a setting. A checkout is still how it is found the
-// first time — but only a checkout of SunoMaker, recognised by its go.mod, and
+// first time — but only a checkout of AIMusicMaker, recognised by its go.mod, and
 // the first one found is pinned so every later process, from anywhere, files in
 // the same place. A checkout of anything else is named, so Settings can say
 // why it was not used, and never filed against. It can be changed in Settings
@@ -43,8 +43,13 @@ import (
 const keyBugRepo = "bug_repo"
 
 // appModule is the first line of this app's go.mod, which is how a checkout of
-// SunoMaker is told from a checkout of anything else.
-const appModule = "module sunomaker"
+// AIMusicMaker is told from a checkout of anything else.
+const appModule = "module aimusicmaker"
+
+// legacyAppModule is the same line from before the app was renamed (#103). A
+// checkout that has not pulled the rename is still this app's, and still files
+// into the same repository.
+const legacyAppModule = "module sunomaker"
 
 // BugRepo is where reports are filed, for Settings and for `bugs repo`.
 type BugRepo struct {
@@ -58,7 +63,7 @@ type BugRepo struct {
 	// for this checkout (which pins it), "" for nowhere.
 	Source string `json:"source"`
 	// Ignored names a checkout this process is standing in that is not
-	// SunoMaker — the case that used to file reports in the wrong queue.
+	// AIMusicMaker — the case that used to file reports in the wrong queue.
 	Ignored string `json:"ignored"`
 }
 
@@ -94,7 +99,7 @@ var checkoutAt = func(dir string) (root, remote string) {
 	return filepath.FromSlash(root), run("remote", "get-url", "origin")
 }
 
-// isAppCheckout says whether root is a checkout of SunoMaker itself.
+// isAppCheckout says whether root is a checkout of AIMusicMaker itself.
 func isAppCheckout(root string) bool {
 	f, err := os.Open(filepath.Join(root, "go.mod"))
 	if err != nil {
@@ -102,11 +107,15 @@ func isAppCheckout(root string) bool {
 	}
 	defer f.Close()
 	scanner := bufio.NewScanner(f)
-	return scanner.Scan() && strings.TrimSpace(scanner.Text()) == appModule
+	if !scanner.Scan() {
+		return false
+	}
+	first := strings.TrimSpace(scanner.Text())
+	return first == appModule || first == legacyAppModule
 }
 
 // checkoutHere is what the working directory says, before the setting is
-// consulted: a SunoMaker checkout's repository, or the name of the other
+// consulted: an AIMusicMaker checkout's repository, or the name of the other
 // project's checkout that was not used.
 func checkoutHere() BugRepo {
 	dir, err := workingDir()
@@ -132,7 +141,7 @@ func checkoutHere() BugRepo {
 }
 
 // resolveBugRepo is where this process files: the pinned repository, or else
-// the SunoMaker checkout it is running in — which is pinned on the spot, so
+// the AIMusicMaker checkout it is running in — which is pinned on the spot, so
 // the next process to ask gets the same answer from wherever it stands.
 func resolveBugRepo(store *Store) BugRepo {
 	here := checkoutHere()
@@ -165,7 +174,7 @@ func (a *App) GetBugRepo() BugRepo {
 
 // SetBugRepo pins the repository reports are filed against. It takes
 // "owner/repo" or any GitHub URL for one; empty unpins, and the next process
-// started in a SunoMaker checkout pins that checkout's again.
+// started in an AIMusicMaker checkout pins that checkout's again.
 //
 // A repository is checked on GitHub before it is kept, when there is a
 // credential to check with: a typo pinned would file every report into a 404

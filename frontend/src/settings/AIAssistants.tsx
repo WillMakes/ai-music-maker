@@ -15,7 +15,7 @@ import {toMessage} from '../lib/errors'
  * Settings → AI assistants: registering this app as an MCP server.
  *
  * Connecting writes one entry into the client's own config file, pointing at
- * this binary run as `suno-maker mcp`. Every other byte of those files is left
+ * this binary run as `aimusicmaker mcp`. Every other byte of those files is left
  * exactly as it was (see mcpconfig.go) — they hold configuration the producer
  * cares about and this app has no business rewriting.
  *
@@ -119,7 +119,7 @@ export function AIAssistants() {
       <section className="sm-panel space-y-2 p-4">
         <h3 className="text-sm font-semibold">What gets written</h3>
         <p className="text-sm text-fg-muted">
-          One entry named <span className="font-mono">suno-maker</span>, launching:
+          One entry named <span className="font-mono">aimusicmaker</span>, launching:
         </p>
         <p className="overflow-x-auto whitespace-nowrap rounded bg-surface-hover px-3 py-2 font-mono text-xs">
           {status.command} mcp

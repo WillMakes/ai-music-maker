@@ -6,7 +6,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
-	"os"
+	"log"
 	"path/filepath"
 	"strings"
 	"time"
@@ -21,7 +21,7 @@ import (
 // Reads answer empty rather than failing — a window that cannot show its data is
 // still a window somebody can read Settings in — but a write that silently did
 // nothing would be a lie, so writes say so.
-var errNoStore = errors.New("the SunoMaker database is not available")
+var errNoStore = errors.New("the AIMusicMaker database is not available")
 
 // Setting keys used in the key/value `settings` table. Keys shared with the
 // frontend are mirrored in frontend/src/lib/settings.ts — change both together.
@@ -35,8 +35,8 @@ const (
 	// here so the key list is the whole list.
 	keyLastRoute = "last_route"
 	// keyMusicRoot is where finished Suno files are filed. Empty means the OS
-	// music folder's SunoMaker directory (see musicRoot in musicdir.go) — a
-	// place outside ~/.sunomaker on purpose: the audio is the thing that should
+	// music folder's AIMusicMaker directory (see musicRoot in musicdir.go) — a
+	// place outside ~/.aimusicmaker on purpose: the audio is the thing that should
 	// outlive an uninstall, and it belongs where a music player will find it.
 	keyMusicRoot = "music_root"
 	// keyDefaultTrackLength is the target length new tracks start at, in
@@ -87,28 +87,6 @@ func (s *Store) changed(scope string) {
 	s.onChange(scope)
 }
 
-// dataDir returns the ~/.sunomaker directory, creating it (0700) if necessary.
-// Everything the app owns — the database, the exported extension, generated
-// artwork — hangs off this one place, so uninstalling is deleting a folder.
-//
-// A variable so a test can point it somewhere disposable. Not defensive
-// plumbing: artwork lands under here, and a test suite that wrote into the
-// producer's real directory is exactly what CLAUDE.md means by never touching
-// ~/.sunomaker. newTestApp overrides it.
-var dataDir = realDataDir
-
-func realDataDir() (string, error) {
-	home, err := os.UserHomeDir()
-	if err != nil {
-		return "", err
-	}
-	dir := filepath.Join(home, ".sunomaker")
-	if err := os.MkdirAll(dir, 0o700); err != nil {
-		return "", err
-	}
-	return dir, nil
-}
-
 // openStore opens (creating if needed) the app's database and applies the
 // schema.
 func openStore() (*Store, error) {
@@ -116,7 +94,20 @@ func openStore() (*Store, error) {
 	if err != nil {
 		return nil, err
 	}
-	return openStoreAt(filepath.Join(dir, "sunomaker.db"))
+	store, err := openStoreAt(settleStorePath(dir))
+	if err != nil {
+		return nil, err
+	}
+	// Paths recorded before the folder was renamed (#103, see
+	// datamigration.go). Not fatal: a stale attachment path is a missing
+	// thumbnail, not a reason to refuse the whole library.
+	if filepath.Base(dir) == dataDirName {
+		legacy := filepath.Join(filepath.Dir(dir), legacyDataDirName)
+		if err := store.rewriteLegacyPaths(legacy, dir); err != nil {
+			log.Printf("aimusicmaker: could not update paths from %s: %v", legacy, err)
+		}
+	}
+	return store, nil
 }
 
 // openStoreAt opens a store at an explicit path. Tests use it against a temp

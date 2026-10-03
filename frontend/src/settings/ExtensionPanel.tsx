@@ -135,7 +135,7 @@ export function ExtensionPanel() {
           <span>
             Record the songs I listen to all the way through
             <span className="block text-xs text-fg-muted">
-              Press SunoMaker's button in Chrome's toolbar on the Suno tab to start recording,
+              Press AIMusicMaker's button in Chrome's toolbar on the Suno tab to start recording,
               and again to stop. A song heard from its start to its end is recorded and added
               to the track with the same title, as an MP3 when ffmpeg is installed. Joining a song part-way or skipping
               inside it leaves it unrecorded. A song heard twice is filed once, and a title no
@@ -167,11 +167,11 @@ export function ExtensionPanel() {
           Over <span className="font-mono">127.0.0.1:{status.port}</span> — loopback only,
           so nothing off this machine can see it — and gated by a token written into the
           exported copy. It reads your library, and the one thing it writes is a song
-          you recorded by listening to all of it. Re-export after updating SunoMaker so the copy in
+          you recorded by listening to all of it. Re-export after updating AIMusicMaker so the copy in
           Chrome learns what this one can do.
         </p>
         <p className="text-sm text-fg-muted">
-          The buttons appear only while SunoMaker is open. On a Suno page with the app
+          The buttons appear only while AIMusicMaker is open. On a Suno page with the app
           closed, the extension stays silent.
         </p>
       </section>

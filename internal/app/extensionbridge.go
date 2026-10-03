@@ -16,8 +16,8 @@ import (
 	"strings"
 	"time"
 
-	"sunomaker/chromeextension"
-	"sunomaker/internal/platform"
+	"aimusicmaker/chromeextension"
+	"aimusicmaker/internal/platform"
 )
 
 // ---------------------------------------------------------------------------
@@ -42,7 +42,7 @@ import (
 // full on Suno, which is filed onto its track (see sunocapture.go).
 //
 // Two are not for the extension at all. artwork is how the app's own webview
-// loads an album cover out of ~/.sunomaker (see artwork.go), and changed is how a
+// loads an album cover out of ~/.aimusicmaker (see artwork.go), and changed is how a
 // second process — the MCP server, the bug CLI — tells the running window that it
 // wrote something (see notifyRunningWindow).
 // ---------------------------------------------------------------------------
@@ -166,7 +166,7 @@ func (a *App) bridgeHealth(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusNoContent)
 		return
 	}
-	bridgeJSON(w, http.StatusOK, map[string]any{"ok": true, "app": "SunoMaker"})
+	bridgeJSON(w, http.StatusOK, map[string]any{"ok": true, "app": "AIMusicMaker"})
 }
 
 // BridgeArtist is one artist in the extension's picker, with its albums and
