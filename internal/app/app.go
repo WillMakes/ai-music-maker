@@ -32,6 +32,12 @@ type App struct {
 	// called from whichever goroutine wrote — a bridge request, an MCP call, the
 	// window — and Wails' event emitter is not documented as safe under that.
 	emitMu sync.Mutex
+
+	// releaseMediaKeys gives the keyboard's media keys back to the system; nil
+	// while the player is not holding them (see mediakeys.go). mediaKeysMu
+	// guards it, the player's calls and shutdown being able to cross.
+	mediaKeysMu      sync.Mutex
+	releaseMediaKeys func()
 }
 
 // NewApp builds the app and opens its database.
@@ -93,6 +99,9 @@ func (a *App) shutdown(_ context.Context) {
 	if a.cancel != nil {
 		a.cancel()
 	}
+	// The process exiting would release the media keys anyway; this is for the
+	// window closing while the process lingers, which must not leave them held.
+	_ = a.SetMediaKeys(false)
 	if a.store != nil {
 		if err := a.store.Close(); err != nil {
 			log.Printf("suno-maker: closing the database: %v", err)
