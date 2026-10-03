@@ -20,7 +20,7 @@ const toInt16 = (x) => {
   return clamped < 0 ? clamped * 0x8000 : clamped * 0x7fff
 }
 
-class SunoMakerRecorder extends AudioWorkletProcessor {
+class AIMusicMakerRecorder extends AudioWorkletProcessor {
   constructor() {
     super()
     this.id = 0
@@ -95,4 +95,4 @@ class SunoMakerRecorder extends AudioWorkletProcessor {
   }
 }
 
-registerProcessor('sunomaker-recorder', SunoMakerRecorder)
+registerProcessor('aimusicmaker-recorder', AIMusicMakerRecorder)

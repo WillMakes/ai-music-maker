@@ -47,7 +47,7 @@
     <working_directory value="$PROJECT_DIR$" />
     <go_parameters value="-tags desktop,production,debug,devtools" />
     <kind value="PACKAGE" />
-    <package value="sunomaker" />
+    <package value="aimusicmaker" />
     <directory value="$PROJECT_DIR$" />
     <filePath value="$PROJECT_DIR$/main.go" />
     <method v="2">

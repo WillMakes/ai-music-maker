@@ -23,7 +23,7 @@ import (
 // The bytes go in files rather than in the row. The reports table is read
 // whole by the queue on every change, and a base64 PNG in a column is a
 // payload the list carries around forever to show a thumbnail nobody has
-// opened. Files under ~/.sunomaker/bug-attachments, with the paths on the
+// opened. Files under ~/.aimusicmaker/bug-attachments, with the paths on the
 // record — which also makes them reachable: a path in the JSON an agent
 // already reads is something that agent can open, where a blob in a column is
 // not.

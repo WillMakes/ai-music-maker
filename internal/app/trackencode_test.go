@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"sunomaker/internal/audio"
+	"aimusicmaker/internal/audio"
 )
 
 // importFixture is one track on one album, and a WAV to import onto it.

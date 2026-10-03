@@ -66,7 +66,7 @@ export function Sidebar({
         onClick={() => onGo({view: 'dashboard'})}
       >
         <img src={logoMark} alt="" className="size-8 shrink-0" aria-hidden="true" />
-        <span className="truncate font-semibold">SunoMaker</span>
+        <span className="truncate font-semibold">AIMusicMaker</span>
       </button>
 
       <div className="px-3 pb-2">

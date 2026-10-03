@@ -21,7 +21,7 @@ func initialize(t *testing.T, app *App, params string) map[string]any {
 	return out
 }
 
-// TestInitializeOrientsTheClient is #89. A producer asked Codex for SunoMaker
+// TestInitializeOrientsTheClient is #89. A producer asked Codex for AIMusicMaker
 // "at a glance" and was told the app had no such view: the server was
 // connected, but nothing in the handshake said where to start, and the
 // overview tool's description did not contain the words the model searched
@@ -36,7 +36,7 @@ func TestInitializeOrientsTheClient(t *testing.T) {
 		t.Errorf("the instructions do not say where to start: %q", instructions)
 	}
 	info, _ := result["serverInfo"].(map[string]any)
-	if info["title"] != "SunoMaker" || info["name"] != mcpServerName {
+	if info["title"] != "AIMusicMaker" || info["name"] != mcpServerName {
 		t.Errorf("serverInfo does not name the app: %v", info)
 	}
 

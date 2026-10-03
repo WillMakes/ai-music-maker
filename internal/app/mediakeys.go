@@ -1,7 +1,7 @@
 package app
 
 import (
-	"sunomaker/internal/platform"
+	"aimusicmaker/internal/platform"
 )
 
 // watchMediaKeys hears the keyboard's media keys (see platform.WatchMediaKeys).

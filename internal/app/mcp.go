@@ -12,7 +12,7 @@ import (
 // ---------------------------------------------------------------------------
 // The MCP server
 //
-// `suno-maker mcp`: the same binary, short-circuited before the window is
+// `aimusicmaker mcp`: the same binary, short-circuited before the window is
 // opened, speaking JSON-RPC on stdio. It is what Settings → AI assistants
 // registers with Claude Code, Claude Desktop and Codex (see mcpconfig.go), so an
 // agent working in this repository can read and write the library the app is
@@ -30,7 +30,13 @@ import (
 
 // mcpServerName is what this app calls itself in a client's config, and so the
 // key its entry sits under.
-const mcpServerName = "suno-maker"
+const mcpServerName = "aimusicmaker"
+
+// legacyMCPServerName is the key from before the rename (#103). Its entry
+// launches a binary that is no longer built, so connecting or disconnecting a
+// client removes it — a client left with both would start two servers, one of
+// them stale.
+const legacyMCPServerName = "suno-maker"
 
 // mcpProtocolVersions are the MCP revisions this server speaks, and
 // mcpProtocolLatest is what a client proposing none of them is answered with.
@@ -49,12 +55,12 @@ const mcpProtocolLatest = "2025-06-18"
 // the one place this app can say where to start before a single tool is
 // called (#89).
 //
-// Without it, a producer asking Codex for "the at-a-glance for suno-maker"
-// got "SunoMaker doesn't expose a matching view": the model searched eighty
+// Without it, a producer asking Codex for "the at-a-glance for aimusicmaker"
+// got "AIMusicMaker doesn't expose a matching view": the model searched eighty
 // tool descriptions for the words it had, found none, and improvised from
 // list_bug_reports. get_documentation was there the whole time, and nothing
 // pointed at it. Prompts do not do this job in Codex — it never lists them.
-const mcpInstructions = "Tools for SunoMaker, a desktop app that plans music " +
+const mcpInstructions = "Tools for AIMusicMaker, a desktop app that plans music " +
 	"for Suno — artists, their albums, each album's tracks with Suno prompts and " +
 	"lyrics, the finished takes, album artwork, the AI interviews that write all " +
 	"of it, and the bug queue. Call get_documentation first for the app at a " +
@@ -72,7 +78,7 @@ func runMCPServer(args []string, in io.Reader, out io.Writer) (code int, handled
 	store, err := openStore()
 	if err != nil {
 		// stderr, not stdout — see the note at the top of this file.
-		fmt.Fprintf(os.Stderr, "suno-maker mcp: %v\n", err)
+		fmt.Fprintf(os.Stderr, "aimusicmaker mcp: %v\n", err)
 		return 1, true
 	}
 	defer store.Close()
@@ -168,7 +174,7 @@ func dispatchMCP(app *App, req jsonRPCRequest) (any, *jsonRPCError) {
 			"capabilities": map[string]any{"tools": map[string]any{}},
 			"serverInfo": map[string]any{
 				"name":    mcpServerName,
-				"title":   "SunoMaker",
+				"title":   "AIMusicMaker",
 				"version": appVersion,
 			},
 			"instructions": mcpInstructions,
@@ -181,7 +187,7 @@ func dispatchMCP(app *App, req jsonRPCRequest) (any, *jsonRPCError) {
 		return map[string]any{"tools": mcpToolDefinitions()}, nil
 
 	// Codex asks for resources and prompts whatever a server declared, and
-	// wrote "Failed to list resources for MCP server 'suno-maker'" to its log
+	// wrote "Failed to list resources for MCP server 'aimusicmaker'" to its log
 	// on every connection when the answer was -32601 (#89). An empty listing
 	// is the true answer — there are none — and it is not an error.
 	case "resources/list":

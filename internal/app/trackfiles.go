@@ -8,8 +8,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	"sunomaker/internal/audio"
-	"sunomaker/internal/platform"
+	"aimusicmaker/internal/audio"
+	"aimusicmaker/internal/platform"
 )
 
 // ---------------------------------------------------------------------------
@@ -75,7 +75,7 @@ func (a *App) ImportDroppedTrackFile(trackID, name, dataURL, label string) (Trac
 	if err != nil || len(payload) == 0 {
 		return Track{}, fmt.Errorf("%s could not be read", base)
 	}
-	dir, err := os.MkdirTemp("", "sunomaker-drop-")
+	dir, err := os.MkdirTemp("", "aimusicmaker-drop-")
 	if err != nil {
 		return Track{}, fmt.Errorf("could not make somewhere to put the drop: %w", err)
 	}

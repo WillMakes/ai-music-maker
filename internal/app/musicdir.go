@@ -10,15 +10,15 @@ import (
 // ---------------------------------------------------------------------------
 // Where the finished music goes
 //
-// Not ~/.sunomaker. Everything else this app owns lives there and is disposable
+// Not ~/.aimusicmaker. Everything else this app owns lives there and is disposable
 // with it, but the audio Suno gives back is the output — the thing that should
 // still be there after the app is uninstalled, and the thing a music player
 // should be able to find without being told where to look. So it goes in the
 // operating system's own music folder, under one directory of ours:
 //
-//	Windows  %USERPROFILE%\Music\SunoMaker
-//	macOS    ~/Music/SunoMaker
-//	Linux    $XDG_MUSIC_DIR/SunoMaker, else ~/Music/SunoMaker
+//	Windows  %USERPROFILE%\Music\AIMusicMaker
+//	macOS    ~/Music/AIMusicMaker
+//	Linux    $XDG_MUSIC_DIR/AIMusicMaker, else ~/Music/AIMusicMaker
 //
 // Inside it, one folder per artist and album, named from their slugs, so the
 // library reads the way any other music library does — Artist/Album/01 Track.mp3
@@ -31,9 +31,16 @@ import (
 // ---------------------------------------------------------------------------
 
 // musicFolderName is the one directory this app owns inside the music folder.
-const musicFolderName = "SunoMaker"
+const musicFolderName = "AIMusicMaker"
 
-// osMusicDir is the operating system's music folder, without SunoMaker on the
+// legacyMusicFolderName is the directory from before the rename (#103). Unlike
+// the data folder it is never moved: it is the producer's music library, other
+// players may have it indexed, and every take is stored by absolute path. A
+// library that already exists under the old name stays the default, so new
+// takes land beside the old ones rather than in a second, empty library.
+const legacyMusicFolderName = "SunoMaker"
+
+// osMusicDir is the operating system's music folder, without AIMusicMaker on the
 // end. A variable so tests can point it at a temp directory — the alternative is
 // a test suite that writes MP3s into the producer's real library.
 var osMusicDir = realOSMusicDir
@@ -92,7 +99,7 @@ func xdgMusicDir(home string) string {
 }
 
 // musicRoot is where this app files audio: the producer's chosen folder, or the
-// OS music folder's SunoMaker directory. Created (0755, not 0700) because it is
+// OS music folder's AIMusicMaker directory. Created (0755, not 0700) because it is
 // a music library — other applications on this machine are meant to read it.
 func (a *App) musicRoot() (string, error) {
 	if a.store != nil {
@@ -109,6 +116,9 @@ func (a *App) musicRoot() (string, error) {
 		return "", err
 	}
 	dir := filepath.Join(base, musicFolderName)
+	if legacy := filepath.Join(base, legacyMusicFolderName); !fileExists(dir) && fileExists(legacy) {
+		dir = legacy
+	}
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return "", err
 	}
@@ -165,7 +175,7 @@ func (a *App) albumFolder(artist Artist, album Album) (string, error) {
 }
 
 // artworkDir is where generated and uploaded album covers are kept. This one
-// *is* under ~/.sunomaker: a cover is a working file of the app's rather than
+// *is* under ~/.aimusicmaker: a cover is a working file of the app's rather than
 // something a music player reads, and the copy that matters ends up embedded in
 // the released record elsewhere.
 func artworkDir() (string, error) {

@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"sunomaker/internal/platform"
+	"aimusicmaker/internal/platform"
 )
 
 // ---------------------------------------------------------------------------
@@ -31,7 +31,7 @@ import (
 //
 // The key is stored in the app's own database and never returned to the
 // frontend — the UI is given a masked form and nothing else. That the key sits
-// in plain text under ~/.sunomaker (created 0700) is a real tradeoff rather than
+// in plain text under ~/.aimusicmaker (created 0700) is a real tradeoff rather than
 // an oversight; it is written down here rather than left to be discovered.
 // ---------------------------------------------------------------------------
 

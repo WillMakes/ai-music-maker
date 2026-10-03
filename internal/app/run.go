@@ -4,7 +4,7 @@ import (
 	"log"
 	"os"
 
-	"sunomaker/frontend"
+	"aimusicmaker/frontend"
 
 	"github.com/wailsapp/wails/v2"
 	"github.com/wailsapp/wails/v2/pkg/options"
@@ -18,7 +18,7 @@ import (
 // window otherwise. The root main.go only calls this, so that package main
 // holds nothing and the app is a package tests and tools can import (#99).
 func Main() {
-	// `suno-maker bugs …` is the bug queue's agent surface (see bugcli.go),
+	// `aimusicmaker bugs …` is the bug queue's agent surface (see bugcli.go),
 	// handled before any window exists. An agent working the queue has a
 	// terminal and nothing else, and opening a webview to answer `bugs list`
 	// would be the wrong shape entirely.
@@ -26,7 +26,7 @@ func Main() {
 		os.Exit(code)
 	}
 
-	// `suno-maker mcp` is the same surface offered over MCP, for the AI clients
+	// `aimusicmaker mcp` is the same surface offered over MCP, for the AI clients
 	// Settings registers this app with (see mcpconfig.go). It speaks JSON-RPC on
 	// stdio, so nothing may be written to stdout but responses — which is why
 	// it, too, returns before any window exists.
@@ -34,7 +34,7 @@ func Main() {
 		os.Exit(code)
 	}
 
-	// `suno-maker docs` prints the app's documentation of itself (see
+	// `aimusicmaker docs` prints the app's documentation of itself (see
 	// appdocs.go) — the same document the MCP tool serves, for a terminal.
 	if code, handled := runDocsCLI(os.Args[1:]); handled {
 		os.Exit(code)
@@ -47,7 +47,7 @@ func Main() {
 	// it for the length of one frame; a dark-theme user would otherwise see a
 	// white flash on every launch.
 	err := wails.Run(&options.App{
-		Title:     "SunoMaker",
+		Title:     "AIMusicMaker",
 		Width:     1280,
 		Height:    840,
 		MinWidth:  960,
@@ -76,12 +76,12 @@ func Main() {
 			// rather than a scaffolding one.
 			TitleBar: mac.TitleBarDefault(),
 			About: &mac.AboutInfo{
-				Title:   "SunoMaker",
+				Title:   "AIMusicMaker",
 				Message: "Plan artists, albums and tracks for Suno.",
 			},
 		},
 		Linux: &linux.Options{
-			ProgramName: "suno-maker",
+			ProgramName: "aimusicmaker",
 			// Translucency is off deliberately: on several compositors it leaves
 			// the webview compositing against the desktop and the surface tokens
 			// stop reading as opaque panels.
@@ -90,6 +90,6 @@ func Main() {
 	})
 
 	if err != nil {
-		log.Printf("suno-maker: %v", err)
+		log.Printf("aimusicmaker: %v", err)
 	}
 }

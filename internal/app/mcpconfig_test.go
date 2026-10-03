@@ -173,11 +173,11 @@ func TestDisconnectingCodexLeavesTheRestOfTheFile(t *testing.T) {
 // TestTOMLBlockCommand reads the command back out of a block.
 func TestTOMLBlockCommand(t *testing.T) {
 	cases := map[string]string{
-		`command = "C:\\Users\\willj\\suno-maker.exe"`: `C:\Users\willj\suno-maker.exe`,
-		`command = "/usr/local/bin/suno-maker"`:        "/usr/local/bin/suno-maker",
+		`command = "C:\\Users\\willj\\aimusicmaker.exe"`: `C:\Users\willj\aimusicmaker.exe`,
+		`command = "/usr/local/bin/aimusicmaker"`:        "/usr/local/bin/aimusicmaker",
 		// Whitespace around the equals is legal TOML and somebody may have
 		// reformatted the file by hand.
-		`command="/tmp/suno-maker"`:    "/tmp/suno-maker",
+		`command="/tmp/aimusicmaker"`:  "/tmp/aimusicmaker",
 		`  command   =   "/tmp/sm"   `: "/tmp/sm",
 		`args = ["mcp"]`:               "",
 		``:                             "",

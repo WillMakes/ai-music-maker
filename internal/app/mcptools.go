@@ -280,7 +280,7 @@ func libraryTools() []mcpTool {
 			// "At a glance" and "overview" are in here on purpose: a model
 			// asked for either searches tool descriptions for the words, and
 			// this is the tool it should find (#89).
-			description: "SunoMaker at a glance — the overview to read first: what this " +
+			description: "AIMusicMaker at a glance — the overview to read first: what this " +
 				"application is, what it holds, how its workflow runs, where things live, " +
 				"and which tools this server offers.",
 			binding: "Documentation",
@@ -301,7 +301,7 @@ func libraryTools() []mcpTool {
 		},
 		{
 			name: "list_artists",
-			description: "Every artist in SunoMaker, newest first, with how many albums each has. " +
+			description: "Every artist in AIMusicMaker, newest first, with how many albums each has. " +
 				"An album or a track can only be reached through its artist.",
 			binding: "ListArtists",
 			schema:  object(map[string]any{}),
