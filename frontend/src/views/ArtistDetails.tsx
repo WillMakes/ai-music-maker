@@ -25,6 +25,7 @@ import {MarkdownField} from '../components/MarkdownField'
 import {InterviewDialog} from '../chat/InterviewDialog'
 import {StyleEditAssistant} from '../artists/StyleEditAssistant'
 import {Modal} from '../components/Modal'
+import {TabStrip} from '../components/TabStrip'
 import {useDataChanged} from '../lib/dataChanged'
 import {toMessage} from '../lib/errors'
 import {attachmentPathsByName, isImagePath} from '../lib/files'
@@ -68,6 +69,10 @@ export function ArtistDetails({
   const [refining, setRefining] = useState(false)
   // Importing a record that already exists (#36).
   const [importing, setImporting] = useState(false)
+  // The page's three parts as tabs (#109), the records first: they are what
+  // a producer comes to an artist for, and the identity and the references
+  // are written once and then mostly read.
+  const [tab, setTab] = useState<'albums' | 'info' | 'inspiration'>('albums')
   const player = usePlayer()
 
   const reload = useCallback(() => {
@@ -291,9 +296,26 @@ export function ArtistDetails({
         </div>
       )}
 
-      <section className="space-y-3">
-        <div className="flex items-center gap-3">
-          <h2 className="flex-1 text-sm font-semibold">Albums</h2>
+      <TabStrip
+        tabs={[
+          {id: 'albums', label: albums.length ? 'Albums (' + albums.length + ')' : 'Albums'},
+          {id: 'info', label: 'Artist Info'},
+          {
+            id: 'inspiration',
+            label: draft.inspirations?.length
+              ? 'Inspiration (' + draft.inspirations.length + ')'
+              : 'Inspiration',
+          },
+        ]}
+        current={tab}
+        onSelect={setTab}
+      />
+
+      {/* Every tab stays mounted and only the open one shows: an inspiration
+          being analysed, or a style mid-edit, must survive a look at another
+          tab — unmounting would drop the analysis on the floor. */}
+      <section className="space-y-3" hidden={tab !== 'albums'} aria-label="Albums">
+        <div className="flex items-center justify-end gap-3">
           <button
             className="sm-button sm-button-quiet"
             type="button"
@@ -343,9 +365,8 @@ export function ArtistDetails({
         )}
       </section>
 
-      <section className="sm-panel space-y-4 p-4">
-        <div className="flex items-center gap-3">
-          <h2 className="flex-1 text-sm font-semibold">The artist</h2>
+      <section className="sm-panel space-y-4 p-4" hidden={tab !== 'info'} aria-label="Artist Info">
+        <div className="flex items-center justify-end gap-3">
           {/* The interview wrote the base style once; this is how it gets
               better afterwards (#30) — a conversation that can be handed
               YouTube references and ends in the form, not the database. */}
@@ -384,6 +405,7 @@ export function ArtistDetails({
         />
       </section>
 
+      <div hidden={tab !== 'inspiration'}>
       <Inspirations
         inspirations={draft.inspirations ?? []}
         onChange={(inspirations) => update({inspirations})}
@@ -395,6 +417,7 @@ export function ArtistDetails({
           update({baseStyle: merged})
         }}
       />
+      </div>
 
       {importing && (
         <ImportAlbumDialog
