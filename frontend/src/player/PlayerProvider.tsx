@@ -23,6 +23,9 @@ import {toMessage} from '../lib/errors'
  * every navigation, and no view owns it.
  */
 
+/** What a play button can name (#107 added playlists). */
+export type PlayKind = 'track' | 'album' | 'artist' | 'playlist' | 'all'
+
 export type PlayerState = {
   queue: app.PlayerTrack[]
   index: number
@@ -31,9 +34,9 @@ export type PlayerState = {
   duration: number
   error: string
   /** Builds a queue on the backend and starts it from the top. */
-  play: (kind: 'track' | 'album' | 'artist' | 'all', id: string) => Promise<void>
+  play: (kind: PlayKind, id: string, startTrackId?: string) => Promise<void>
   /** Appends to the queue instead of replacing it (#60); starts an idle player. */
-  enqueue: (kind: 'track' | 'album' | 'artist' | 'all', id: string) => Promise<void>
+  enqueue: (kind: PlayKind, id: string) => Promise<void>
   toggle: () => void
   next: () => void
   previous: () => void
@@ -149,7 +152,7 @@ export function PlayerProvider({children}: {children: React.ReactNode}) {
   const shuffleRef = useRef(shuffle)
   shuffleRef.current = shuffle
 
-  const play = useCallback(async (kind: 'track' | 'album' | 'artist' | 'all', id: string) => {
+  const play = useCallback(async (kind: PlayKind, id: string, startTrackId?: string) => {
     setError('')
     try {
       const tracks = await Playlist(kind, id)
@@ -160,9 +163,12 @@ export function PlayerProvider({children}: {children: React.ReactNode}) {
       // Playing one track queues its whole record (#55), started at the
       // track that was pressed — a single-entry queue left next and previous
       // with nowhere to go.
+      // A song pressed inside a playlist (#107) does the same: the whole
+      // playlist, from that song.
       let start = 0
-      if (kind === 'track') {
-        start = tracks.findIndex((t) => t.trackId === id)
+      const startAt = kind === 'track' ? id : startTrackId
+      if (startAt) {
+        start = tracks.findIndex((t) => t.trackId === startAt)
         if (start < 0) {
           setError('This track has no take to play yet.')
           return
@@ -181,7 +187,7 @@ export function PlayerProvider({children}: {children: React.ReactNode}) {
   // producer is composing a queue, and the record is one press away if they
   // want it. An idle player has nothing to add behind, so enqueue starts it.
   const enqueue = useCallback(
-    async (kind: 'track' | 'album' | 'artist' | 'all', id: string) => {
+    async (kind: PlayKind, id: string) => {
       setError('')
       try {
         let tracks = await Playlist(kind, id)

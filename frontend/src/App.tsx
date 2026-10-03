@@ -5,6 +5,7 @@ import {TopBar} from './components/TopBar'
 import {ReportBugModal} from './bugs/ReportBugModal'
 import {useBugs} from './bugs/BugsProvider'
 import {useLibrary} from './library/LibraryProvider'
+import {usePlaylists} from './playlists/PlaylistsProvider'
 import {SETTING_KEYS, loadSetting, saveSetting} from './lib/settings'
 import {
   RETIRED_ROUTES,
@@ -24,6 +25,7 @@ import {NowPlaying} from './views/NowPlaying'
 import {PlayerBar} from './components/PlayerBar'
 import {Queue} from './views/Queue'
 import {NewArtist} from './views/NewArtist'
+import {PlaylistDetails} from './views/PlaylistDetails'
 import {Settings} from './views/Settings'
 import {SkillDetails} from './views/SkillDetails'
 import {Skills} from './views/Skills'
@@ -41,6 +43,7 @@ export interface Route {
   artistId?: string
   albumId?: string
   trackId?: string
+  playlistId?: string
   skillId?: string
   serviceId?: string
 }
@@ -59,7 +62,11 @@ interface Crumb {
  * the same names the rail shows — and a tree that has not loaded yet falls
  * back to the view's title rather than an empty bar.
  */
-function buildCrumbs(current: Route, tree: app.LibraryArtist[]): Crumb[] {
+function buildCrumbs(
+  current: Route,
+  tree: app.LibraryArtist[],
+  playlists: app.SavedPlaylist[],
+): Crumb[] {
   const home: Crumb = {label: 'Home', route: HOME}
   const artist = tree.find((one) => one.id === current.artistId)
   const albumOf = (albumId?: string) => {
@@ -85,6 +92,11 @@ function buildCrumbs(current: Route, tree: app.LibraryArtist[]): Crumb[] {
         {label: found?.album.name ?? 'Album'},
       ]
     }
+    case 'playlist-details':
+      return [
+        home,
+        {label: playlists.find((one) => one.id === current.playlistId)?.name ?? 'Playlist'},
+      ]
     case 'skill-details':
       return [home, {label: 'Skills', route: {view: 'skills'}}, {label: 'Skill'}]
     default: {
@@ -131,6 +143,7 @@ function readLastRoute(raw: string | null): Route | null {
       artistId: pick('artistId'),
       albumId: pick('albumId'),
       trackId: pick('trackId'),
+      playlistId: pick('playlistId'),
       skillId: pick('skillId'),
       serviceId: pick('serviceId'),
     }
@@ -163,7 +176,8 @@ export default function App() {
 
   const current = nav.stack[nav.index]
   const {tree} = useLibrary()
-  const crumbs = buildCrumbs(current, tree)
+  const {playlists} = usePlaylists()
+  const crumbs = buildCrumbs(current, tree, playlists)
   const canBack = nav.index > 0
   const canForward = nav.index < nav.stack.length - 1
 
@@ -312,6 +326,16 @@ export default function App() {
                 }
                 onOpenArtist={(artistId) => go({view: 'artist-details', artistId})}
                 onDeleted={(artistId) => go({view: 'artist-details', artistId})}
+              />
+            )}
+
+            {current.view === 'playlist-details' && current.playlistId && (
+              <PlaylistDetails
+                playlistId={current.playlistId}
+                onOpenAlbum={(albumId, trackId) =>
+                  go({view: 'album-details', albumId, trackId})
+                }
+                onDeleted={() => go(HOME)}
               />
             )}
 

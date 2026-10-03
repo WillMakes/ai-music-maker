@@ -36,7 +36,8 @@ type PlayerTrack struct {
 }
 
 // Playlist builds the queue for one press of a play button. kind is "track",
-// "album", "artist" or "all"; id names the subject (ignored for "all").
+// "album", "artist", "playlist" (#107) or "all"; id names the subject (ignored
+// for "all").
 //
 // Order is the order the music was made to play in: tracks by running order,
 // an artist's albums oldest first, artists by name for "all". A track with no
@@ -94,6 +95,8 @@ func (a *App) playlist(kind, id string, missing *int) ([]PlayerTrack, error) {
 		return a.appendPlayable(out, album, tracks, missing), nil
 	case "artist":
 		return a.appendArtistPlayable(out, id, missing)
+	case "playlist":
+		return a.appendPlaylistPlayable(out, id, missing)
 	case "all":
 		artists, err := a.ListArtists()
 		if err != nil {
@@ -108,6 +111,35 @@ func (a *App) playlist(kind, id string, missing *int) ([]PlayerTrack, error) {
 		return out, nil
 	}
 	return nil, fmt.Errorf("nothing called %q can be played", kind)
+}
+
+// appendPlaylistPlayable queues a saved playlist in its own order (#107),
+// each song carrying its own record's names and cover — a playlist crosses
+// albums, and the player bar should say which one each song is from.
+func (a *App) appendPlaylistPlayable(out []PlayerTrack, playlistID string, missing *int) ([]PlayerTrack, error) {
+	if _, err := a.store.playlist(playlistID); err != nil {
+		return nil, err
+	}
+	entries, err := a.store.playlistEntries(playlistID)
+	if err != nil {
+		return nil, err
+	}
+	albums := map[string]Album{}
+	for _, entry := range entries {
+		track, err := a.GetTrack(entry.TrackID)
+		if err != nil {
+			return nil, err
+		}
+		album, known := albums[track.AlbumID]
+		if !known {
+			if album, err = a.GetAlbum(track.AlbumID); err != nil {
+				return nil, err
+			}
+			albums[track.AlbumID] = album
+		}
+		out = a.appendPlayable(out, album, []Track{track}, missing)
+	}
+	return out, nil
 }
 
 func (a *App) appendArtistPlayable(out []PlayerTrack, artistID string, missing *int) ([]PlayerTrack, error) {
