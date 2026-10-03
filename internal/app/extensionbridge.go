@@ -102,6 +102,9 @@ func (a *App) superviseExtensionBridge(ctx context.Context) {
 	mux.HandleFunc("/audio/", a.bridgeAudio)
 	mux.HandleFunc("/changed", a.bridgeChanged)
 	mux.HandleFunc("/capture", a.bridgeCapture)
+	// Open, no token (#111): see nowplaying.go.
+	mux.HandleFunc("/now-playing", a.bridgeNowPlaying)
+	mux.HandleFunc("/now-playing/", a.bridgeNowPlaying)
 
 	srv := &http.Server{
 		Addr:              "127.0.0.1:" + strconv.Itoa(extensionBridgePort),

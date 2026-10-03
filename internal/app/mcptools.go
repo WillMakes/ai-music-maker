@@ -33,17 +33,18 @@ import (
 // them: an agent documenting the app should say why a page's button has no
 // tool, not just that it has none.
 //
-// Five of them need a window. The server runs with no webview, and a dialog
+// Six of them need a window. The server runs with no webview, and a dialog
 // nobody can see is a call that never returns; an agent with a path to hand
 // over has import_track_file and import_album_artwork, which take it directly.
 var mcpNotOffered = map[string]string{
-	"PickImageFile":  "opens the desktop's file dialog, which needs a window; import_album_artwork takes the path directly",
-	"PickAudioFiles": "opens the desktop's file dialog, which needs a window; import_track_file and import_album_take take the path directly",
-	"ShowWindow":     "raises the window, which the server has none of",
-	"OpenURL":        "opens a link in the producer's browser, which is theirs to do",
-	"MarkFixesSeen":  "dismisses the fixed-bugs notice, which is the producer's own acknowledgement — the window shows a fix once and clears the flag when they have read it",
-	"ListMCPTools":   "lists this server's tools, which is what the protocol's own tools/list already answers",
-	"SetMediaKeys":   "holds the keyboard's media keys for the window's player, which the server has none of; the player takes and releases them as its queue fills and empties",
+	"PickImageFile":    "opens the desktop's file dialog, which needs a window; import_album_artwork takes the path directly",
+	"PickAudioFiles":   "opens the desktop's file dialog, which needs a window; import_track_file and import_album_take take the path directly",
+	"ShowWindow":       "raises the window, which the server has none of",
+	"OpenURL":          "opens a link in the producer's browser, which is theirs to do",
+	"MarkFixesSeen":    "dismisses the fixed-bugs notice, which is the producer's own acknowledgement — the window shows a fix once and clears the flag when they have read it",
+	"ListMCPTools":     "lists this server's tools, which is what the protocol's own tools/list already answers",
+	"ReportNowPlaying": "is the window's player telling the app what it is doing; the server has no player, and now_playing reads the answer",
+	"SetMediaKeys":     "holds the keyboard's media keys for the window's player, which the server has none of; the player takes and releases them as its queue fills and empties",
 }
 
 // mcpTool is one tool's definition and its implementation together.
@@ -531,6 +532,20 @@ func libraryTools() []mcpTool {
 				ID   string `json:"id"`
 			}) map[string]any {
 				return answer(app.Playlist(in.Kind, in.ID))
+			}),
+		},
+		{
+			name: "now_playing",
+			description: "What the app's player is doing right now (#111): state (playing, paused or " +
+				"stopped), the track title, artist and album, the position and length in seconds, and a " +
+				"URL for the album's cover. Read from the running app; with the app closed, nothing is " +
+				"playing. The same answer is served with no token at http://127.0.0.1:8799/now-playing.",
+			binding: "NowPlaying",
+			schema:  object(map[string]any{}),
+			run: with(func(app *App, _ noArgs) map[string]any {
+				// This server is its own process with no player, so it asks the
+				// window's (see nowPlayingFromApp).
+				return mcpResult(app.nowPlayingFromApp())
 			}),
 		},
 		// Saved playlists (#107): named lists of tracks from any album, in the
