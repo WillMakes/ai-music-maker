@@ -71,7 +71,7 @@ export const SECTION_OF: Record<ViewId, ViewId> = {
   'artist-new': 'artists',
   'artist-details': 'artists',
   'album-details': 'artists',
-  // A playlist is lit by its own row in the rail (#107), as an album is.
+  // A playlist is lit by its own row in the rail (#107), as an artist is.
   'playlist-details': 'playlist-details',
   // The player's pages belong to no rail section; Home is the least wrong
   // thing to keep lit while one is open.
