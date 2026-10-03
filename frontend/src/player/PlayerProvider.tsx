@@ -7,7 +7,7 @@ import {
   useRef,
   useState,
 } from 'react'
-import {Playlist, SetMediaKeys} from '../../wailsjs/go/app/App'
+import {Playlist, ReportNowPlaying, SetMediaKeys} from '../../wailsjs/go/app/App'
 import {app} from '../../wailsjs/go/models'
 import {EventsOn} from '../../wailsjs/runtime/runtime'
 import {toMessage} from '../lib/errors'
@@ -243,6 +243,36 @@ export function PlayerProvider({children}: {children: React.ReactNode}) {
   }, [])
   const toggleRepeat = useCallback(() => setRepeat((on) => !on), [])
   const toggleShuffle = useCallback(() => setShuffle((on) => !on), [])
+
+  // Tell the app what is playing (#111), so its now-playing API can answer
+  // for anything outside the window. On change only — a track, play or pause,
+  // a length learned, a seek, the queue emptied: the app moves the position on
+  // by the time since, so a report every second would buy nothing. Read through
+  // a ref so the seek listener, registered once, reports the current state.
+  const nowPlayingRef = useRef({current, playing})
+  nowPlayingRef.current = {current, playing}
+  const reportNowPlaying = useCallback(() => {
+    const el = audio()
+    const {current: track, playing: on} = nowPlayingRef.current
+    // Best effort and nothing to show: a missed report is an overlay a song
+    // behind, not something the producer can act on in the window.
+    ReportNowPlaying({
+      state: track ? (on ? 'playing' : 'paused') : 'stopped',
+      trackId: track?.trackId ?? '',
+      albumId: track?.albumId ?? '',
+      title: track?.name ?? '',
+      artistName: track?.artistName ?? '',
+      albumName: track?.albumName ?? '',
+      positionSeconds: track ? el.currentTime : 0,
+      durationSeconds: track && Number.isFinite(el.duration) ? el.duration : 0,
+    }).catch(() => {})
+  }, [])
+  useEffect(reportNowPlaying, [current?.trackId, playing, duration, reportNowPlaying])
+  useEffect(() => {
+    const el = audio()
+    el.addEventListener('seeked', reportNowPlaying)
+    return () => el.removeEventListener('seeked', reportNowPlaying)
+  }, [reportNowPlaying])
 
   // The keyboard's media keys (#101). WebView2 under Wails never passes them
   // to the Media Session below, so the backend holds them itself and sends

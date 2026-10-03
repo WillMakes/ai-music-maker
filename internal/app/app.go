@@ -38,6 +38,9 @@ type App struct {
 	// guards it, the player's calls and shutdown being able to cross.
 	mediaKeysMu      sync.Mutex
 	releaseMediaKeys func()
+
+	// nowPlaying is the player's last report (see nowplaying.go, #111).
+	nowPlaying nowPlayingState
 }
 
 // NewApp builds the app and opens its database.
