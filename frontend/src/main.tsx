@@ -3,6 +3,7 @@ import {createRoot} from 'react-dom/client'
 import App from './App'
 import {ArtistsProvider} from './artists/ArtistsProvider'
 import {LibraryProvider} from './library/LibraryProvider'
+import {PlaylistsProvider} from './playlists/PlaylistsProvider'
 import {PlayerProvider} from './player/PlayerProvider'
 import {EvolutionsProvider} from './evolutions/EvolutionsProvider'
 import {ArtworksProvider} from './artworks/ArtworksProvider'
@@ -34,16 +35,18 @@ createRoot(container).render(
       <BugsProvider>
         <ArtistsProvider>
           <LibraryProvider>
-            <PlayerProvider>
-              {/* Above the shell so an evolution (#82) and an artwork
-                  generation (#83) outlive the page that started them - the
-                  status bar and the album page both read them. */}
-              <EvolutionsProvider>
-                <ArtworksProvider>
-                  <App />
-                </ArtworksProvider>
-              </EvolutionsProvider>
-            </PlayerProvider>
+            <PlaylistsProvider>
+              <PlayerProvider>
+                {/* Above the shell so an evolution (#82) and an artwork
+                    generation (#83) outlive the page that started them - the
+                    status bar and the album page both read them. */}
+                <EvolutionsProvider>
+                  <ArtworksProvider>
+                    <App />
+                  </ArtworksProvider>
+                </EvolutionsProvider>
+              </PlayerProvider>
+            </PlaylistsProvider>
           </LibraryProvider>
         </ArtistsProvider>
       </BugsProvider>

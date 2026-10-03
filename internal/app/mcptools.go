@@ -518,19 +518,94 @@ func libraryTools() []mcpTool {
 		},
 		{
 			name: "playlist",
-			description: "The play queue for one track's record, an album, an artist or the whole " +
-				"library, in playing order, with a loopback URL for each track's chosen take. " +
+			description: "The play queue for one track's record, an album, an artist, a saved " +
+				"playlist or the whole library, in playing order, with a loopback URL for each track's chosen take. " +
 				"The URLs are served by the running app; a track with no takes is skipped.",
 			binding: "Playlist",
 			schema: object(map[string]any{
-				"kind": oneOf("what to queue", "track", "album", "artist", "all"),
-				"id":   text("the track, album or artist id; omit for all"),
+				"kind": oneOf("what to queue", "track", "album", "artist", "playlist", "all"),
+				"id":   text("the track, album, artist or playlist id; omit for all"),
 			}, "kind"),
 			run: with(func(app *App, in struct {
 				Kind string `json:"kind"`
 				ID   string `json:"id"`
 			}) map[string]any {
 				return answer(app.Playlist(in.Kind, in.ID))
+			}),
+		},
+		// Saved playlists (#107): named lists of tracks from any album, in the
+		// rail under the artists.
+		{
+			name:        "list_playlists",
+			description: "Every saved playlist by name, with how many tracks each holds.",
+			binding:     "ListPlaylists",
+			schema:      object(map[string]any{}),
+			run: with(func(app *App, _ struct{}) map[string]any {
+				return answer(app.ListPlaylists())
+			}),
+		},
+		{
+			name: "get_playlist",
+			description: "One saved playlist with its entries in order: each track's name, " +
+				"album and artist, and whether a take of it is on disk to play.",
+			binding: "GetPlaylist",
+			schema:  object(map[string]any{"id": text("the playlist id")}, "id"),
+			run: with(func(app *App, in idArg) map[string]any {
+				return answer(app.GetPlaylist(in.ID))
+			}),
+		},
+		{
+			name: "save_playlist",
+			description: "Create a playlist, or rename one. Omit id to create; a name is required. " +
+				"Tracks are added and removed with add_to_playlist and remove_from_playlist.",
+			binding: "SavePlaylist",
+			schema: object(map[string]any{
+				"id":   text("the playlist id; omit to create"),
+				"name": text("the playlist name"),
+			}, "name"),
+			run: with(func(app *App, p SavedPlaylist) map[string]any {
+				return answer(app.SavePlaylist(p))
+			}),
+		},
+		{
+			name:        "delete_playlist",
+			description: "Delete a playlist. Its tracks stay on their albums. There is no undo.",
+			binding:     "DeletePlaylist",
+			schema:      object(map[string]any{"id": text("the playlist id")}, "id"),
+			run: with(func(app *App, in idArg) map[string]any {
+				return done(app.DeletePlaylist(in.ID))
+			}),
+		},
+		{
+			name: "add_to_playlist",
+			description: "Put a track at the end of a playlist. A track already in it stays " +
+				"where it is. Returns the playlist.",
+			binding: "AddToPlaylist",
+			schema: object(map[string]any{
+				"playlistId": text("the playlist id"),
+				"trackId":    text("the track id"),
+			}, "playlistId", "trackId"),
+			run: with(func(app *App, in struct {
+				PlaylistID string `json:"playlistId"`
+				TrackID    string `json:"trackId"`
+			}) map[string]any {
+				return answer(app.AddToPlaylist(in.PlaylistID, in.TrackID))
+			}),
+		},
+		{
+			name: "remove_from_playlist",
+			description: "Take one entry out of a playlist, by the entry id get_playlist reports " +
+				"(not the track id). Returns the playlist.",
+			binding: "RemoveFromPlaylist",
+			schema: object(map[string]any{
+				"playlistId": text("the playlist id"),
+				"entryId":    text("the entry id, from get_playlist"),
+			}, "playlistId", "entryId"),
+			run: with(func(app *App, in struct {
+				PlaylistID string `json:"playlistId"`
+				EntryID    string `json:"entryId"`
+			}) map[string]any {
+				return answer(app.RemoveFromPlaylist(in.PlaylistID, in.EntryID))
 			}),
 		},
 	}

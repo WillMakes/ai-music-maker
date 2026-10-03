@@ -65,6 +65,9 @@ const (
 	scopeAIServices = "ai_services"
 	// scopeChats is a stored interview transcript moving (see interview.go).
 	scopeChats = "chats"
+	// scopePlaylists covers playlists and the tracks in them (#107), for
+	// scopeTracks' reason.
+	scopePlaylists = "playlists"
 )
 
 // Store wraps the SQLite database that persists all app data. The database lives
@@ -235,6 +238,25 @@ CREATE TABLE IF NOT EXISTS track_files (
 	at       TEXT NOT NULL DEFAULT ''
 );
 CREATE INDEX IF NOT EXISTS idx_track_files_track ON track_files(track_id, at);
+-- Playlists (#107): a name, and tracks from any album in an order of the
+-- producer's choosing (see playlists.go). The tracks are referenced, never
+-- copied — a playlist is a way of listening to the library, and a rename or a
+-- new chosen take on the track has to show through it.
+CREATE TABLE IF NOT EXISTS playlists (
+	id         TEXT PRIMARY KEY,
+	name       TEXT NOT NULL DEFAULT '',
+	created_at TEXT NOT NULL DEFAULT '',
+	updated_at TEXT NOT NULL DEFAULT ''
+);
+CREATE TABLE IF NOT EXISTS playlist_tracks (
+	id          TEXT PRIMARY KEY,
+	playlist_id TEXT NOT NULL,
+	track_id    TEXT NOT NULL,
+	position    INTEGER NOT NULL DEFAULT 0,
+	at          TEXT NOT NULL DEFAULT ''
+);
+CREATE INDEX IF NOT EXISTS idx_playlist_tracks_playlist
+	ON playlist_tracks(playlist_id, position);
 -- Skills written in the app, and overrides of the built-in Application Skills
 -- (see skills.go). A row under a built-in's own id is an override; there is no
 -- row for a built-in left at its default, which is what makes resetting a delete

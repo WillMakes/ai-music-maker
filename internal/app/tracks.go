@@ -319,6 +319,10 @@ func (s *Store) deleteTrack(id string) error {
 	for _, stmt := range []string{
 		`DELETE FROM track_files WHERE track_id = ?`,
 		`DELETE FROM chats WHERE subject_kind = 'track' AND subject_id = ?`,
+		// Out of every playlist too (#107). An album or an artist deleted
+		// whole leaves its tracks' playlist rows behind instead; the
+		// playlist reads join through tracks, so those are never shown.
+		`DELETE FROM playlist_tracks WHERE track_id = ?`,
 		`DELETE FROM tracks WHERE id = ?`,
 	} {
 		if _, err := tx.Exec(stmt, id); err != nil {

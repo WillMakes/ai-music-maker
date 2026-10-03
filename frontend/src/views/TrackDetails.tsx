@@ -20,6 +20,7 @@ import {duration, fileSize, parseDuration} from '../lib/format'
 import {toMessage} from '../lib/errors'
 import {usePlayer} from '../player/PlayerProvider'
 import {hasPlayableTake} from '../lib/takes'
+import {AddToPlaylistMenu} from '../playlists/AddToPlaylistMenu'
 
 /**
  * One track, edited in place beside the album's track list (#40).
@@ -279,6 +280,10 @@ function TitleCard({
               </button>
             </>
           )}
+          {/* Into a playlist (#107) whether or not a take exists yet: a
+              playlist can be planned ahead of the songs being made, and it
+              plays whatever of it is there. */}
+          <AddToPlaylistMenu trackId={track.id} />
           <span className="flex min-w-0 flex-1 items-center gap-2">
             <span className="truncate text-base font-semibold">{track.name}</span>
             {/* The title is the third thing Suno asks for beside the prompt
