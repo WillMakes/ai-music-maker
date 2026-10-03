@@ -35,6 +35,7 @@ import {attachmentPathsByName, isAudioPath, readAsDataURL} from '../lib/files'
 import {usePlayer} from '../player/PlayerProvider'
 import {useEvolutions} from '../evolutions/EvolutionsProvider'
 import {useArtworks} from '../artworks/ArtworksProvider'
+import {hasPlayableTake, takeSummary} from '../lib/takes'
 
 /**
  * One album: its cover, what is different about this record, its tracks, and the
@@ -652,12 +653,12 @@ export function AlbumDetails({
                             <span
                               className="group/pos flex w-5 shrink-0 items-center justify-center text-xs tabular-nums text-fg-muted"
                               onClick={(e) => {
-                                if (!track.files?.length) return
+                                if (!hasPlayableTake(track)) return
                                 e.stopPropagation()
                                 void player.play('track', track.id)
                               }}
                             >
-                              {track.files?.length ? (
+                              {hasPlayableTake(track) ? (
                                 <>
                                   <span className="group-hover/pos:hidden">{track.position}</span>
                                   <Play size={13} className="hidden text-accent group-hover/pos:block" />
@@ -669,9 +670,7 @@ export function AlbumDetails({
                             <span className="min-w-0 flex-1">
                               <span className="block truncate text-sm font-medium">{track.name}</span>
                               <span className="block text-xs text-fg-muted">
-                                {track.files?.length
-                                  ? track.files.length + (track.files.length === 1 ? ' take' : ' takes')
-                                  : 'not made'}
+                                {takeSummary(track)}
                               </span>
                             </span>
                             <span className="shrink-0 text-xs tabular-nums text-fg-muted">

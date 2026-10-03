@@ -70,6 +70,11 @@ type TrackFile struct {
 	// playing (#91); empty for a file imported by hand. It is what stops a
 	// song listened to twice from landing twice.
 	SunoClip string `json:"sunoClip"`
+	// Missing is true when there is no file at Path any more (#105). A take is
+	// filed by absolute path, and a file moved or deleted outside the app
+	// leaves its row behind. Worked out on every read rather than stored, so a
+	// file put back is found again without anybody saying so.
+	Missing bool `json:"missing"`
 }
 
 // ListTracks reports one album's tracks in running order.

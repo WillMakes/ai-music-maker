@@ -323,6 +323,7 @@ func (s *Store) trackFiles(trackID string) ([]TrackFile, error) {
 			&f.Bytes, &f.Seconds, &f.Chosen, &f.At, &f.SunoClip); err != nil {
 			return out, err
 		}
+		f.Missing = !fileExists(f.Path)
 		out = append(out, f)
 	}
 	return out, rows.Err()
@@ -349,6 +350,7 @@ func (s *Store) filesForAlbum(albumID string) (map[string][]TrackFile, error) {
 			&f.Bytes, &f.Seconds, &f.Chosen, &f.At, &f.SunoClip); err != nil {
 			return out, err
 		}
+		f.Missing = !fileExists(f.Path)
 		out[f.TrackID] = append(out[f.TrackID], f)
 	}
 	return out, rows.Err()
