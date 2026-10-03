@@ -4,10 +4,10 @@
 // and Title — and the round trip without this extension is "switch window, find
 // the track, copy, switch back, paste", three times per track. So each of those
 // fields gets a small button; pressing it opens a picker of everything in
-// SunoMaker, and choosing a track fills the field.
+// AIMusicMaker, and choosing a track fills the field.
 //
 // Nothing is drawn until the app has confirmed it is running. A producer who is
-// on Suno without SunoMaker open gets no buttons at all, which is the right
+// on Suno without AIMusicMaker open gets no buttons at all, which is the right
 // outcome — there is nothing here to offer them.
 //
 // Suno is a single-page app and re-renders its form constantly, so the buttons
@@ -15,8 +15,8 @@
 // marked when it has been decorated, which is what stops the observer from
 // stacking a second button on every re-render.
 ;(() => {
-  if (window.__sunoMakerMounted) return
-  window.__sunoMakerMounted = true
+  if (window.__aiMusicMakerMounted) return
+  window.__aiMusicMakerMounted = true
 
   // Resolves undefined, rather than throwing, when nothing answers — the
   // recorder not running, or the extension reloaded under this page.
@@ -249,7 +249,7 @@
 
     if (!tree) {
       body.appendChild(
-        el('div', 'sm-picker-note', 'SunoMaker is not answering. Is it open?'),
+        el('div', 'sm-picker-note', 'AIMusicMaker is not answering. Is it open?'),
       )
       return
     }
@@ -258,9 +258,9 @@
     )
     if (!anyTracks) {
       body.appendChild(
-        el('div', 'sm-picker-note', 'No tracks yet — plan one in SunoMaker first.'),
+        el('div', 'sm-picker-note', 'No tracks yet — plan one in AIMusicMaker first.'),
       )
-      const open = el('button', 'sm-picker-open', 'Open SunoMaker')
+      const open = el('button', 'sm-picker-open', 'Open AIMusicMaker')
       open.type = 'button'
       open.addEventListener('click', () => send({type: 'open'}))
       body.appendChild(open)
@@ -389,7 +389,7 @@
   // recording pauses with it, and nothing of the silence is kept.
   //
   // The song itself is found from the player: its audio address carries the
-  // clip id, and its title is matched to a track in SunoMaker.
+  // clip id, and its title is matched to a track in AIMusicMaker.
 
   const CLIP = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i
   // How far in a song may be and still count as its start, and how short of
@@ -489,11 +489,11 @@
     listen = mine
     const r = await toRecorder('song-start', {clip})
     mine.recording = !!(r && r.ok)
-    // Once a page, while SunoMaker is open: say how to turn recording on,
+    // Once a page, while AIMusicMaker is open: say how to turn recording on,
     // since nothing else on Suno would tell anyone it exists.
     if (!mine.recording && !hinted && appIsUp) {
       hinted = true
-      toast("Press SunoMaker's button in Chrome's toolbar to record the songs you listen to.")
+      toast("Press AIMusicMaker's button in Chrome's toolbar to record the songs you listen to.")
     }
   }
 
@@ -556,7 +556,7 @@
     const r = await toRecorder('song-end', {clip: done.clip, title, trackId})
     if (!r || !r.ok) {
       if (r && r.status === 401) {
-        toast('SunoMaker did not recognise this extension. Export it again from Settings.', true)
+        toast('AIMusicMaker did not recognise this extension. Export it again from Settings.', true)
       } else if (r && r.data && r.data.error) {
         toast(r.data.error, true)
       } else if (r && r.error) {
@@ -626,12 +626,12 @@
     if (document.querySelector('.sm-dock')) return
     const dock = el('button', 'sm-dock')
     dock.type = 'button'
-    dock.title = "Fill Suno's form from a SunoMaker track"
+    dock.title = "Fill Suno's form from an AIMusicMaker track"
     const logo = el('img', 'sm-button-logo')
     logo.src = ICON
     logo.alt = ''
     dock.appendChild(logo)
-    dock.appendChild(el('span', null, 'Fill from SunoMaker'))
+    dock.appendChild(el('span', null, 'Fill from AIMusicMaker'))
     dock.addEventListener('click', (event) => {
       event.preventDefault()
       event.stopPropagation()
@@ -648,14 +648,14 @@
       if (!target) return
       // The marker is on the target rather than on the button, so a button
       // removed by one of Suno's re-renders is re-added on the next sweep.
-      if (target.dataset.sunomaker === field.key) {
-        if (target.__sunoMakerButton && target.__sunoMakerButton.isConnected) return
+      if (target.dataset.aimusicmaker === field.key) {
+        if (target.__aiMusicMakerButton && target.__aiMusicMakerButton.isConnected) return
       }
-      target.dataset.sunomaker = field.key
+      target.dataset.aimusicmaker = field.key
 
       const button = el('button', 'sm-button')
       button.type = 'button'
-      button.title = `Insert ${field.label} from SunoMaker`
+      button.title = `Insert ${field.label} from AIMusicMaker`
       const logo = el('img', 'sm-button-logo')
       logo.src = ICON
       logo.alt = ''
@@ -679,7 +679,7 @@
         parent.style.position = 'relative'
       }
       parent.appendChild(holder)
-      target.__sunoMakerButton = button
+      target.__aiMusicMakerButton = button
     })
   }
 

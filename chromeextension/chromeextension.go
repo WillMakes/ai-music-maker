@@ -1,4 +1,4 @@
-// Package chromeextension ships the SunoMaker Chrome extension inside the
+// Package chromeextension ships the AIMusicMaker Chrome extension inside the
 // binary, which Settings exports to a folder Chrome can load unpacked.
 //
 // A package of its own because go:embed only reaches files at or below the

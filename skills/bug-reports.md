@@ -1,13 +1,13 @@
 # Working the bug queue
 
-SunoMaker keeps its own bug queue. Reports are filed from the bug button in the
+AIMusicMaker keeps its own bug queue. Reports are filed from the bug button in the
 top bar; an agent works each one to resolution through `bugs` subcommands on the
 app binary. The queue is the source of truth: a report exists because something
 is broken, and it leaves the queue only once that has stopped being true.
 
 Run every command from inside this checkout. In a development tree that is
 `go run . bugs <command>`; against an installed build it is
-`suno-maker bugs <command>`. Everything prints JSON on stdout, and anything that
+`aimusicmaker bugs <command>`. Everything prints JSON on stdout, and anything that
 went wrong on stderr with a non-zero exit code.
 
 ## The queue is the repository's issue list
@@ -19,7 +19,7 @@ report. There is no step where you open a tracker issue — the report arrived a
 one.
 
 **The repository is pinned, not read from where you stand.** The first time
-SunoMaker runs inside its own checkout (recognised by its `go.mod`), that
+AIMusicMaker runs inside its own checkout (recognised by its `go.mod`), that
 checkout's GitHub repository is pinned in the app's settings, and every process
 files there afterwards — the window, this CLI, and an MCP server an agent
 started in some other project's folder (#94). A checkout of another project is

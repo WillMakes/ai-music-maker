@@ -1,5 +1,5 @@
 // The recorder (#92): the Suno tab's audio, captured while recording is on,
-// cut into one take per song and sent to SunoMaker as a WAV.
+// cut into one take per song and sent to AIMusicMaker as a WAV.
 //
 // Capturing a tab silences it, so the stream is also played straight back
 // out — the producer goes on hearing the song exactly as before.
@@ -38,7 +38,7 @@ const start = async (streamId, forTab) => {
   await context.audioWorklet.addModule('recorder-worklet.js')
   const source = context.createMediaStreamSource(stream)
   source.connect(context.destination)
-  tap = new AudioWorkletNode(context, 'sunomaker-recorder')
+  tap = new AudioWorkletNode(context, 'aimusicmaker-recorder')
   // Connected onward so the audio graph pulls it; it writes nothing, so what
   // reaches the speakers is the source above and only that.
   source.connect(tap)
@@ -82,7 +82,7 @@ const encodeWAV = (chunks, rate) => {
 }
 
 const upload = async (play, wav) => {
-  const config = self.__SUNOMAKER
+  const config = self.__AIMUSICMAKER
   const query = new URLSearchParams({
     clip: play.clip,
     title: play.title || '',
@@ -117,7 +117,7 @@ const finish = async (msg) => {
   try {
     return await upload(msg, encodeWAV(take.chunks, context ? context.sampleRate : 48000))
   } catch (e) {
-    // SunoMaker closed mid-song: the take is lost, which is the same as the
+    // AIMusicMaker closed mid-song: the take is lost, which is the same as the
     // app not being there to hear it.
     return {ok: false}
   }

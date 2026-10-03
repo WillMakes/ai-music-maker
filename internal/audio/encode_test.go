@@ -7,7 +7,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"sunomaker/internal/platform"
+	"aimusicmaker/internal/platform"
 )
 
 // stereoWAV is a real 44.1 kHz stereo 16-bit WAV of silence — the shape Suno

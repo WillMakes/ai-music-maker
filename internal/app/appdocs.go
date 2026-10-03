@@ -9,7 +9,7 @@ import (
 // ---------------------------------------------------------------------------
 // The app's documentation of itself
 //
-// One document, served three ways: `suno-maker docs` for a terminal, the
+// One document, served three ways: `aimusicmaker docs` for a terminal, the
 // get_documentation MCP tool for an agent, and the About panel for a person. All
 // three read this same text, so there is no version of "what this app is" that
 // can drift from the others.
@@ -39,7 +39,7 @@ func runDocsCLI(args []string) (code int, handled bool) {
 func (a *App) Documentation() string {
 	var b strings.Builder
 
-	b.WriteString(`# SunoMaker
+	b.WriteString(`# AIMusicMaker
 
 A desktop app for planning music before Suno makes it, and for keeping what Suno
 gives back.
@@ -85,7 +85,7 @@ the ones made afterwards.
    tab to record, and a song you listen to all the way through is recorded
    onto the track with the same title. Or import the finished audio against
    its track. Files are copied into the operating
-   system's music folder under SunoMaker/Artist/Album, so a music player finds
+   system's music folder under AIMusicMaker/Artist/Album, so a music player finds
    them without being told to. A WAV is kept as a 320 kbps MP3 when ffmpeg is
    installed, and as the WAV when it is not.
 
@@ -141,7 +141,7 @@ the ones made afterwards.
 	// each: the name and the first sentence, enough to find the right tool
 	// before tools/list gives the whole schema.
 	b.WriteString("## The MCP server\n\n")
-	b.WriteString(`Run as ` + "`suno-maker mcp`" + `, speaking JSON-RPC on stdio, for the AI
+	b.WriteString(`Run as ` + "`aimusicmaker mcp`" + `, speaking JSON-RPC on stdio, for the AI
 clients Settings → AI assistants registers it with. It reads the database
 directly, so it works with the window closed. Every operation the window has
 is a tool, except the four that need a window (file dialogs, raising the
@@ -162,10 +162,10 @@ Reports are filed from the bug button in the top bar. A report is a GitHub issue
 on this repository, and it gets a counterpart in Jax, which is where the queue is
 watched from. Work one with:
 
-    suno-maker bugs list         open reports, oldest first
-    suno-maker bugs claim <id>   claim it before starting
-    suno-maker bugs resolve <id> --sha <sha> --url <url>
-    suno-maker bugs workflow     the whole process
+    aimusicmaker bugs list         open reports, oldest first
+    aimusicmaker bugs claim <id>   claim it before starting
+    aimusicmaker bugs resolve <id> --sha <sha> --url <url>
+    aimusicmaker bugs workflow     the whole process
 
 `)
 	repo := a.bugRepo()

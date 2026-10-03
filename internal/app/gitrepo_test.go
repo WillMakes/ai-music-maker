@@ -22,14 +22,14 @@ func standInForeignCheckout(t *testing.T, remote string) {
 // TestAnotherProjectsCheckoutIsNeverFiledAgainst is #94. The MCP server is
 // started by an agent in whatever project it is working in, and reports filed
 // from an agent in Jax's checkout became issues on Jax's repository. Standing
-// in a checkout that is not SunoMaker now files nowhere, and says why.
+// in a checkout that is not AIMusicMaker now files nowhere, and says why.
 func TestAnotherProjectsCheckoutIsNeverFiledAgainst(t *testing.T) {
 	app := newTestApp(t)
 	standInForeignCheckout(t, "https://github.com/WillMakes/brand-producer.git")
 
 	repo := app.GetBugRepo()
 	if repo.Slug != "" {
-		t.Fatalf("a checkout of another project was taken as SunoMaker's: %+v", repo)
+		t.Fatalf("a checkout of another project was taken as AIMusicMaker's: %+v", repo)
 	}
 	if repo.Ignored != "WillMakes/brand-producer" {
 		t.Errorf("the ignored checkout should be named so Settings can explain: %+v", repo)
@@ -43,7 +43,7 @@ func TestAnotherProjectsCheckoutIsNeverFiledAgainst(t *testing.T) {
 	}
 }
 
-// TestTheAppsOwnCheckoutPinsItself: the first process started in a SunoMaker
+// TestTheAppsOwnCheckoutPinsItself: the first process started in an AIMusicMaker
 // checkout pins its repository, so every later one files there from anywhere —
 // including from another project's checkout, which is the case that went wrong.
 func TestTheAppsOwnCheckoutPinsItself(t *testing.T) {
@@ -69,7 +69,7 @@ func TestTheAppsOwnCheckoutPinsItself(t *testing.T) {
 	}
 	githubToken = func() string { return "token" }
 	if q, err := app.findIssueQueue(); err != nil || q.slug != "WillMakes/suno-maker" {
-		t.Errorf("the queue should be SunoMaker's, got %+v, %v", q, err)
+		t.Errorf("the queue should be AIMusicMaker's, got %+v, %v", q, err)
 	}
 }
 
@@ -102,7 +102,7 @@ func TestSetBugRepoValidates(t *testing.T) {
 			t.Errorf("%q: got %+v, %v", input, repo, err)
 		}
 	}
-	for _, bad := range []string{"suno-maker", "https://gitlab.com/a/b", "a/b/c", "owner/has space"} {
+	for _, bad := range []string{"aimusicmaker", "https://gitlab.com/a/b", "a/b/c", "owner/has space"} {
 		if _, err := app.SetBugRepo(bad); err == nil {
 			t.Errorf("%q was accepted", bad)
 		}

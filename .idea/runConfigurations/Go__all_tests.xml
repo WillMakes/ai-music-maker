@@ -3,7 +3,7 @@
     <module name="suno-maker" />
     <working_directory value="$PROJECT_DIR$" />
     <kind value="DIRECTORY" />
-    <package value="sunomaker" />
+    <package value="aimusicmaker" />
     <directory value="$PROJECT_DIR$" />
     <filePath value="$PROJECT_DIR$" />
     <framework value="gotest" />

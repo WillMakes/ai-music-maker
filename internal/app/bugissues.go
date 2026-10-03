@@ -14,7 +14,7 @@ import (
 	"strings"
 	"time"
 
-	"sunomaker/internal/platform"
+	"aimusicmaker/internal/platform"
 )
 
 // ---------------------------------------------------------------------------
@@ -322,7 +322,7 @@ func (q issueQueue) markClaimed(number int, claimed bool) error {
 // actually says something.
 func (q issueQueue) ensureLabels() {
 	labels := []struct{ name, colour, description string }{
-		{bugQueueLabel, "d73a4a", "Filed from SunoMaker's bug button"},
+		{bugQueueLabel, "d73a4a", "Filed from AIMusicMaker's bug button"},
 		{bugClaimLabel, "fbca04", "An agent has claimed this report"},
 		{bugParkedLabel, "cfd3d7", "Not work to pick up — kept out of the queue"},
 	}
@@ -393,7 +393,7 @@ func issueBody(report BugReport) string {
 func issueDetails(report BugReport) string {
 	var b strings.Builder
 	b.WriteString("---\n\n")
-	b.WriteString("Filed from SunoMaker.\n\n")
+	b.WriteString("Filed from AIMusicMaker.\n\n")
 	// The page is kept whether or not the bug is app-wide (#20): global says
 	// the problem is not confined to that screen; the route still says where
 	// it showed up, which is worth having either way.

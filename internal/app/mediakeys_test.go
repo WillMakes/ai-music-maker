@@ -4,7 +4,7 @@ import (
 	"errors"
 	"testing"
 
-	"sunomaker/internal/platform"
+	"aimusicmaker/internal/platform"
 )
 
 // stubMediaKeys swaps the OS watcher for one that records what it was asked

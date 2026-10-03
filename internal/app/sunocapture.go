@@ -116,7 +116,7 @@ func (a *App) captureSunoPlay(play SunoPlay, write func(dest string) error) (Sun
 			Message: fmt.Sprintf("No track is called %q, so it was not filed.", play.Title)}, nil
 	}
 
-	dir, err := os.MkdirTemp("", "sunomaker-suno-")
+	dir, err := os.MkdirTemp("", "aimusicmaker-suno-")
 	if err != nil {
 		return SunoCapture{}, fmt.Errorf("could not make somewhere to put the recording: %w", err)
 	}

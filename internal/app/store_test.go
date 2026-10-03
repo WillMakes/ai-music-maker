@@ -4,14 +4,14 @@ import (
 	"path/filepath"
 	"testing"
 
-	"sunomaker/internal/audio"
+	"aimusicmaker/internal/audio"
 )
 
 // newTestApp builds an app backed by a temp-dir database and a temp music
 // folder.
 //
 // Both overrides matter and for different reasons. dataDir keeps the test suite
-// away from the producer's real ~/.sunomaker, which holds their library and
+// away from the producer's real ~/.aimusicmaker, which holds their library and
 // their API keys. osMusicDir keeps it out of their actual music collection —
 // this app copies audio files, and a test that imported into ~/Music would put
 // junk in something a person listens to.
@@ -60,7 +60,7 @@ func newTestApp(t *testing.T) *App {
 	// The same file openStore() would choose, not a test-only name: the bug CLI
 	// opens its own store through openStore, so a differently named database
 	// would leave a CLI test reading an empty file beside the one the app wrote.
-	store, err := openStoreAt(filepath.Join(dir, "sunomaker.db"))
+	store, err := openStoreAt(filepath.Join(dir, "aimusicmaker.db"))
 	if err != nil {
 		t.Fatalf("open the store: %v", err)
 	}

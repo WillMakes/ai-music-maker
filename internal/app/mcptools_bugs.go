@@ -3,7 +3,7 @@ package app
 // ---------------------------------------------------------------------------
 // The bug queue
 //
-// The same surface `suno-maker bugs …` offers a terminal (see bugcli.go), for
+// The same surface `aimusicmaker bugs …` offers a terminal (see bugcli.go), for
 // an agent that reaches this app over MCP instead. The workflow is the
 // bug-reports skill, and it holds here as it holds there: claim before
 // starting, one report one commit, resolve only once the fix is on main.
@@ -169,7 +169,7 @@ func bugTools() []mcpTool {
 		{
 			name: "get_bug_repo",
 			description: "The repository reports are filed against: the pinned one, or the " +
-				"SunoMaker checkout this runs in, which pins itself. No slug means reports stay " +
+				"AIMusicMaker checkout this runs in, which pins itself. No slug means reports stay " +
 				"local. `ignored` names another project's checkout that was not used.",
 			binding: "GetBugRepo",
 			schema:  object(map[string]any{}),

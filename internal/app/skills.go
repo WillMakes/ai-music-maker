@@ -7,7 +7,7 @@ import (
 	"sort"
 	"strings"
 
-	"sunomaker/skills"
+	"aimusicmaker/skills"
 )
 
 // ---------------------------------------------------------------------------

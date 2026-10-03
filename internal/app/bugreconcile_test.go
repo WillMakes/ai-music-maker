@@ -100,7 +100,7 @@ func (f *stubForge) start(t *testing.T) {
 }
 
 // standInAppCheckout makes the process look as if it runs in a checkout of
-// SunoMaker whose origin is remote. These tests used to get a repository by
+// AIMusicMaker whose origin is remote. These tests used to get a repository by
 // running inside the real checkout, which is the dependence on the working
 // directory #94 removed; now they say where they stand.
 func standInAppCheckout(t *testing.T, remote string) string {

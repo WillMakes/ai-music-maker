@@ -1,4 +1,4 @@
-# SunoMaker — working notes
+# AIMusicMaker — working notes
 
 Wails v2 desktop app: Go backend, React 18 + TypeScript + Tailwind v4 frontend,
 one binary for Windows/macOS/Linux. See README.md for what exists and how to run
@@ -37,7 +37,7 @@ before the frontend can call it.
 - New ids come from `newID(prefix)`, new timestamps from `nowStamp()`.
 - After a write, report a scope with `s.changed(...)` so open pages refresh.
 - Tests build an app with `newTestApp(t)`, which is backed by a temp-dir
-  database and a temp music folder. Never touch the real `~/.sunomaker`, and
+  database and a temp music folder. Never touch the real `~/.aimusicmaker`, and
   never write into the producer's real music library.
 
 ## Frontend

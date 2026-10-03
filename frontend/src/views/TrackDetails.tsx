@@ -514,7 +514,7 @@ function Takes({
         <p className="text-sm text-fg-muted">
           Nothing imported yet — drop the file here, or import it above. Files are
           copied into your music folder under{' '}
-          <span className="font-mono text-xs">SunoMaker/Artist/Album</span>, so a music
+          <span className="font-mono text-xs">AIMusicMaker/Artist/Album</span>, so a music
           player finds them.
         </p>
       ) : (

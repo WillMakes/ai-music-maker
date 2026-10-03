@@ -25,19 +25,19 @@ import (
 //	Antigravity     ~/.gemini/antigravity/mcp_config.json  JSON, "mcpServers"
 //
 // All of them get the same stdio entry: this binary, relaunched as
-// `suno-maker mcp` (see mcp.go). No token and no port, because the server reads
+// `aimusicmaker mcp` (see mcp.go). No token and no port, because the server reads
 // the database directly.
 //
 // These files belong to those applications and hold unrelated configuration the
 // producer cares about, so every edit here is strictly surgical:
 //
 //   - JSON is decoded with json.Number, so re-encoding never rewrites a large or
-//     precise number into something else, and only mcpServers.suno-maker is
+//     precise number into something else, and only mcpServers.aimusicmaker is
 //     touched.
 //   - TOML is not parsed at all. This app has no TOML library, and adding one to
 //     round-trip somebody else's config would risk losing comments and ordering
 //     on every write. The file is treated as text and only our own
-//     [mcp_servers.suno-maker] block is spliced in or cut out; every other byte
+//     [mcp_servers.aimusicmaker] block is spliced in or cut out; every other byte
 //     is left exactly as it was.
 //
 // A file that cannot be read as its own format is reported and left alone, never
@@ -88,7 +88,7 @@ type MCPStatus struct {
 // mcpCommand is the executable a client is told to run: this binary, by absolute
 // path.
 //
-// os.Executable rather than "suno-maker": a client launching by name would need
+// os.Executable rather than "aimusicmaker": a client launching by name would need
 // this app on its PATH, which it is not on any of the three platforms unless
 // somebody put it there. The path is resolved through symlinks so a build run
 // from a link records where the program actually is.
@@ -294,7 +294,7 @@ func (a *App) DisconnectMCPClient(id string) (MCPStatus, error) {
 // JSON clients
 // ---------------------------------------------------------------------------
 
-// writeJSONEntry adds or replaces mcpServers.suno-maker, leaving everything else
+// writeJSONEntry adds or replaces mcpServers.aimusicmaker, leaving everything else
 // as it was.
 //
 // UseNumber is what keeps "everything else as it was" true of numbers: without
@@ -328,6 +328,7 @@ func writeJSONEntry(path, command string) error {
 		return err
 	}
 	servers[mcpServerName] = entry
+	delete(servers, legacyMCPServerName)
 
 	encodedServers, err := json.Marshal(servers)
 	if err != nil {
@@ -365,6 +366,7 @@ func removeJSONEntry(path string) error {
 		_ = json.Unmarshal(raw, &servers)
 	}
 	delete(servers, mcpServerName)
+	delete(servers, legacyMCPServerName)
 	encoded, err := json.Marshal(servers)
 	if err != nil {
 		return err
@@ -385,17 +387,39 @@ func removeJSONEntry(path string) error {
 // see the note at the top of the file for why nothing is parsed.
 const tomlHeader = "[mcp_servers." + mcpServerName + "]"
 
+// legacyTOMLHeader is the block from before the rename (#103), removed
+// wherever this app's own block is written or removed.
+const legacyTOMLHeader = "[mcp_servers." + legacyMCPServerName + "]"
+
 // tomlServerBlock finds this app's block, returning it and whether it was there.
 //
 // A block runs from its header to the next line that starts a section, or to the
 // end of the file. That is enough of TOML to find one section and not nearly
 // enough to rewrite the rest, which is exactly the intended split.
 func tomlServerBlock(content string) (string, bool) {
-	start := strings.Index(content, tomlHeader)
+	return tomlBlock(content, tomlHeader)
+}
+
+// tomlBlock finds the block under header, which must be a whole line of its own.
+func tomlBlock(content, header string) (string, bool) {
+	start := -1
+	for offset := 0; offset < len(content); {
+		i := strings.Index(content[offset:], header)
+		if i < 0 {
+			break
+		}
+		i += offset
+		after := i + len(header)
+		if (i == 0 || content[i-1] == '\n') && (after == len(content) || content[after] == '\n' || content[after] == '\r') {
+			start = i
+			break
+		}
+		offset = after
+	}
 	if start < 0 {
 		return "", false
 	}
-	rest := content[start+len(tomlHeader):]
+	rest := content[start+len(header):]
 	end := len(rest)
 	for offset := 0; ; {
 		next := strings.Index(rest[offset:], "\n[")
@@ -405,7 +429,15 @@ func tomlServerBlock(content string) (string, bool) {
 		end = offset + next + 1
 		break
 	}
-	return content[start : start+len(tomlHeader)+end], true
+	return content[start : start+len(header)+end], true
+}
+
+// removeLegacyTOMLBlock cuts the pre-rename block out of content, if it is there.
+func removeLegacyTOMLBlock(content string) string {
+	if legacy, found := tomlBlock(content, legacyTOMLHeader); found {
+		content = strings.TrimLeft(strings.Replace(content, legacy, "", 1), "\n")
+	}
+	return content
 }
 
 // tomlBlockCommand reads the command out of this app's block, unquoted.
@@ -446,7 +478,7 @@ func writeTOMLEntry(path, command string) error {
 	if err != nil && !os.IsNotExist(err) {
 		return err
 	}
-	content := string(data)
+	content := removeLegacyTOMLBlock(string(data))
 	block := fmt.Sprintf("%s\ncommand = %q\nargs = [\"mcp\"]\n", tomlHeader, command)
 
 	if existing, found := tomlServerBlock(content); found {
@@ -474,11 +506,13 @@ func removeTOMLEntry(path string) error {
 	if err != nil {
 		return err
 	}
-	content := string(data)
-	existing, found := tomlServerBlock(content)
-	if !found {
+	original := string(data)
+	content := removeLegacyTOMLBlock(original)
+	if existing, found := tomlServerBlock(content); found {
+		content = strings.TrimLeft(strings.Replace(content, existing, "", 1), "\n")
+	}
+	if content == original {
 		return nil
 	}
-	content = strings.Replace(content, existing, "", 1)
-	return os.WriteFile(path, []byte(strings.TrimLeft(content, "\n")), 0o600)
+	return os.WriteFile(path, []byte(content), 0o600)
 }
