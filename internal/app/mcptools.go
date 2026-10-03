@@ -33,7 +33,7 @@ import (
 // them: an agent documenting the app should say why a page's button has no
 // tool, not just that it has none.
 //
-// Four of them need a window. The server runs with no webview, and a dialog
+// Five of them need a window. The server runs with no webview, and a dialog
 // nobody can see is a call that never returns; an agent with a path to hand
 // over has import_track_file and import_album_artwork, which take it directly.
 var mcpNotOffered = map[string]string{
@@ -43,6 +43,7 @@ var mcpNotOffered = map[string]string{
 	"OpenURL":        "opens a link in the producer's browser, which is theirs to do",
 	"MarkFixesSeen":  "dismisses the fixed-bugs notice, which is the producer's own acknowledgement — the window shows a fix once and clears the flag when they have read it",
 	"ListMCPTools":   "lists this server's tools, which is what the protocol's own tools/list already answers",
+	"SetMediaKeys":   "holds the keyboard's media keys for the window's player, which the server has none of; the player takes and releases them as its queue fills and empties",
 }
 
 // mcpTool is one tool's definition and its implementation together.

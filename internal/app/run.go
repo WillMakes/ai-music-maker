@@ -3,8 +3,6 @@ package app
 import (
 	"log"
 	"os"
-	"runtime"
-	"strings"
 
 	"sunomaker/frontend"
 
@@ -41,8 +39,6 @@ func Main() {
 	if code, handled := runDocsCLI(os.Args[1:]); handled {
 		os.Exit(code)
 	}
-
-	enableWindowsMediaKeys()
 
 	app := NewApp()
 
@@ -96,30 +92,4 @@ func Main() {
 	if err != nil {
 		log.Printf("suno-maker: %v", err)
 	}
-}
-
-// enableWindowsMediaKeys turns the OS media controls on for the player (#72).
-//
-// The player's Media Session hookup (#45) is correct, but WebView2 ships with
-// Chromium's HardwareMediaKeyHandling feature disabled, so nothing it
-// publishes ever reaches Windows' System Media Transport Controls — no
-// overlay, no keyboard media keys. Wails v2 exposes no field for extra
-// Chromium arguments; WebView2's own documented channel is this environment
-// variable, read once when the webview is created, which is why this runs
-// before wails.Run. Appended rather than assigned, so arguments a producer
-// set themselves survive.
-func enableWindowsMediaKeys() {
-	if runtime.GOOS != "windows" {
-		return
-	}
-	const envName = "WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS"
-	const feature = "--enable-features=HardwareMediaKeyHandling"
-	args := os.Getenv(envName)
-	if strings.Contains(args, "HardwareMediaKeyHandling") {
-		return
-	}
-	if args != "" {
-		args += " "
-	}
-	os.Setenv(envName, args+feature)
 }

@@ -7,8 +7,9 @@ import {
   useRef,
   useState,
 } from 'react'
-import {Playlist} from '../../wailsjs/go/app/App'
+import {Playlist, SetMediaKeys} from '../../wailsjs/go/app/App'
 import {app} from '../../wailsjs/go/models'
+import {EventsOn} from '../../wailsjs/runtime/runtime'
 import {toMessage} from '../lib/errors'
 
 /**
@@ -240,8 +241,28 @@ export function PlayerProvider({children}: {children: React.ReactNode}) {
   const toggleRepeat = useCallback(() => setRepeat((on) => !on), [])
   const toggleShuffle = useCallback(() => setShuffle((on) => !on), [])
 
+  // The keyboard's media keys (#101). WebView2 under Wails never passes them
+  // to the Media Session below, so the backend holds them itself and sends
+  // each press back as an event — and holds them only while there is a queue,
+  // since a held key is taken from every other program on the machine.
+  const hasQueue = queue.length > 0
+  useEffect(() => {
+    SetMediaKeys(hasQueue).catch((err) => setError(toMessage(err)))
+  }, [hasQueue])
+  useEffect(
+    () =>
+      EventsOn('player:media-key', (key: string) => {
+        if (key === 'playpause') toggle()
+        else if (key === 'next') next()
+        else if (key === 'previous') previous()
+        else if (key === 'stop') audio().pause()
+      }),
+    [toggle, next, previous],
+  )
+
   // The OS's own controls (#45): metadata for the overlay, handlers for the
-  // media keys. WebView2 forwards both through the Media Session API.
+  // media keys, through the Media Session API. Kept for the webviews that do
+  // forward it; on Windows the keys come through the effect above.
   useEffect(() => {
     if (!('mediaSession' in navigator)) return
     const session = navigator.mediaSession
