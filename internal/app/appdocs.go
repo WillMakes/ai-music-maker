@@ -102,7 +102,14 @@ the ones made afterwards.
    background with its progress in the status bar, and is filed beside the
    takes.
 
-7. **Release it.** Once the record is out, its Apple Music, Spotify and YouTube
+7. **Put it on YouTube.** With the channel connected in Settings → YouTube,
+   the album page uploads the music video with its timestamped description,
+   and says how it is doing from YouTube Analytics. With a YouTube Music
+   session connected there too, it uploads the official takes, tagged and
+   with the cover, to the producer's own YouTube Music library — private to
+   the account, not a release.
+
+8. **Release it.** Once the record is out, its Apple Music, Spotify and YouTube
    Music links go on the album.
 
 ## Where things live

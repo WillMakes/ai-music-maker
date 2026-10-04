@@ -8,6 +8,7 @@ import "errors"
 var secretSettings = map[string]string{
 	keyAIServices: "the AI connections are read through list_ai_services and written through connect_ai_key and connect_ai_account",
 	keyYouTube:    "the YouTube connection is read through get_youtube and made in Settings → YouTube",
+	keyYTMusic:    "the YouTube Music session is read through get_youtube_music and made in Settings → YouTube",
 }
 
 // ---------------------------------------------------------------------------
@@ -140,6 +141,27 @@ func settingsTools() []mcpTool {
 			schema:      object(map[string]any{}),
 			run: with(func(app *App, _ struct{}) map[string]any {
 				return answer(app.DisconnectYouTube())
+			}),
+		},
+
+		{
+			name: "get_youtube_music",
+			description: "Whether a YouTube Music session is connected for uploading to the " +
+				"producer's library (#124), and whose. Never the cookie. Connecting is done " +
+				"in Settings → YouTube by pasting a signed-in tab's request headers.",
+			binding: "GetYouTubeMusic",
+			schema:  object(map[string]any{}),
+			run: with(func(app *App, _ struct{}) map[string]any {
+				return mcpResult(app.GetYouTubeMusic())
+			}),
+		},
+		{
+			name:        "disconnect_youtube_music",
+			description: "Forget the YouTube Music session. The browser stays signed in.",
+			binding:     "DisconnectYouTubeMusic",
+			schema:      object(map[string]any{}),
+			run: with(func(app *App, _ struct{}) map[string]any {
+				return answer(app.DisconnectYouTubeMusic())
 			}),
 		},
 

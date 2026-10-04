@@ -1,5 +1,5 @@
 import {createContext, useContext, useEffect, useRef, useState, type ReactNode} from 'react'
-import {RenderAlbumVideo, UploadAlbumVideo} from '../../wailsjs/go/app/App'
+import {RenderAlbumVideo, UploadAlbumToYouTubeMusic, UploadAlbumVideo} from '../../wailsjs/go/app/App'
 import {EventsOn} from '../../wailsjs/runtime/runtime'
 import {app} from '../../wailsjs/go/models'
 import {toMessage} from '../lib/errors'
@@ -7,13 +7,14 @@ import {toMessage} from '../lib/errors'
 /**
  * One long job on an album's music video, from the press to somebody acting
  * on the outcome — the shape of an artwork generation (#83), plus how far it
- * is. A render (#118) makes the file; an upload (#122) sends it to YouTube.
+ * is. A render (#118) makes the file; an upload (#122) sends it to YouTube;
+ * a library upload (#124) sends the album's takes to YouTube Music.
  */
 export interface VideoJob {
   albumId: string
   albumName: string
   artistId: string
-  kind: 'render' | 'upload'
+  kind: 'render' | 'upload' | 'ytmusic'
   state: 'running' | 'done' | 'failed'
   /** 0 to 1, from the job's progress events. */
   fraction: number
@@ -27,12 +28,20 @@ const VideosContext = createContext<{
   videos: VideoJob[]
   render: (album: AlbumRef) => void
   upload: (album: AlbumRef, privacy: string) => void
+  uploadToYouTubeMusic: (album: AlbumRef) => void
   dismiss: (albumId: string, kind: VideoJob['kind']) => void
-}>({videos: [], render: () => {}, upload: () => {}, dismiss: () => {}})
+}>({
+  videos: [],
+  render: () => {},
+  upload: () => {},
+  uploadToYouTubeMusic: () => {},
+  dismiss: () => {},
+})
 
 const PROGRESS_EVENTS: Record<VideoJob['kind'], string> = {
   render: 'musicvideo:progress',
   upload: 'youtubeupload:progress',
+  ytmusic: 'ytmusicupload:progress',
 }
 
 /**
@@ -84,12 +93,14 @@ export function VideosProvider({children}: {children: ReactNode}) {
   const render = (album: AlbumRef) => start(album, 'render', () => RenderAlbumVideo(album.id))
   const upload = (album: AlbumRef, privacy: string) =>
     start(album, 'upload', () => UploadAlbumVideo(album.id, privacy))
+  const uploadToYouTubeMusic = (album: AlbumRef) =>
+    start(album, 'ytmusic', () => UploadAlbumToYouTubeMusic(album.id))
 
   const dismiss = (albumId: string, kind: VideoJob['kind']) =>
     setVideos((current) => current.filter((job) => !(job.albumId === albumId && job.kind === kind)))
 
   return (
-    <VideosContext.Provider value={{videos, render, upload, dismiss}}>
+    <VideosContext.Provider value={{videos, render, upload, uploadToYouTubeMusic, dismiss}}>
       {children}
     </VideosContext.Provider>
   )

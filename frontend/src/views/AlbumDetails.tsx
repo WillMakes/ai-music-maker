@@ -10,6 +10,7 @@ import {
   GetAlbum,
   GetAlbumVideoStats,
   GetYouTube,
+  GetYouTubeMusic,
   ImportAlbumArtwork,
   PickImageFile,
   ImportAlbumTakeDrop,
@@ -112,7 +113,10 @@ export function AlbumDetails({
   // as a big generation call does, and the producer must be free to navigate
   // away and find it again — on this page, or in the status bar.
   const {evolutions, evolve, dismiss} = useEvolutions()
-  const {videos, render: renderVideo, upload: uploadVideo} = useVideos()
+  const {videos, render: renderVideo, upload: uploadVideo, uploadToYouTubeMusic} = useVideos()
+  const ytmusicJob = videos.find((job) => job.albumId === albumId && job.kind === 'ytmusic')
+  const toYTMusic = ytmusicJob?.state === 'running'
+  const [ytmusicConnected, setYTMusicConnected] = useState(false)
   const videoJob = videos.find((job) => job.albumId === albumId && job.kind === 'render')
   const rendering = videoJob?.state === 'running'
   const uploadJob = videos.find((job) => job.albumId === albumId && job.kind === 'upload')
@@ -125,6 +129,9 @@ export function AlbumDetails({
     GetYouTube()
       .then((status) => setYouTubeConnected(status.connected))
       .catch(() => setYouTubeConnected(false))
+    GetYouTubeMusic()
+      .then((status) => setYTMusicConnected(status.connected))
+      .catch(() => setYTMusicConnected(false))
   }, [])
   useEffect(reloadYouTube, [reloadYouTube])
   useDataChanged(['youtube'], reloadYouTube)
@@ -680,6 +687,55 @@ export function AlbumDetails({
                   <p className="text-sm text-danger">{uploadJob.error}</p>
                 )}
               </div>
+            )}
+          </section>
+
+          {/* The takes to the producer's own YouTube Music library (#124),
+              tagged for the record. Says when it last went, because a second
+              upload is a second copy in the library, not a replacement. */}
+          <section className="sm-panel space-y-3 p-4" aria-label="YouTube Music">
+            <h2 className="text-sm font-semibold">YouTube Music library</h2>
+            {(() => {
+              const unmade = tracks.filter((t) => !t.files.some((f) => !f.missing))
+              if (!ytmusicConnected) {
+                return (
+                  <p className="text-xs text-fg-muted">
+                    Connect YouTube Music in Settings → YouTube to put this record in your
+                    library.
+                  </p>
+                )
+              }
+              return (
+                <>
+                  <p className="text-xs text-fg-muted">
+                    {tracks.length === 0
+                      ? 'Needs tracks first.'
+                      : unmade.length > 0
+                        ? `Needs a take of ${unmade.length === 1 ? `“${unmade[0].name}”` : `${unmade.length} tracks`} first.`
+                        : album.ytmusicUploadedAt
+                          ? `Uploaded ${new Date(album.ytmusicUploadedAt).toLocaleString()}. Uploading again adds second copies.`
+                          : 'Every official take, tagged with its title, track number and the cover. Private to your account.'}
+                  </p>
+                  <button
+                    className="sm-button sm-button-quiet w-full"
+                    type="button"
+                    disabled={toYTMusic || tracks.length === 0 || unmade.length > 0}
+                    onClick={() =>
+                      uploadToYouTubeMusic({id: album.id, name: album.name, artistId: album.artistId})
+                    }
+                  >
+                    {toYTMusic ? <Loader2 size={15} className="animate-spin" /> : <Upload size={15} />}
+                    {toYTMusic
+                      ? `Uploading… ${Math.round((ytmusicJob?.fraction ?? 0) * 100)}%`
+                      : album.ytmusicUploadedAt
+                        ? 'Upload again'
+                        : 'Upload to YouTube Music'}
+                  </button>
+                </>
+              )
+            })()}
+            {ytmusicJob?.state === 'failed' && (
+              <p className="text-sm text-danger">{ytmusicJob.error}</p>
             )}
           </section>
 
