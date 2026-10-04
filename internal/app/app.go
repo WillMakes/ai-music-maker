@@ -4,6 +4,7 @@ import (
 	"context"
 	"log"
 	"sync"
+	"time"
 
 	wruntime "github.com/wailsapp/wails/v2/pkg/runtime"
 )
@@ -38,6 +39,11 @@ type App struct {
 	// guards it, the player's calls and shutdown being able to cross.
 	mediaKeysMu      sync.Mutex
 	releaseMediaKeys func()
+	// When Play/Pause was last pressed, for hearing a double press (#113).
+	// Its own lock: a press arrives on the hotkey thread, which releasing the
+	// keys waits on while holding mediaKeysMu.
+	mediaPressMu  sync.Mutex
+	lastPlayPause time.Time
 
 	// nowPlaying is the player's last report (see nowplaying.go, #111).
 	nowPlaying nowPlayingState
