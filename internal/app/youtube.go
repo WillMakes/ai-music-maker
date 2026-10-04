@@ -276,3 +276,30 @@ func (s *Store) setAlbumYouTubeVideo(id, videoID string) error {
 	s.changed(scopeAlbums)
 	return nil
 }
+
+// videoStats is youtube.VideoStats, a variable so a test reads no channel.
+var videoStats = youtube.VideoStats
+
+// GetAlbumVideoStats reads how the album's uploaded video is doing (#123):
+// the live counts, and the analytics report since it was published. Read on
+// request rather than stored — the numbers are only worth what they are
+// today, and every read costs the producer's API quota.
+func (a *App) GetAlbumVideoStats(albumID string) (youtube.Stats, error) {
+	if a.store == nil {
+		return youtube.Stats{}, errNoStore
+	}
+	album, err := a.store.album(albumID)
+	if err != nil {
+		return youtube.Stats{}, err
+	}
+	if album.VideoYouTubeID == "" {
+		return youtube.Stats{}, fmt.Errorf("%s's video has not been uploaded to YouTube", album.Name)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
+	defer cancel()
+	access, err := a.youtubeAccess(ctx)
+	if err != nil {
+		return youtube.Stats{}, err
+	}
+	return videoStats(ctx, access, album.VideoYouTubeID)
+}

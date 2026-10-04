@@ -1,5 +1,5 @@
 import {useCallback, useEffect, useRef, useState} from 'react'
-import {Clapperboard, ExternalLink, FolderInput, FolderOpen, ImagePlus, ListMusic, ListPlus, Loader2, Pencil, Play, RefreshCw, Sparkles, Trash2, Upload, Wand2} from 'lucide-react'
+import {BarChart3, Clapperboard, ExternalLink, FolderInput, FolderOpen, ImagePlus, ListMusic, ListPlus, Loader2, Pencil, Play, RefreshCw, Sparkles, Trash2, Upload, Wand2} from 'lucide-react'
 import {TrackEditor} from './TrackDetails'
 import {
   ClearChat,
@@ -8,6 +8,7 @@ import {
   ExtractTracks,
   GenerateAlbumStyle,
   GetAlbum,
+  GetAlbumVideoStats,
   GetYouTube,
   ImportAlbumArtwork,
   PickImageFile,
@@ -23,7 +24,7 @@ import {
   SaveTrack,
   WriteAlbumTracks,
 } from '../../wailsjs/go/app/App'
-import {app} from '../../wailsjs/go/models'
+import {app, youtube} from '../../wailsjs/go/models'
 import {CopyButton} from '../components/CopyButton'
 import {EmptyState} from '../components/EmptyState'
 import {PageHeader} from '../components/PageHeader'
@@ -636,6 +637,7 @@ export function AlbumDetails({
                     Watch on YouTube
                   </button>
                 )}
+                {album.videoYouTubeUrl && youtubeConnected && <VideoStatsBlock albumId={album.id} />}
                 {youtubeConnected ? (
                   <>
                     <SelectField
@@ -1184,5 +1186,67 @@ function TrackRow({
         </span>
       </div>
     </li>
+  )
+}
+
+/**
+ * How the album's uploaded video is doing (#123). Read when asked rather than
+ * on every visit to the album: each read spends the producer's YouTube API
+ * quota, and the report behind the watch time only moves once a day.
+ */
+function VideoStatsBlock({albumId}: {albumId: string}) {
+  const [stats, setStats] = useState<youtube.Stats | null>(null)
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
+
+  const load = async () => {
+    setLoading(true)
+    setError('')
+    try {
+      setStats(await GetAlbumVideoStats(albumId))
+    } catch (err) {
+      setError(toMessage(err))
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const count = (n: number) => n.toLocaleString()
+  return (
+    <div className="space-y-2">
+      <button className="sm-button sm-button-quiet w-full" type="button" disabled={loading} onClick={load}>
+        {loading ? <Loader2 size={15} className="animate-spin" /> : <BarChart3 size={15} />}
+        {stats ? 'Refresh the numbers' : 'How is it doing?'}
+      </button>
+      {stats && (
+        <dl className="grid grid-cols-2 gap-x-3 gap-y-1 text-xs">
+          <dt className="text-fg-muted">Views</dt>
+          <dd className="text-right tabular-nums">{count(stats.views)}</dd>
+          <dt className="text-fg-muted">Likes</dt>
+          <dd className="text-right tabular-nums">{count(stats.likes)}</dd>
+          <dt className="text-fg-muted">Comments</dt>
+          <dd className="text-right tabular-nums">{count(stats.comments)}</dd>
+          {stats.analyticsAvailable && (
+            <>
+              <dt className="text-fg-muted">Watched</dt>
+              <dd className="text-right tabular-nums">{count(Math.round(stats.minutesWatched / 60))} h</dd>
+              <dt className="text-fg-muted">Average view</dt>
+              <dd className="text-right tabular-nums">{duration(stats.averageViewSeconds)}</dd>
+              <dt className="text-fg-muted">Subscribers gained</dt>
+              <dd className="text-right tabular-nums">{count(stats.subscribersGained)}</dd>
+            </>
+          )}
+        </dl>
+      )}
+      {stats && !stats.analyticsAvailable && !stats.analyticsError && (
+        <p className="text-xs text-fg-muted">
+          Watch time arrives two or three days after the upload — the counts above are live.
+        </p>
+      )}
+      {stats?.analyticsError && (
+        <p className="text-xs text-danger">Watch time could not be read: {stats.analyticsError}</p>
+      )}
+      {error && <p className="text-xs text-danger">{error}</p>}
+    </div>
   )
 }
