@@ -107,13 +107,17 @@ func TestRenderAlbumVideo(t *testing.T) {
 	if rendered.VideoFile == "" || rendered.VideoFile != got.Out {
 		t.Errorf("the album records %q, the render wrote %q", rendered.VideoFile, got.Out)
 	}
+	// The description is the render's timestamps, song by song (#120).
+	if !strings.HasPrefix(rendered.VideoDescription, "Night Drive by Cassette Motel\n\n0:00 Neon Rain\n3:20 Dawn") {
+		t.Errorf("description = %q", rendered.VideoDescription)
+	}
 	// A save of the album's other fields must not lose the video.
 	rendered.Name = "Night Drive (Deluxe)"
 	resaved, err := app.SaveAlbum(rendered)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if resaved.VideoFile != got.Out {
+	if resaved.VideoFile != got.Out || resaved.VideoDescription != rendered.VideoDescription {
 		t.Errorf("saving the album cleared its video: %q", resaved.VideoFile)
 	}
 }

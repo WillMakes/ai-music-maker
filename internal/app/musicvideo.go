@@ -52,7 +52,7 @@ func (a *App) RenderAlbumVideo(albumID string) (Album, error) {
 		return Album{}, err
 	}
 	last := -1
-	_, err = renderVideo(context.Background(), spec, func(fraction float64) {
+	rendered, err := renderVideo(context.Background(), spec, func(fraction float64) {
 		// Whole percents only: ffmpeg reports a dozen times a second, and the
 		// status bar has nothing to show for a change it cannot draw.
 		if pct := int(fraction * 100); pct != last {
@@ -63,7 +63,8 @@ func (a *App) RenderAlbumVideo(albumID string) (Album, error) {
 	if err != nil {
 		return Album{}, err
 	}
-	if err := a.store.setAlbumVideo(albumID, spec.Out); err != nil {
+	description := musicVideoDescription(album, spec, rendered.Starts)
+	if err := a.store.setAlbumVideo(albumID, spec.Out, description); err != nil {
 		return Album{}, err
 	}
 	return a.GetAlbum(albumID)
@@ -220,13 +221,45 @@ func (a *App) musicVideoGap() float64 {
 	return gap
 }
 
-// setAlbumVideo records where the album's video was filed.
-func (s *Store) setAlbumVideo(id, path string) error {
+// musicVideoDescription is the video's YouTube description (#120): the record,
+// a timestamp per song — YouTube makes each a link to where the song starts,
+// and chapters of them once there are three — and wherever else the record
+// can be heard. The times come from the render, which knows each take's real
+// length and the gaps, rather than from the tracks' target lengths.
+func musicVideoDescription(album Album, spec video.Spec, starts []float64) string {
+	var b strings.Builder
+	fmt.Fprintf(&b, "%s by %s\n\n", spec.Album, spec.Artist)
+	for i, song := range spec.Songs {
+		if i < len(starts) {
+			fmt.Fprintf(&b, "%s %s\n", video.Timestamp(starts[i]), song.Title)
+		}
+	}
+	links := []struct{ name, url string }{
+		{"Apple Music", album.AppleMusicURL},
+		{"Spotify", album.SpotifyURL},
+		{"YouTube Music", album.YouTubeURL},
+	}
+	first := true
+	for _, link := range links {
+		if strings.TrimSpace(link.url) == "" {
+			continue
+		}
+		if first {
+			b.WriteString("\nListen:\n")
+			first = false
+		}
+		fmt.Fprintf(&b, "%s: %s\n", link.name, strings.TrimSpace(link.url))
+	}
+	return strings.TrimRight(b.String(), "\n")
+}
+
+// setAlbumVideo records where the album's video was filed and its description.
+func (s *Store) setAlbumVideo(id, path, description string) error {
 	if s == nil || s.db == nil {
 		return errNoStore
 	}
-	if _, err := s.db.Exec(`UPDATE albums SET video_file = ?, updated_at = ? WHERE id = ?`,
-		path, nowStamp(), id); err != nil {
+	if _, err := s.db.Exec(`UPDATE albums SET video_file = ?, video_description = ?, updated_at = ? WHERE id = ?`,
+		path, description, nowStamp(), id); err != nil {
 		return err
 	}
 	s.changed(scopeAlbums)

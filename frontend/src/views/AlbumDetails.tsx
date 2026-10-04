@@ -591,6 +591,20 @@ export function AlbumDetails({
                 Show in folder
               </button>
             )}
+            {/* The YouTube description (#120), written with the video because
+                its timestamps are the render's. Read-only: a time typed over
+                by hand would stop matching the video it describes. */}
+            {album.videoDescription && !rendering && (
+              <div className="space-y-1">
+                <div className="flex items-center gap-1">
+                  <h3 className="flex-1 text-xs font-semibold text-fg-muted">Description</h3>
+                  <CopyButton text={album.videoDescription} label="Copy the description" />
+                </div>
+                <pre className="max-h-48 overflow-auto whitespace-pre-wrap rounded-md border border-edge bg-surface px-2 py-1.5 font-mono text-[11px] leading-relaxed text-fg-muted">
+                  {album.videoDescription}
+                </pre>
+              </div>
+            )}
           </section>
 
           {/* The successor (#42): a new record under the same artist, the
