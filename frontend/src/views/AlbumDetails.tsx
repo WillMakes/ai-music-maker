@@ -1,5 +1,5 @@
 import {useCallback, useEffect, useRef, useState} from 'react'
-import {Clapperboard, FolderInput, FolderOpen, ImagePlus, ListMusic, ListPlus, Loader2, Pencil, Play, RefreshCw, Sparkles, Trash2, Wand2} from 'lucide-react'
+import {Clapperboard, ExternalLink, FolderInput, FolderOpen, ImagePlus, ListMusic, ListPlus, Loader2, Pencil, Play, RefreshCw, Sparkles, Trash2, Upload, Wand2} from 'lucide-react'
 import {TrackEditor} from './TrackDetails'
 import {
   ClearChat,
@@ -8,12 +8,14 @@ import {
   ExtractTracks,
   GenerateAlbumStyle,
   GetAlbum,
+  GetYouTube,
   ImportAlbumArtwork,
   PickImageFile,
   ImportAlbumTakeDrop,
   ImportAlbumTakeFile,
   ImportTrackFile,
   ListTracks,
+  OpenURL,
   RemoveAlbumArtwork,
   RevealTrackFile,
   PickAudioFiles,
@@ -25,7 +27,7 @@ import {app} from '../../wailsjs/go/models'
 import {CopyButton} from '../components/CopyButton'
 import {EmptyState} from '../components/EmptyState'
 import {PageHeader} from '../components/PageHeader'
-import {TextField} from '../components/Field'
+import {SelectField, TextField} from '../components/Field'
 import {MarkdownField} from '../components/MarkdownField'
 import {InterviewDialog} from '../chat/InterviewDialog'
 import {TabStrip} from '../components/TabStrip'
@@ -109,9 +111,22 @@ export function AlbumDetails({
   // as a big generation call does, and the producer must be free to navigate
   // away and find it again — on this page, or in the status bar.
   const {evolutions, evolve, dismiss} = useEvolutions()
-  const {videos, render: renderVideo} = useVideos()
-  const videoJob = videos.find((job) => job.albumId === albumId)
+  const {videos, render: renderVideo, upload: uploadVideo} = useVideos()
+  const videoJob = videos.find((job) => job.albumId === albumId && job.kind === 'render')
   const rendering = videoJob?.state === 'running'
+  const uploadJob = videos.find((job) => job.albumId === albumId && job.kind === 'upload')
+  const uploading = uploadJob?.state === 'running'
+  // Unlisted by default: a first upload is usually checked before it is
+  // shown to anybody.
+  const [privacy, setPrivacy] = useState('unlisted')
+  const [youtubeConnected, setYouTubeConnected] = useState(false)
+  const reloadYouTube = useCallback(() => {
+    GetYouTube()
+      .then((status) => setYouTubeConnected(status.connected))
+      .catch(() => setYouTubeConnected(false))
+  }, [])
+  useEffect(reloadYouTube, [reloadYouTube])
+  useDataChanged(['youtube'], reloadYouTube)
   const evolution = evolutions.find((e) => e.albumId === albumId)
   const evolving = evolution?.state === 'running'
   // Auto-open the successor only on the transition seen from this page — the
@@ -603,6 +618,65 @@ export function AlbumDetails({
                 <pre className="max-h-48 overflow-auto whitespace-pre-wrap rounded-md border border-edge bg-surface px-2 py-1.5 font-mono text-[11px] leading-relaxed text-fg-muted">
                   {album.videoDescription}
                 </pre>
+              </div>
+            )}
+            {/* To the channel (#122), once there is a video to send. Says
+                where to connect rather than hiding the control, and that
+                Google keeps an unaudited project's uploads private — the
+                privacy chosen here would otherwise look ignored. */}
+            {album.videoFile && !rendering && (
+              <div className="space-y-2 border-t border-edge pt-3">
+                {album.videoYouTubeUrl && (
+                  <button
+                    className="flex items-center gap-1 text-xs text-accent hover:underline"
+                    type="button"
+                    onClick={() => void OpenURL(album.videoYouTubeUrl)}
+                  >
+                    <ExternalLink size={12} />
+                    Watch on YouTube
+                  </button>
+                )}
+                {youtubeConnected ? (
+                  <>
+                    <SelectField
+                      label="Privacy"
+                      value={privacy}
+                      onChange={setPrivacy}
+                      disabled={uploading}
+                      options={[
+                        {value: 'private', label: 'Private'},
+                        {value: 'unlisted', label: 'Unlisted'},
+                        {value: 'public', label: 'Public'},
+                      ]}
+                    />
+                    <button
+                      className="sm-button sm-button-quiet w-full"
+                      type="button"
+                      disabled={uploading}
+                      onClick={() =>
+                        uploadVideo({id: album.id, name: album.name, artistId: album.artistId}, privacy)
+                      }
+                    >
+                      {uploading ? <Loader2 size={15} className="animate-spin" /> : <Upload size={15} />}
+                      {uploading
+                        ? `Uploading… ${Math.round((uploadJob?.fraction ?? 0) * 100)}%`
+                        : album.videoYouTubeUrl
+                          ? 'Upload again'
+                          : 'Upload to YouTube'}
+                    </button>
+                    <p className="text-xs text-fg-muted">
+                      Google keeps uploads from an unaudited OAuth project private until the
+                      project passes its audit, whatever is chosen here.
+                    </p>
+                  </>
+                ) : (
+                  <p className="text-xs text-fg-muted">
+                    Connect YouTube in Settings → YouTube to upload this video.
+                  </p>
+                )}
+                {uploadJob?.state === 'failed' && (
+                  <p className="text-sm text-danger">{uploadJob.error}</p>
+                )}
               </div>
             )}
           </section>

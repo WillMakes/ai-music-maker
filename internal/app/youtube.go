@@ -205,3 +205,74 @@ func (a *App) saveYouTubeConnection(c youtubeConnection) error {
 	a.store.changed(scopeYouTube)
 	return nil
 }
+
+// uploadVideo is youtube.Upload, a variable so a test uploads nowhere.
+var uploadVideo = youtube.Upload
+
+// UploadAlbumVideo sends the album's rendered music video to the connected
+// channel (#122), titled for the record and described with its timestamps
+// (#120), and records the new video on the album. privacy is "private",
+// "unlisted" or "public".
+//
+// Slow, like the render, and held by the same provider above the pages;
+// "youtubeupload:progress" events carry how much has been sent.
+func (a *App) UploadAlbumVideo(albumID, privacy string) (Album, error) {
+	if a.store == nil {
+		return Album{}, errNoStore
+	}
+	album, err := a.store.album(albumID)
+	if err != nil {
+		return Album{}, err
+	}
+	if album.VideoFile == "" {
+		return Album{}, fmt.Errorf("render %s's music video first", album.Name)
+	}
+	if !fileExists(album.VideoFile) {
+		return Album{}, fmt.Errorf("the music video file is gone from %s — render it again", album.VideoFile)
+	}
+	if _, running := musicVideoRuns.LoadOrStore("upload:"+albumID, true); running {
+		return Album{}, fmt.Errorf("%s's video is already uploading", album.Name)
+	}
+	defer musicVideoRuns.Delete("upload:" + albumID)
+
+	// Hours at most: a few hundred megabytes on a slow line. The context is
+	// what ends a stalled upload, since the client has no timeout of its own.
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Hour)
+	defer cancel()
+	access, err := a.youtubeAccess(ctx)
+	if err != nil {
+		return Album{}, err
+	}
+	last := -1
+	id, err := uploadVideo(ctx, access, album.VideoFile, youtube.Video{
+		Title:       album.ArtistName + " — " + album.Name + " (Full Album)",
+		Description: album.VideoDescription,
+		Privacy:     privacy,
+		Tags:        []string{album.ArtistName, album.Name},
+	}, func(fraction float64) {
+		if pct := int(fraction * 100); pct != last {
+			last = pct
+			a.emit("youtubeupload:progress", map[string]any{"albumId": albumID, "fraction": fraction})
+		}
+	})
+	if err != nil {
+		return Album{}, err
+	}
+	if err := a.store.setAlbumYouTubeVideo(albumID, id); err != nil {
+		return Album{}, err
+	}
+	return a.GetAlbum(albumID)
+}
+
+// setAlbumYouTubeVideo records the video an upload made.
+func (s *Store) setAlbumYouTubeVideo(id, videoID string) error {
+	if s == nil || s.db == nil {
+		return errNoStore
+	}
+	if _, err := s.db.Exec(`UPDATE albums SET video_youtube_id = ?, updated_at = ? WHERE id = ?`,
+		videoID, nowStamp(), id); err != nil {
+		return err
+	}
+	s.changed(scopeAlbums)
+	return nil
+}

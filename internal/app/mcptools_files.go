@@ -179,6 +179,25 @@ func fileTools() []mcpTool {
 			}),
 		},
 		{
+			name: "upload_album_video",
+			description: "Upload the album's rendered music video to the connected YouTube channel " +
+				"(#122), titled for the record, with its timestamped description. privacy is " +
+				"private, unlisted or public — though Google keeps videos from an unaudited " +
+				"OAuth project private whatever is asked. Slow. Returns the album with " +
+				"videoYouTubeUrl.",
+			binding: "UploadAlbumVideo",
+			schema: object(map[string]any{
+				"albumId": text("the album"),
+				"privacy": text("private, unlisted or public"),
+			}, "albumId", "privacy"),
+			run: with(func(app *App, in struct {
+				AlbumID string `json:"albumId"`
+				Privacy string `json:"privacy"`
+			}) map[string]any {
+				return answer(app.UploadAlbumVideo(in.AlbumID, in.Privacy))
+			}),
+		},
+		{
 			name: "import_album_artwork",
 			description: "Use an image the producer already has as the album's cover (png, jpg, " +
 				"webp, up to 10 MB). Clears the generation brief, since this cover did not " +
