@@ -81,3 +81,15 @@ func TestStyleNormalized(t *testing.T) {
 		t.Errorf("got %+v, want %+v", got, want)
 	}
 }
+
+// TestTimestamp: YouTube's own format, rounded down onto the song's first
+// second.
+func TestTimestamp(t *testing.T) {
+	for seconds, want := range map[float64]string{
+		0: "0:00", 59.9: "0:59", 200.6: "3:20", 3599: "59:59", 3600: "1:00:00", 3725.2: "1:02:05",
+	} {
+		if got := Timestamp(seconds); got != want {
+			t.Errorf("Timestamp(%v) = %q, want %q", seconds, got, want)
+		}
+	}
+}
