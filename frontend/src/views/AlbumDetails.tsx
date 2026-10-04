@@ -76,6 +76,9 @@ export function AlbumDetails({
   const artworkJob = artworks.find((job) => job.albumId === albumId)
   const drawing = artworkJob?.state === 'running'
   const [feedback, setFeedback] = useState('')
+  // Whether the "Make changes with AI" prompt is open on a finished cover
+  // (#114). The text survives closing it, so a failed redraw can be retried.
+  const [changingArtwork, setChangingArtwork] = useState(false)
   const [error, setError] = useState('')
   const [interviewing, setInterviewing] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
@@ -245,6 +248,19 @@ export function AlbumDetails({
     drawArtwork({id: albumId, name: album?.name ?? '', artistId: album?.artistId ?? ''}, feedback)
   }
 
+  const pickArtwork = async () => {
+    // The OS's own picker (#39): the binding owns the window context the
+    // dialog needs, so the producer browses instead of pasting a path. An
+    // empty path is a cancel, not an error.
+    try {
+      const path = await PickImageFile()
+      if (!path) return
+      setAlbum(await ImportAlbumArtwork(albumId, path))
+    } catch (err) {
+      setError(toMessage(err))
+    }
+  }
+
   if (!album || !draft) {
     return <p className="text-sm text-fg-muted">{error || 'Loading…'}</p>
   }
@@ -387,75 +403,119 @@ export function AlbumDetails({
           {/* Always mounted, with no tab to hide it behind: a cover generation
               runs for minutes and its busy state lives here. */}
           <section className="sm-panel space-y-3 p-4" aria-label="Artwork">
-            <Cover url={album.artworkUrl} name={album.name} size={200} />
-            <div className="flex flex-wrap gap-2">
-              <button
-                className="sm-button sm-button-primary"
-                type="button"
-                onClick={draw}
-                disabled={drawing}
-              >
-                {drawing ? (
-                  <Loader2 size={15} className="animate-spin" />
-                ) : album.artworkFile ? (
-                  <RefreshCw size={15} />
-                ) : (
-                  <Wand2 size={15} />
-                )}
-                {drawing ? 'Drawing…' : album.artworkFile ? 'Redraw' : 'Generate'}
-              </button>
-              <button
-                className="sm-button sm-button-quiet"
-                type="button"
-                disabled={drawing}
-                aria-label="Use an image file"
-                title="Use an image file"
-                onClick={async () => {
-                  // The OS's own picker (#39): the binding owns the window
-                  // context the dialog needs, so the producer browses instead
-                  // of pasting a path. An empty path is a cancel, not an error.
-                  try {
-                    const path = await PickImageFile()
-                    if (!path) return
-                    setAlbum(await ImportAlbumArtwork(albumId, path))
-                  } catch (err) {
-                    setError(toMessage(err))
-                  }
-                }}
-              >
-                <ImagePlus size={15} />
-              </button>
-              {album.artworkFile && (
-                <button
-                  className="sm-button sm-button-quiet"
-                  type="button"
+            {album.artworkFile ? (
+              // A finished cover is looked at, not worked on (#114): replacing
+              // or removing it waits behind a hover on the image itself, and
+              // focus-within shows the same controls to a keyboard.
+              <div className="group relative w-fit">
+                <Cover url={album.artworkUrl} name={album.name} size={200} />
+                <div className="absolute inset-0 flex items-end justify-center gap-2 rounded bg-scrim p-3 opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100">
+                  <button
+                    className="sm-button sm-button-quiet"
+                    type="button"
+                    disabled={drawing}
+                    onClick={pickArtwork}
+                  >
+                    <ImagePlus size={15} />
+                    Replace
+                  </button>
+                  <button
+                    className="sm-button sm-button-quiet"
+                    type="button"
+                    disabled={drawing}
+                    aria-label="Remove the cover"
+                    title="Remove the cover"
+                    onClick={async () => {
+                      try {
+                        setAlbum(await RemoveAlbumArtwork(albumId))
+                      } catch (err) {
+                        setError(toMessage(err))
+                      }
+                    }}
+                  >
+                    <Trash2 size={15} />
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <Cover url={album.artworkUrl} name={album.name} size={200} />
+            )}
+
+            {!album.artworkFile ? (
+              <>
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    className="sm-button sm-button-primary"
+                    type="button"
+                    onClick={draw}
+                    disabled={drawing}
+                  >
+                    {drawing ? <Loader2 size={15} className="animate-spin" /> : <Wand2 size={15} />}
+                    {drawing ? 'Drawing…' : 'Generate'}
+                  </button>
+                  <button
+                    className="sm-button sm-button-quiet"
+                    type="button"
+                    disabled={drawing}
+                    aria-label="Use an image file"
+                    title="Use an image file"
+                    onClick={pickArtwork}
+                  >
+                    <ImagePlus size={15} />
+                  </button>
+                </div>
+                <TextField
+                  label="Describe the cover"
+                  hint="Or leave it blank and let the style decide."
+                  value={feedback}
+                  placeholder="A single lit window"
+                  onChange={setFeedback}
                   disabled={drawing}
-                  aria-label="Remove the cover"
-                  title="Remove the cover"
-                  onClick={async () => {
-                    try {
-                      setAlbum(await RemoveAlbumArtwork(albumId))
-                    } catch (err) {
-                      setError(toMessage(err))
-                    }
-                  }}
-                >
-                  <Trash2 size={15} />
-                </button>
-              )}
-            </div>
-            <TextField
-              label={album.artworkFile ? 'What to change' : 'Describe the cover'}
-              hint={
-                album.artworkFile
-                  ? 'The rest of the cover is kept.'
-                  : 'Or leave it blank and let the style decide.'
-              }
-              value={feedback}
-              placeholder={album.artworkFile ? 'Colder, less busy' : 'A single lit window'}
-              onChange={setFeedback}
-              disabled={drawing}
-            />
+                />
+              </>
+            ) : changingArtwork && !drawing ? (
+              <>
+                <TextField
+                  label="What to change"
+                  hint="The rest of the cover is kept."
+                  value={feedback}
+                  placeholder="Colder, less busy"
+                  onChange={setFeedback}
+                />
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    className="sm-button sm-button-primary"
+                    type="button"
+                    onClick={() => {
+                      draw()
+                      setChangingArtwork(false)
+                    }}
+                  >
+                    <RefreshCw size={15} />
+                    Redraw
+                  </button>
+                  <button
+                    className="sm-button sm-button-quiet"
+                    type="button"
+                    onClick={() => setChangingArtwork(false)}
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </>
+            ) : (
+              // The prompt waits behind its own button (#114), so a finished
+              // record's sidebar is the cover and one way to change it.
+              <button
+                className="sm-button sm-button-quiet w-full"
+                type="button"
+                disabled={drawing}
+                onClick={() => setChangingArtwork(true)}
+              >
+                {drawing ? <Loader2 size={15} className="animate-spin" /> : <Wand2 size={15} />}
+                {drawing ? 'Drawing…' : 'Make changes with AI'}
+              </button>
+            )}
             {drawing && (
               <p className="text-xs text-fg-muted">
                 This keeps running if you navigate away — watch the status bar.
