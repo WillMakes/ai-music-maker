@@ -2,12 +2,14 @@ package app
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 
 	"aimusicmaker/internal/video"
 )
@@ -24,8 +26,9 @@ var musicVideoRuns sync.Map
 
 // RenderAlbumVideo renders the album's music video (#118): the official takes
 // in running order, each over the cover with its title and a visualisation,
-// faded in and out with the gap from Settings between songs. Filed beside the
-// takes in the album's folder, and recorded on the album.
+// faded in and out with the gap from Settings between songs, in the look the
+// music-video skill chose (#119). Filed beside the takes in the album's
+// folder, and recorded on the album.
 //
 // Slow — minutes of ffmpeg for a whole record — and synchronous, like the
 // cover generation: the frontend holds the call in a provider above the pages
@@ -116,8 +119,66 @@ func (a *App) musicVideoSpec(album Album) (video.Spec, error) {
 		Cover:  cover,
 		Songs:  songs,
 		Gap:    a.musicVideoGap(),
+		Style:  a.musicVideoStyle(artist, album),
 		Out:    filepath.Join(folder, album.Slug+"-music-video.mp4"),
 	}, nil
+}
+
+// askVideoStyle is the model call behind musicVideoStyle, a variable so a test
+// can answer for the model.
+var askVideoStyle = func(a *App, ctx context.Context, system string, turns []chatMsg) (string, error) {
+	return a.askAI(ctx, system, turns)
+}
+
+// musicVideoStyle is the look the music-video skill picks for this record
+// (#119): the skill is the brief, the record's sound and its cover's brief are
+// what it is read against, and the answer is a handful of fixed choices.
+//
+// The look never fails the render. With no AI connected, a model that times
+// out, or an answer that is not the JSON asked for, the video is drawn in
+// video.DefaultStyle — a video in the plain look is a video, and a render
+// refused because a style could not be chosen is not. Whatever comes back is
+// checked by Normalized before ffmpeg sees it, so the model can only ever
+// choose among the options, never write into the filtergraph.
+func (a *App) musicVideoStyle(artist Artist, album Album) video.Style {
+	if !a.GetAIReadiness().Ready {
+		return video.DefaultStyle
+	}
+	brief := a.skillBody(skillMusicVideo)
+	if strings.TrimSpace(brief) == "" {
+		return video.DefaultStyle
+	}
+	var record strings.Builder
+	fmt.Fprintf(&record, "Album: %s\nArtist: %s\n\nTechnical style:\n%s\n",
+		album.Name, artist.Name, combinedStyle(artist, album))
+	if prompt := strings.TrimSpace(album.ArtworkPrompt); prompt != "" {
+		fmt.Fprintf(&record, "\nThe brief the cover was drawn from:\n%s\n", prompt)
+	}
+	record.WriteString("\nChoose the music video's look. Answer with the JSON object only.")
+
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+	defer cancel()
+	answer, err := askVideoStyle(a, ctx, brief, []chatMsg{{Role: "user", Text: record.String()}})
+	if err != nil {
+		return video.DefaultStyle
+	}
+	var chosen struct {
+		Visualizer string  `json:"visualizer"`
+		Color      string  `json:"color"`
+		Background string  `json:"background"`
+		Layout     string  `json:"layout"`
+		Fade       float64 `json:"fade"`
+	}
+	if err := json.Unmarshal([]byte(unfence(answer)), &chosen); err != nil {
+		return video.DefaultStyle
+	}
+	return video.Style{
+		Visualizer: chosen.Visualizer,
+		Color:      chosen.Color,
+		Background: chosen.Background,
+		Layout:     chosen.Layout,
+		Fade:       chosen.Fade,
+	}.Normalized()
 }
 
 // officialTake is the take a video is cut from: the starred one, or the only

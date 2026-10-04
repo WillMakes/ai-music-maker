@@ -35,6 +35,15 @@ medium.
 Where the producer described the cover themselves, that description leads and
 this brief only fills the gaps.
 
+## The music video
+
+The cover is also the album's music video: shown sharp at the centre or side
+of a 1920×1080 frame for the whole record, and again blurred and darkened to
+fill the frame behind it, with the song titles and a visualiser drawn over the
+blur. So the subject should survive being blurred into a field of its own
+colours — a cover that is all fine texture blurs to grey — and a palette with
+one bright accent gives the video's titles a colour to borrow.
+
 ## Format
 
 Square, 1024×1024. Full bleed — no border, no frame, no mockup of a record

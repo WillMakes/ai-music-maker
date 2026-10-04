@@ -28,6 +28,10 @@ replace individually.
 
 Never propose a track name that is already on the album. The list is above.
 
+Keep names short enough to read at a glance — a few words, under about forty
+characters. The name is drawn large across the album's music video while the
+song plays, and a title that runs off the edge of the frame is cut.
+
 ## The style prompt
 
 This is the field that decides what Suno makes. Write it as Suno reads best:
