@@ -1,6 +1,14 @@
 package app
 
-import "fmt"
+import "errors"
+
+// secretSettings are the settings keys the raw setting tools refuse, with
+// where they are read and written instead: each holds credentials, and an
+// agent reading the blob would be handed the producer's keys and tokens.
+var secretSettings = map[string]string{
+	keyAIServices: "the AI connections are read through list_ai_services and written through connect_ai_key and connect_ai_account",
+	keyYouTube:    "the YouTube connection is read through get_youtube and made in Settings → YouTube",
+}
 
 // ---------------------------------------------------------------------------
 // Settings: the skills, the raw settings, the extension, the clients, About
@@ -84,9 +92,8 @@ func settingsTools() []mcpTool {
 			run: with(func(app *App, in struct {
 				Key string `json:"key"`
 			}) map[string]any {
-				if in.Key == keyAIServices {
-					return mcpFailure(fmt.Errorf(
-						"the AI connections are read through list_ai_services"))
+				if why, secret := secretSettings[in.Key]; secret {
+					return mcpFailure(errors.New(why))
 				}
 				value, err := app.GetSetting(in.Key)
 				if err != nil {
@@ -108,11 +115,31 @@ func settingsTools() []mcpTool {
 				Key   string `json:"key"`
 				Value string `json:"value"`
 			}) map[string]any {
-				if in.Key == keyAIServices {
-					return mcpFailure(fmt.Errorf(
-						"the AI connections are written through connect_ai_key and connect_ai_account"))
+				if why, secret := secretSettings[in.Key]; secret {
+					return mcpFailure(errors.New(why))
 				}
 				return done(app.SetSetting(in.Key, in.Value))
+			}),
+		},
+
+		// -- YouTube (#121) -----------------------------------------------------
+		{
+			name: "get_youtube",
+			description: "Whether the producer's YouTube channel is connected, and which channel. " +
+				"Never the OAuth secret or tokens. Connecting is done in Settings → YouTube.",
+			binding: "GetYouTube",
+			schema:  object(map[string]any{}),
+			run: with(func(app *App, _ struct{}) map[string]any {
+				return mcpResult(app.GetYouTube())
+			}),
+		},
+		{
+			name:        "disconnect_youtube",
+			description: "Forget the YouTube connection and revoke it with Google, keeping the OAuth client so connecting again is one press in Settings.",
+			binding:     "DisconnectYouTube",
+			schema:      object(map[string]any{}),
+			run: with(func(app *App, _ struct{}) map[string]any {
+				return answer(app.DisconnectYouTube())
 			}),
 		},
 
