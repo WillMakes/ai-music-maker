@@ -9,6 +9,7 @@ import {BugsPanel} from '../settings/BugsPanel'
 import {ExtensionPanel} from '../settings/ExtensionPanel'
 import {LibraryPanel} from '../settings/LibraryPanel'
 import {PreferencesPanel} from '../settings/PreferencesPanel'
+import {YouTubePanel} from '../settings/YouTubePanel'
 
 /**
  * Every setting on one page (#116), with a navigation down the left that
@@ -223,11 +224,13 @@ function sectionsOf(view: ViewId, onOpenService: (serviceId: string) => void): G
         ? [{id: 'extension', label: 'Chrome extension', node: <ExtensionPanel />}]
         : view === 'settings-bugs'
           ? [{id: 'bugs', label: 'Bug reports', node: <BugsPanel />}]
-          : view === 'settings-preferences'
-            ? [{id: 'preferences', label: 'Preferences', node: <PreferencesPanel />}]
-            : view === 'settings-about'
-              ? [{id: 'about', label: 'About', node: <AboutPanel />}]
-              : []
+          : view === 'settings-youtube'
+            ? [{id: 'youtube', label: 'YouTube', node: <YouTubePanel />}]
+            : view === 'settings-preferences'
+              ? [{id: 'preferences', label: 'Preferences', node: <PreferencesPanel />}]
+              : view === 'settings-about'
+                ? [{id: 'about', label: 'About', node: <AboutPanel />}]
+                : []
 }
 
 const anchor = (id: string) => 'settings-section-' + id
