@@ -7,6 +7,7 @@ import {PlaylistsProvider} from './playlists/PlaylistsProvider'
 import {PlayerProvider} from './player/PlayerProvider'
 import {EvolutionsProvider} from './evolutions/EvolutionsProvider'
 import {ArtworksProvider} from './artworks/ArtworksProvider'
+import {VideosProvider} from './videos/VideosProvider'
 import {BugsProvider} from './bugs/BugsProvider'
 import {ThemeProvider} from './theme/ThemeProvider'
 import './style.css'
@@ -37,12 +38,15 @@ createRoot(container).render(
           <LibraryProvider>
             <PlaylistsProvider>
               <PlayerProvider>
-                {/* Above the shell so an evolution (#82) and an artwork
-                    generation (#83) outlive the page that started them - the
-                    status bar and the album page both read them. */}
+                {/* Above the shell so an evolution (#82), an artwork
+                    generation (#83) and a music-video render (#118) outlive
+                    the page that started them - the status bar and the album
+                    page both read them. */}
                 <EvolutionsProvider>
                   <ArtworksProvider>
-                    <App />
+                    <VideosProvider>
+                      <App />
+                    </VideosProvider>
                   </ArtworksProvider>
                 </EvolutionsProvider>
               </PlayerProvider>

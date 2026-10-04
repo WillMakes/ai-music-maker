@@ -161,6 +161,23 @@ func fileTools() []mcpTool {
 			}),
 		},
 		{
+			name: "render_album_video",
+			description: "Render the album's music video (#118): every track's official take in " +
+				"running order, each over the cover with its title and a visualisation of the " +
+				"audio, faded in and out with the music-video gap from settings between songs. " +
+				"Needs a cover, an official take on every track, and ffmpeg. Slow: minutes for " +
+				"a whole record. Filed in the album's folder; returns the album with videoFile.",
+			binding: "RenderAlbumVideo",
+			schema: object(map[string]any{
+				"albumId": text("the album"),
+			}, "albumId"),
+			run: with(func(app *App, in struct {
+				AlbumID string `json:"albumId"`
+			}) map[string]any {
+				return answer(app.RenderAlbumVideo(in.AlbumID))
+			}),
+		},
+		{
 			name: "import_album_artwork",
 			description: "Use an image the producer already has as the album's cover (png, jpg, " +
 				"webp, up to 10 MB). Clears the generation brief, since this cover did not " +

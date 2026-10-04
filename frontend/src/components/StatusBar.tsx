@@ -1,6 +1,7 @@
 import {useCallback, useEffect, useState, type ReactNode} from 'react'
 import {
   AlertTriangle,
+  Clapperboard,
   Bug,
   Chrome,
   Image as ImageIcon,
@@ -18,6 +19,7 @@ import {
 import {app} from '../../wailsjs/go/models'
 import {useArtists} from '../artists/ArtistsProvider'
 import {useArtworks} from '../artworks/ArtworksProvider'
+import {useVideos} from '../videos/VideosProvider'
 import {useEvolutions} from '../evolutions/EvolutionsProvider'
 import {summarise, useBugs} from '../bugs/BugsProvider'
 import {useDataChanged} from '../lib/dataChanged'
@@ -51,6 +53,7 @@ export function StatusBar({
   const {reports} = useBugs()
   const {evolutions, dismiss} = useEvolutions()
   const {artworks, dismiss: dismissArtwork} = useArtworks()
+  const {videos, dismiss: dismissVideo} = useVideos()
 
   const [info, setInfo] = useState<app.BuildInfo | null>(null)
   const [services, setServices] = useState<app.AIServiceStatus[]>([])
@@ -194,6 +197,38 @@ export function StatusBar({
             live={job.state === 'running'}
             onClick={() => {
               if (job.state === 'done') dismissArtwork(job.albumId)
+              onOpenAlbum(job.albumId, job.artistId)
+            }}
+          />
+        ))}
+
+        {/* The music-video renders (#118), the artwork segments' shape with
+            how far the render has got: it is minutes long, and a spinner
+            alone cannot say whether it is nearly done. */}
+        {videos.map((job) => (
+          <Segment
+            key={'video-' + job.albumId}
+            icon={
+              job.state === 'running' ? (
+                <Loader2 size={12} className="animate-spin" />
+              ) : job.state === 'done' ? (
+                <Clapperboard size={12} />
+              ) : (
+                <AlertTriangle size={12} />
+              )
+            }
+            label={
+              job.state === 'running'
+                ? `Rendering the music video for “${job.albumName}” — ${Math.round(job.fraction * 100)}%`
+                : job.state === 'done'
+                  ? `The music video for “${job.albumName}” is ready — open it`
+                  : `Rendering the music video for “${job.albumName}” failed`
+            }
+            tone={job.state === 'done' ? 'ok' : job.state === 'failed' ? 'warn' : undefined}
+            showLabel
+            live={job.state === 'running'}
+            onClick={() => {
+              if (job.state === 'done') dismissVideo(job.albumId)
               onOpenAlbum(job.albumId, job.artistId)
             }}
           />

@@ -45,6 +45,10 @@ type Album struct {
 	AppleMusicURL  string `json:"appleMusicUrl"`
 	SpotifyURL     string `json:"spotifyUrl"`
 	YouTubeURL     string `json:"youtubeUrl"`
+	// VideoFile is the album's rendered music video (#118), a path in its
+	// folder of the music library; empty until one is rendered. Written only
+	// by a render, never by saveAlbum, so an edit to the album cannot clear it.
+	VideoFile string `json:"videoFile"`
 	// TrackCount is joined for the card, for listArtists' reason.
 	TrackCount int `json:"trackCount"`
 	// WrittenCount and MadeCount are the card's progress (#43): tracks with a
@@ -158,7 +162,7 @@ func (a *App) DeleteAlbum(id string) error {
 
 const albumColumns = `al.id, al.artist_id, al.name, al.slug, al.artwork_file,
 	al.artwork_prompt, al.technical_style, al.apple_music_url, al.spotify_url,
-	al.youtube_url, al.created_at, al.updated_at,
+	al.youtube_url, al.video_file, al.created_at, al.updated_at,
 	(SELECT COUNT(*) FROM tracks WHERE tracks.album_id = al.id),
 	(SELECT COUNT(*) FROM tracks WHERE tracks.album_id = al.id
 	   AND TRIM(tracks.prompt) <> ''),
@@ -170,7 +174,7 @@ func scanAlbum(scan func(...any) error) (Album, error) {
 	var al Album
 	err := scan(&al.ID, &al.ArtistID, &al.Name, &al.Slug, &al.ArtworkFile,
 		&al.ArtworkPrompt, &al.TechnicalStyle, &al.AppleMusicURL, &al.SpotifyURL,
-		&al.YouTubeURL, &al.CreatedAt, &al.UpdatedAt, &al.TrackCount,
+		&al.YouTubeURL, &al.VideoFile, &al.CreatedAt, &al.UpdatedAt, &al.TrackCount,
 		&al.WrittenCount, &al.MadeCount, &al.ArtistName, &al.ArtistBaseStyle)
 	return al, err
 }
