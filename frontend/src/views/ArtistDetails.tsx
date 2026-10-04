@@ -95,6 +95,19 @@ export function ArtistDetails({
     editedRef.current = true
     setDraft((current) => (current ? app.Artist.createFrom({...current, ...patch}) : current))
   }
+  // The draft as of the last render, for work that outlives the render that
+  // started it (#112) — an analysis finishes minutes later, and folding it
+  // into the draft it began with would undo everything typed since.
+  const draftRef = useRef(draft)
+  draftRef.current = draft
+  const updateInspirations = (change: (rows: app.Inspiration[]) => app.Inspiration[]) => {
+    editedRef.current = true
+    setDraft((current) =>
+      current
+        ? app.Artist.createFrom({...current, inspirations: change(current.inspirations ?? [])})
+        : current,
+    )
+  }
 
   // The auto-save itself (#52): a debounce off the draft, so one write per
   // pause in typing rather than forty half-finished versions. The stored
@@ -408,12 +421,19 @@ export function ArtistDetails({
       <div hidden={tab !== 'inspiration'}>
       <Inspirations
         inspirations={draft.inspirations ?? []}
-        onChange={(inspirations) => update({inspirations})}
+        onChange={updateInspirations}
         // Adding a reference updates the style (#31): the analysis that just
         // filled the note is folded into the base style draft, and the
-        // auto-save writes it down like any other edit (#52).
+        // auto-save writes it down like any other edit (#52). Against the
+        // style as it is now, not as it was when the analysis began (#112).
         onMergeStyle={async (analysis) => {
-          const merged = await MergeStyleWithAnalysis(draft.baseStyle, analysis)
+          const base = draftRef.current?.baseStyle ?? ''
+          const merged = await MergeStyleWithAnalysis(base, analysis)
+          // The merge is a model call too; a style typed over meanwhile is
+          // the producer's word and outranks it.
+          if ((draftRef.current?.baseStyle ?? '') !== base) {
+            throw new Error('The base style was edited while the analysis was being merged, so it was left as you wrote it.')
+          }
           update({baseStyle: merged})
         }}
       />
@@ -723,21 +743,29 @@ const styleBrief = (note: string) => {
   return flat.length > 150 ? flat.slice(0, 150).trimEnd() + '…' : flat
 }
 
+/** Where one reference's analysis stands (#112), keyed by its link. */
+type AnalysisStatus = {state: 'queued' | 'running'} | {state: 'failed'; error: string}
+
 function Inspirations({
   inspirations,
   onChange,
   onMergeStyle,
 }: {
   inspirations: app.Inspiration[]
-  onChange: (next: app.Inspiration[]) => void
+  /** Changes the rows as they are when it lands, not as this render saw them. */
+  onChange: (change: (rows: app.Inspiration[]) => app.Inspiration[]) => void
   /** Folds a fresh analysis into the base style draft (#31). */
   onMergeStyle: (analysis: string) => Promise<void>
 }) {
-  // Which reference Antigravity is researching right now (#29), and what went
-  // wrong when one could not be. One at a time — each run is minutes of
-  // agentic CLI, and a second press should wait its turn, not race the first.
-  const [analyzing, setAnalyzing] = useState<number | null>(null)
-  const [analysisError, setAnalysisError] = useState('')
+  // Every analysis runs behind the cards rather than inside the modal (#112):
+  // each is minutes of agentic CLI (#29), and holding the modal open for that
+  // long held the page hostage. They are keyed by link, not by row index — a
+  // row removed or added mid-run shifts every index after it, and the result
+  // would land on the wrong song. One runs at a time; a second press joins
+  // the queue rather than racing the first.
+  const [status, setStatus] = useState<Record<string, AnalysisStatus>>({})
+  const queueRef = useRef<string[]>([])
+  const runningRef = useRef(false)
   // Which reference's modal is open (#58). The card is a summary; everything
   // that edits the reference lives behind the click.
   const [openIndex, setOpenIndex] = useState<number | null>(null)
@@ -757,7 +785,7 @@ function Inspirations({
     if (pending) {
       const next = app.Inspiration.createFrom({...pending, ...patch})
       if (next.url.trim() || next.note.trim()) {
-        onChange([...inspirations, next])
+        onChange((rows) => [...rows, next])
         setPending(null)
         setOpenIndex(inspirations.length)
       } else {
@@ -765,43 +793,92 @@ function Inspirations({
       }
       return
     }
-    if (openIndex !== null) update(openIndex, patch)
-  }
-
-  const analyze = async (index: number) => {
-    if (analyzing !== null) return
-    setAnalyzing(index)
-    setAnalysisError('')
-    try {
-      const analysis = await AnalyzeMusicURL(inspirations[index].url)
-      // The style lands in the note, and the song's identity — title,
-      // artist, album, cover — rides along (#51), so the row says what it
-      // is instead of showing a bare URL. The auto-save writes it down.
-      update(index, {
-        note: analysis.style,
-        title: analysis.title,
-        artist: analysis.artist,
-        album: analysis.album,
-        artworkUrl: analysis.artworkUrl,
-      })
-      // And into the base style beside it (#31) — the reference was added to
-      // change how the artist sounds, and the merge is where that lands. Its
-      // failure keeps the note: an analysis without a merge is still worth
-      // having, and the error says why the style did not move.
-      await onMergeStyle(analysis.style)
-    } catch (err) {
-      setAnalysisError(toMessage(err))
-    } finally {
-      setAnalyzing(null)
+    if (openIndex !== null) {
+      const index = openIndex
+      onChange((rows) =>
+        rows.map((row, i) => (i === index ? app.Inspiration.createFrom({...row, ...patch}) : row)),
+      )
     }
   }
 
-  const update = (index: number, patch: Partial<app.Inspiration>) =>
-    onChange(
-      inspirations.map((row, i) =>
-        i === index ? app.Inspiration.createFrom({...row, ...patch}) : row,
-      ),
-    )
+  const setOne = (url: string, next: AnalysisStatus | null) =>
+    setStatus((current) => {
+      const copy = {...current}
+      if (next) copy[url] = next
+      else delete copy[url]
+      return copy
+    })
+
+  // Takes the next link off the queue. Everything it touches is a ref or a
+  // functional update, so a run that finishes renders later still lands on
+  // the rows as they are then.
+  const pump = async () => {
+    if (runningRef.current) return
+    const url = queueRef.current.shift()
+    if (url === undefined) return
+    runningRef.current = true
+    setOne(url, {state: 'running'})
+    try {
+      const analysis = await AnalyzeMusicURL(url)
+      // The style lands in the note, and the song's identity — title,
+      // artist, album, cover — rides along (#51), so the row says what it
+      // is instead of showing a bare URL. The auto-save writes it down. A
+      // row removed, or relinked, while the run was out gets nothing.
+      const listed = stillListed(url)
+      onChange((rows) =>
+        rows.map((row) => {
+          if (row.url !== url) return row
+          return app.Inspiration.createFrom({
+            ...row,
+            note: analysis.style,
+            title: analysis.title,
+            artist: analysis.artist,
+            album: analysis.album,
+            artworkUrl: analysis.artworkUrl,
+          })
+        }),
+      )
+      // And into the base style beside it (#31) — the reference was added to
+      // change how the artist sounds, and the merge is where that lands. Its
+      // failure keeps the note: an analysis without a merge is still worth
+      // having, and the card says why the style did not move. Nothing is
+      // merged for a reference that is no longer there.
+      if (listed) await onMergeStyle(analysis.style)
+      setOne(url, null)
+    } catch (err) {
+      setOne(url, {state: 'failed', error: toMessage(err)})
+    } finally {
+      runningRef.current = false
+      void pump()
+    }
+  }
+
+  // The rows as of the latest render, for deciding whether a finished run
+  // still has a reference to merge for — the functional update that fills
+  // the row may not run until the next render, so it cannot answer that.
+  const rowsRef = useRef(inspirations)
+  rowsRef.current = inspirations
+  const stillListed = (url: string) => rowsRef.current.some((row) => row.url === url)
+
+  const analyze = (url: string) => {
+    if (!url || queueRef.current.includes(url) || status[url]?.state === 'running') return
+    queueRef.current.push(url)
+    setOne(url, {state: 'queued'})
+    void pump()
+  }
+
+  const removeAt = (index: number) => {
+    const url = inspirations[index]?.url
+    onChange((rows) => rows.filter((_, i) => i !== index))
+    // A queued run for it would only find nothing to fill; a failure has
+    // nothing left to retry.
+    if (url && !inspirations.some((row, i) => i !== index && row.url === url)) {
+      queueRef.current = queueRef.current.filter((queued) => queued !== url)
+      if (status[url]?.state !== 'running') setOne(url, null)
+    }
+  }
+
+  const openStatus = openRow?.url ? status[openRow.url] : undefined
 
   return (
     <section className="sm-panel space-y-4 p-4">
@@ -832,8 +909,6 @@ function Inspirations({
         </button>
       </div>
 
-      {analysisError && <p className="text-sm text-danger">{analysisError}</p>}
-
       {inspirations.length === 0 ? (
         <p className="text-sm text-fg-muted">
           YouTube or YouTube Music links — specific tracks rather than artists. The
@@ -843,43 +918,83 @@ function Inspirations({
         </p>
       ) : (
         <ul className="grid gap-3 sm:grid-cols-2">
-          {inspirations.map((row, index) => (
-            <li key={row.id || index}>
-              {/* The card is the glance (#58): what the song is and the first
-                  breath of its style. The full breakdown, the link and every
-                  control live in the modal the click opens. */}
-              <button
-                className="flex h-full w-full items-start gap-3 rounded-lg border border-edge p-3 text-left hover:border-accent"
-                type="button"
-                onClick={() => setOpenIndex(index)}
+          {inspirations.map((row, index) => {
+            const rowStatus = row.url ? status[row.url] : undefined
+            const failed = rowStatus?.state === 'failed' ? rowStatus : null
+            return (
+              <li
+                key={row.id || index}
+                className={
+                  'flex flex-col rounded-lg border ' +
+                  (failed ? 'border-danger' : 'border-edge hover:border-accent')
+                }
               >
-                {row.artworkUrl && (
-                  <img
-                    src={row.artworkUrl}
-                    alt=""
-                    className="h-12 w-12 shrink-0 rounded-md border border-edge object-cover"
-                  />
-                )}
-                <span className="min-w-0 flex-1">
-                  <span className="block truncate text-sm font-medium">
-                    {row.title || row.url || 'New reference'}
-                  </span>
-                  {(row.artist || row.album) && (
-                    <span className="block truncate text-xs text-fg-muted">
-                      {[row.artist, row.album].filter(Boolean).join(' — ')}
-                    </span>
+                {/* The card is the glance (#58): what the song is and the first
+                    breath of its style. The full breakdown, the link and every
+                    control live in the modal the click opens. */}
+                <button
+                  className="flex h-full w-full items-start gap-3 p-3 text-left"
+                  type="button"
+                  onClick={() => setOpenIndex(index)}
+                >
+                  {row.artworkUrl && (
+                    <img
+                      src={row.artworkUrl}
+                      alt=""
+                      className="h-12 w-12 shrink-0 rounded-md border border-edge object-cover"
+                    />
                   )}
-                  <span className="mt-1 block text-xs text-fg-muted">
-                    {styleBrief(row.note) ||
-                      'No style yet — open the card to write or analyze it.'}
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-sm font-medium">
+                      {row.title || row.url || 'New reference'}
+                    </span>
+                    {(row.artist || row.album) && (
+                      <span className="block truncate text-xs text-fg-muted">
+                        {[row.artist, row.album].filter(Boolean).join(' — ')}
+                      </span>
+                    )}
+                    <span className="mt-1 block text-xs text-fg-muted">
+                      {rowStatus?.state === 'running'
+                        ? 'Analyzing…'
+                        : rowStatus?.state === 'queued'
+                          ? 'Waiting to be analyzed…'
+                          : styleBrief(row.note) ||
+                            'No style yet — open the card to write or analyze it.'}
+                    </span>
                   </span>
-                </span>
-                {analyzing === index && (
-                  <Loader2 size={15} className="mt-0.5 shrink-0 animate-spin" aria-hidden />
+                  {(rowStatus?.state === 'running' || rowStatus?.state === 'queued') && (
+                    <Loader2 size={15} className="mt-0.5 shrink-0 animate-spin" aria-hidden />
+                  )}
+                </button>
+                {/* A failure stays on its card with its way out (#112) — the
+                    modal that used to carry the error is long closed by the
+                    time a run fails. */}
+                {failed && (
+                  <div className="space-y-2 border-t border-edge p-3">
+                    <p className="text-xs text-danger">{failed.error}</p>
+                    <div className="flex gap-2">
+                      <button
+                        className="sm-button sm-button-quiet"
+                        type="button"
+                        onClick={() => analyze(row.url)}
+                      >
+                        <AudioLines size={15} />
+                        Retry
+                      </button>
+                      <button
+                        className="sm-button sm-button-quiet"
+                        type="button"
+                        onClick={() => removeAt(index)}
+                      >
+                        <Trash2 size={15} />
+                        Remove
+                      </button>
+                    </div>
+                  </div>
                 )}
-              </button>
-            </li>
-          ))}
+              </li>
+            )
+          })}
         </ul>
       )}
 
@@ -894,9 +1009,7 @@ function Inspirations({
                 className="sm-button sm-button-quiet"
                 type="button"
                 onClick={() => {
-                  if (openIndex !== null) {
-                    onChange(inspirations.filter((_, i) => i !== openIndex))
-                  }
+                  if (openIndex !== null) removeAt(openIndex)
                   closeModal()
                 }}
               >
@@ -915,15 +1028,29 @@ function Inspirations({
               <button
                 className="sm-button sm-button-primary"
                 type="button"
-                disabled={openIndex === null || !openRow.url || analyzing !== null}
-                onClick={() => openIndex !== null && void analyze(openIndex)}
+                disabled={
+                  openIndex === null ||
+                  !openRow.url ||
+                  openStatus?.state === 'running' ||
+                  openStatus?.state === 'queued'
+                }
+                // The modal steps aside the moment the run starts (#112); the
+                // card carries the progress, and the page stays usable.
+                onClick={() => {
+                  analyze(openRow.url)
+                  closeModal()
+                }}
               >
-                {analyzing === openIndex ? (
+                {openStatus?.state === 'running' || openStatus?.state === 'queued' ? (
                   <Loader2 size={15} className="animate-spin" />
                 ) : (
                   <AudioLines size={15} />
                 )}
-                {analyzing === openIndex ? 'Analyzing…' : 'Analyze'}
+                {openStatus?.state === 'running'
+                  ? 'Analyzing…'
+                  : openStatus?.state === 'queued'
+                    ? 'Queued'
+                    : 'Analyze'}
               </button>
             </>
           }
@@ -948,7 +1075,9 @@ function Inspirations({
                 </div>
               </div>
             )}
-            {analysisError && <p className="text-sm text-danger">{analysisError}</p>}
+            {openStatus?.state === 'failed' && (
+              <p className="text-sm text-danger">{openStatus.error}</p>
+            )}
             <TextField
               label="Link"
               type="url"
