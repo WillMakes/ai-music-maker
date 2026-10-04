@@ -42,6 +42,9 @@ const (
 	// keyDefaultTrackLength is the target length new tracks start at, in
 	// seconds. Stored because a producer making an album works to one shape.
 	keyDefaultTrackLength = "default_track_length"
+	// keyMusicVideoGap is the silence between songs in an album's music video,
+	// in seconds (#118). Unset is one second.
+	keyMusicVideoGap = "music_video_gap"
 )
 
 // Change scopes emitted on the "data:changed" event. A scope is either a
@@ -201,6 +204,7 @@ CREATE TABLE IF NOT EXISTS albums (
 	apple_music_url TEXT NOT NULL DEFAULT '',
 	spotify_url     TEXT NOT NULL DEFAULT '',
 	youtube_url     TEXT NOT NULL DEFAULT '',
+	video_file      TEXT NOT NULL DEFAULT '',
 	created_at      TEXT NOT NULL DEFAULT '',
 	updated_at      TEXT NOT NULL DEFAULT ''
 );
@@ -370,6 +374,8 @@ func (s *Store) addColumns() error {
 		// The Suno clip a take was filed from while it played (#91), so the
 		// same clip heard twice is filed once.
 		{"track_files", "suno_clip", "TEXT NOT NULL DEFAULT ''"},
+		// Where the album's music video was filed (#118).
+		{"albums", "video_file", "TEXT NOT NULL DEFAULT ''"},
 	}
 	for _, c := range columns {
 		_, err := s.db.Exec(fmt.Sprintf("ALTER TABLE %s ADD COLUMN %s %s",

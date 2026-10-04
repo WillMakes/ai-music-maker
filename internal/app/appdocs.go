@@ -95,7 +95,14 @@ the ones made afterwards.
    them without being told to. A WAV is kept as a 320 kbps MP3 when ffmpeg is
    installed, and as the WAV when it is not.
 
-6. **Release it.** Once the record is out, its Apple Music, Spotify and YouTube
+6. **Render the music video.** With a cover and an official take on every
+   track, the album page renders one video of the whole record: each take over
+   the cover with its title and a visualiser, faded in and out, with the gap
+   set in Settings → Library between songs. It needs ffmpeg, runs in the
+   background with its progress in the status bar, and is filed beside the
+   takes.
+
+7. **Release it.** Once the record is out, its Apple Music, Spotify and YouTube
    Music links go on the album.
 
 ## Where things live
