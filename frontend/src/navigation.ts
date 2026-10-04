@@ -121,7 +121,7 @@ export const BOTTOM_NAV: NavEntry[] = [
   {id: 'settings-ai', label: 'Settings', icon: SettingsIcon},
 ]
 
-/** The settings tabs, in the order the strip shows them. */
+/** The settings page's groups, in the order its navigation lists them (#116). */
 export const SETTINGS_TABS: {id: ViewId; label: string}[] = [
   {id: 'settings-ai', label: 'AI'},
   {id: 'settings-library', label: 'Library'},
