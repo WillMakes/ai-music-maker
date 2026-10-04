@@ -198,6 +198,20 @@ func fileTools() []mcpTool {
 			}),
 		},
 		{
+			name: "get_album_video_stats",
+			description: "How the album's uploaded music video is doing on YouTube (#123): live " +
+				"views, likes and comments, and the YouTube Analytics report since it was " +
+				"published — minutes watched, average view duration, subscribers gained. The " +
+				"report lags two or three days; analyticsAvailable is false until it has rows.",
+			binding: "GetAlbumVideoStats",
+			schema:  object(map[string]any{"albumId": text("the album")}, "albumId"),
+			run: with(func(app *App, in struct {
+				AlbumID string `json:"albumId"`
+			}) map[string]any {
+				return answer(app.GetAlbumVideoStats(in.AlbumID))
+			}),
+		},
+		{
 			name: "import_album_artwork",
 			description: "Use an image the producer already has as the album's cover (png, jpg, " +
 				"webp, up to 10 MB). Clears the generation brief, since this cover did not " +
