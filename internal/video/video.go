@@ -246,6 +246,17 @@ func Render(ctx context.Context, spec Spec, progress func(float64)) (Rendered, e
 	return result, nil
 }
 
+// Timestamp is a position in the video as YouTube writes one in a
+// description: m:ss, or h:mm:ss from an hour on. Rounded down, so a link
+// lands on the song's first second rather than just after it.
+func Timestamp(seconds float64) string {
+	s := int(max(0, seconds))
+	if s >= 3600 {
+		return fmt.Sprintf("%d:%02d:%02d", s/3600, s/60%60, s%60)
+	}
+	return fmt.Sprintf("%d:%02d", s/60, s%60)
+}
+
 // songArgs is one song's segment: the picture, the song's audio, and the
 // fades. The audio fades only briefly — a fade-in as long as the picture's
 // would swallow the song's first bar — while the picture takes style.Fade.

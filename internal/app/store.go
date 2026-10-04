@@ -205,6 +205,7 @@ CREATE TABLE IF NOT EXISTS albums (
 	spotify_url     TEXT NOT NULL DEFAULT '',
 	youtube_url     TEXT NOT NULL DEFAULT '',
 	video_file      TEXT NOT NULL DEFAULT '',
+	video_description TEXT NOT NULL DEFAULT '',
 	created_at      TEXT NOT NULL DEFAULT '',
 	updated_at      TEXT NOT NULL DEFAULT ''
 );
@@ -376,6 +377,8 @@ func (s *Store) addColumns() error {
 		{"track_files", "suno_clip", "TEXT NOT NULL DEFAULT ''"},
 		// Where the album's music video was filed (#118).
 		{"albums", "video_file", "TEXT NOT NULL DEFAULT ''"},
+		// The video's YouTube description, timestamps and all (#120).
+		{"albums", "video_description", "TEXT NOT NULL DEFAULT ''"},
 	}
 	for _, c := range columns {
 		_, err := s.db.Exec(fmt.Sprintf("ALTER TABLE %s ADD COLUMN %s %s",
