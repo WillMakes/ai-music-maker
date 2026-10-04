@@ -212,6 +212,22 @@ func fileTools() []mcpTool {
 			}),
 		},
 		{
+			name: "upload_album_to_youtube_music",
+			description: "Send every track's official take to the producer's own YouTube Music " +
+				"library (#124), each tagged with its title, the artist, the album, its track " +
+				"number and the cover so the library files them as one album. Private to the " +
+				"account — not a release. Needs a YouTube Music session and ffmpeg. Stops at " +
+				"the first failure and says how many went; uploading again adds second copies. " +
+				"Returns the album with ytmusicUploadedAt.",
+			binding: "UploadAlbumToYouTubeMusic",
+			schema:  object(map[string]any{"albumId": text("the album")}, "albumId"),
+			run: with(func(app *App, in struct {
+				AlbumID string `json:"albumId"`
+			}) map[string]any {
+				return answer(app.UploadAlbumToYouTubeMusic(in.AlbumID))
+			}),
+		},
+		{
 			name: "import_album_artwork",
 			description: "Use an image the producer already has as the album's cover (png, jpg, " +
 				"webp, up to 10 MB). Clears the generation brief, since this cover did not " +

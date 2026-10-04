@@ -206,7 +206,11 @@ export function StatusBar({
             segments' shape with how far each has got: they are minutes long,
             and a spinner alone cannot say whether one is nearly done. */}
         {videos.map((job) => {
-          const what = job.kind === 'upload' ? 'Uploading' : 'Rendering'
+          const what = job.kind === 'render' ? 'Rendering' : 'Uploading'
+          const thing =
+            job.kind === 'ytmusic'
+              ? `“${job.albumName}” to YouTube Music`
+              : `the music video for “${job.albumName}”`
           return (
             <Segment
               key={'video-' + job.kind + '-' + job.albumId}
@@ -221,12 +225,14 @@ export function StatusBar({
               }
               label={
                 job.state === 'running'
-                  ? `${what} the music video for “${job.albumName}” — ${Math.round(job.fraction * 100)}%`
+                  ? `${what} ${thing} — ${Math.round(job.fraction * 100)}%`
                   : job.state === 'done'
                     ? job.kind === 'upload'
                       ? `The music video for “${job.albumName}” is on YouTube — open it`
-                      : `The music video for “${job.albumName}” is ready — open it`
-                    : `${what} the music video for “${job.albumName}” failed`
+                      : job.kind === 'ytmusic'
+                        ? `“${job.albumName}” is in your YouTube Music library — open it`
+                        : `The music video for “${job.albumName}” is ready — open it`
+                    : `${what} ${thing} failed`
               }
               tone={job.state === 'done' ? 'ok' : job.state === 'failed' ? 'warn' : undefined}
               showLabel
