@@ -165,3 +165,36 @@ func TestUploadAlbumVideo(t *testing.T) {
 		t.Errorf("the album records %q / %q", uploaded.VideoYouTubeID, uploaded.VideoYouTubeURL)
 	}
 }
+
+// TestGetAlbumVideoStats is #123's binding: the album's uploaded video is the
+// one read, and an album with none says so instead of asking YouTube.
+func TestGetAlbumVideoStats(t *testing.T) {
+	app := newTestApp(t)
+	stubYouTube(t)
+	if _, err := app.SaveYouTubeClient("cid.apps.googleusercontent.com", "secret"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := app.ConnectYouTube(); err != nil {
+		t.Fatal(err)
+	}
+	artist, _ := app.SaveArtist(Artist{Name: "Cassette Motel", Inspirations: []Inspiration{}})
+	album, _ := app.SaveAlbum(Album{ArtistID: artist.ID, Name: "Night Drive"})
+
+	asked := ""
+	previous := videoStats
+	t.Cleanup(func() { videoStats = previous })
+	videoStats = func(_ context.Context, _, id string) (youtube.Stats, error) {
+		asked = id
+		return youtube.Stats{VideoID: id, Views: 42}, nil
+	}
+	if _, err := app.GetAlbumVideoStats(album.ID); err == nil || asked != "" {
+		t.Fatalf("an album with no upload asked YouTube: %v, %q", err, asked)
+	}
+	if err := app.store.setAlbumYouTubeVideo(album.ID, "vid123"); err != nil {
+		t.Fatal(err)
+	}
+	stats, err := app.GetAlbumVideoStats(album.ID)
+	if err != nil || asked != "vid123" || stats.Views != 42 {
+		t.Fatalf("stats = %+v, %v, asked %q", stats, err, asked)
+	}
+}
