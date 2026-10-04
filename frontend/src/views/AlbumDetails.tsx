@@ -553,7 +553,7 @@ export function AlbumDetails({
                   <p className="text-xs text-fg-muted">
                     {missing.length > 0
                       ? 'Needs ' + missing.join(' and ') + ' first.'
-                      : 'Every official take over the cover, with each title and a visualiser, the gap from Settings between songs.'}
+                      : 'Every official take over the cover, with each title and a visualiser, in the look the Music video skill picks for this record.'}
                   </p>
                   <button
                     className="sm-button sm-button-primary"
