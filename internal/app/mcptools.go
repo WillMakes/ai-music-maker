@@ -33,18 +33,20 @@ import (
 // them: an agent documenting the app should say why a page's button has no
 // tool, not just that it has none.
 //
-// Six of them need a window. The server runs with no webview, and a dialog
+// Most of them need a window. The server runs with no webview, and a dialog
 // nobody can see is a call that never returns; an agent with a path to hand
 // over has import_track_file and import_album_artwork, which take it directly.
 var mcpNotOffered = map[string]string{
-	"PickImageFile":    "opens the desktop's file dialog, which needs a window; import_album_artwork takes the path directly",
-	"PickAudioFiles":   "opens the desktop's file dialog, which needs a window; import_track_file and import_album_take take the path directly",
-	"ShowWindow":       "raises the window, which the server has none of",
-	"OpenURL":          "opens a link in the producer's browser, which is theirs to do",
-	"MarkFixesSeen":    "dismisses the fixed-bugs notice, which is the producer's own acknowledgement — the window shows a fix once and clears the flag when they have read it",
-	"ListMCPTools":     "lists this server's tools, which is what the protocol's own tools/list already answers",
-	"ReportNowPlaying": "is the window's player telling the app what it is doing; the server has no player, and now_playing reads the answer",
-	"SetMediaKeys":     "holds the keyboard's media keys for the window's player, which the server has none of; the player takes and releases them as its queue fills and empties",
+	"PickImageFile":     "opens the desktop's file dialog, which needs a window; import_album_artwork takes the path directly",
+	"PickAudioFiles":    "opens the desktop's file dialog, which needs a window; import_track_file and import_album_take take the path directly",
+	"ShowWindow":        "raises the window, which the server has none of",
+	"OpenURL":           "opens a link in the producer's browser, which is theirs to do",
+	"MarkFixesSeen":     "dismisses the fixed-bugs notice, which is the producer's own acknowledgement — the window shows a fix once and clears the flag when they have read it",
+	"ListMCPTools":      "lists this server's tools, which is what the protocol's own tools/list already answers",
+	"ReportNowPlaying":  "is the window's player telling the app what it is doing; the server has no player, and now_playing reads the answer",
+	"SetMediaKeys":      "holds the keyboard's media keys for the window's player, which the server has none of; the player takes and releases them as its queue fills and empties",
+	"SaveYouTubeClient": "takes the producer's Google OAuth secret, which they paste into Settings → YouTube themselves rather than hand to an agent",
+	"ConnectYouTube":    "signs in to Google in the producer's browser, which needs the window to open it and the producer to approve it",
 }
 
 // mcpTool is one tool's definition and its implementation together.

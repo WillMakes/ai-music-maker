@@ -66,6 +66,8 @@ const (
 	// scopeAIServices is reported after a provider connection changes, so an
 	// open Settings page picks it up.
 	scopeAIServices = "ai_services"
+	// scopeYouTube is the YouTube connection changing (#121).
+	scopeYouTube = "youtube"
 	// scopeChats is a stored interview transcript moving (see interview.go).
 	scopeChats = "chats"
 	// scopePlaylists covers playlists and the tracks in them (#107), for
