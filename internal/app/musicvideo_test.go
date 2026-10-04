@@ -117,3 +117,65 @@ func TestRenderAlbumVideo(t *testing.T) {
 		t.Errorf("saving the album cleared its video: %q", resaved.VideoFile)
 	}
 }
+
+// TestMusicVideoStyleFromTheSkill is #119: with an AI connected, the look comes
+// from the music-video skill read against the record; the answer is held to
+// the fixed options, and anything that goes wrong draws the default look
+// rather than refusing the render.
+func TestMusicVideoStyleFromTheSkill(t *testing.T) {
+	app := newTestApp(t)
+	artist, _ := app.SaveArtist(Artist{Name: "Cassette Motel", BaseStyle: "gated drums, FM bass", Inspirations: []Inspiration{}})
+	album, _ := app.SaveAlbum(Album{ArtistID: artist.ID, Name: "Night Drive", ArtworkPrompt: "neon cyan on black"})
+
+	// No AI connected: the default, and the model is never asked.
+	asked := false
+	previous := askVideoStyle
+	t.Cleanup(func() { askVideoStyle = previous })
+	askVideoStyle = func(*App, context.Context, string, []chatMsg) (string, error) {
+		asked = true
+		return "", nil
+	}
+	if got := app.musicVideoStyle(artist, album); got != video.DefaultStyle || asked {
+		t.Fatalf("without AI: style %+v, asked %v", got, asked)
+	}
+
+	withCLIs(t, "claude")
+	if _, err := app.ConnectAIAccount(serviceAnthropic); err != nil {
+		t.Fatal(err)
+	}
+	var brief, record string
+	askVideoStyle = func(_ *App, _ context.Context, system string, turns []chatMsg) (string, error) {
+		brief, record = system, turns[len(turns)-1].Text
+		return "```json\n" + `{"visualizer":"bars","color":"#00e5ff","background":"black","layout":"split","fade":0.5}` + "\n```", nil
+	}
+	got := app.musicVideoStyle(artist, album)
+	want := video.Style{Visualizer: "bars", Color: "00E5FF", Background: "black", Layout: "split", Fade: 0.5}
+	if got != want {
+		t.Errorf("style = %+v, want %+v", got, want)
+	}
+	if !strings.Contains(brief, "# Music video") {
+		t.Errorf("the brief is not the music-video skill: %.80q", brief)
+	}
+	for _, part := range []string{"Night Drive", "gated drums", "neon cyan on black"} {
+		if !strings.Contains(record, part) {
+			t.Errorf("the record sent to the model lacks %q", part)
+		}
+	}
+
+	// Off the menu: each bad field falls back on its own.
+	askVideoStyle = func(*App, context.Context, string, []chatMsg) (string, error) {
+		return `{"visualizer":"lasers","color":"red","background":"blur","layout":"split","fade":40}`, nil
+	}
+	got = app.musicVideoStyle(artist, album)
+	if got.Visualizer != "waves" || got.Color != "FFFFFF" || got.Layout != "split" || got.Fade != 1 {
+		t.Errorf("an off-menu answer reached the render: %+v", got)
+	}
+
+	// Not JSON at all, or a failed call: the default.
+	askVideoStyle = func(*App, context.Context, string, []chatMsg) (string, error) {
+		return "I think bars would look great!", nil
+	}
+	if got := app.musicVideoStyle(artist, album); got != video.DefaultStyle {
+		t.Errorf("prose answer: %+v", got)
+	}
+}

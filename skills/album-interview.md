@@ -38,7 +38,8 @@ is photographic, illustrated, graphic or abstract.
 
 Tell them the app can generate it from that description once the album exists,
 and that they can also drop in their own image. Do not push — plenty of records
-get their artwork last.
+get their artwork last. The cover is what the album's music video is built on,
+too, so a palette they describe is the one the video borrows.
 
 ## Finishing
 

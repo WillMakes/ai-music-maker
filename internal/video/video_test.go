@@ -37,8 +37,8 @@ func TestRenderJoinsSongsWithAGap(t *testing.T) {
 	make("-f", "lavfi", "-i", "sine=frequency=440:duration=3", one)
 	make("-f", "lavfi", "-i", "sine=frequency=660:duration=2", two)
 
-	for _, style := range []Style{{}, {Visualizer: "bars", Background: "black", Color: "#ff8800"}} {
-		out := filepath.Join(dir, "video-"+style.Normalized().Visualizer+".mp4")
+	for _, style := range []Style{{}, {Visualizer: "bars", Background: "black", Color: "#ff8800", Layout: "split"}} {
+		out := filepath.Join(dir, "video-"+style.Normalized().Layout+".mp4")
 		var last float64
 		got, err := Render(context.Background(), Spec{
 			Artist: "Test Artist",
@@ -71,12 +71,12 @@ func TestRenderJoinsSongsWithAGap(t *testing.T) {
 // TestStyleNormalized: whatever a skill writes, only values the filtergraph
 // accepts reach it.
 func TestStyleNormalized(t *testing.T) {
-	got := Style{Visualizer: "lasers", Color: "red;drawtext", Background: "video", Fade: 99}.Normalized()
+	got := Style{Visualizer: "lasers", Color: "red;drawtext", Background: "video", Layout: "x:y", Fade: 99}.Normalized()
 	if got != DefaultStyle {
 		t.Errorf("bad values survived: %+v", got)
 	}
-	got = Style{Visualizer: "bars", Color: "#a1b2c3", Background: "black", Fade: 0.5}.Normalized()
-	want := Style{Visualizer: "bars", Color: "A1B2C3", Background: "black", Fade: 0.5}
+	got = Style{Visualizer: "bars", Color: "#a1b2c3", Background: "black", Layout: "split", Fade: 0.5}.Normalized()
+	want := Style{Visualizer: "bars", Color: "A1B2C3", Background: "black", Layout: "split", Fade: 0.5}
 	if got != want {
 		t.Errorf("got %+v, want %+v", got, want)
 	}

@@ -164,7 +164,8 @@ func fileTools() []mcpTool {
 			name: "render_album_video",
 			description: "Render the album's music video (#118): every track's official take in " +
 				"running order, each over the cover with its title and a visualisation of the " +
-				"audio, faded in and out with the music-video gap from settings between songs. " +
+				"audio, faded in and out with the music-video gap from settings between songs, " +
+				"in the look the music-video skill picks (the default look without an AI). " +
 				"Needs a cover, an official take on every track, and ffmpeg. Slow: minutes for " +
 				"a whole record. Filed in the album's folder; returns the album with videoFile.",
 			binding: "RenderAlbumVideo",

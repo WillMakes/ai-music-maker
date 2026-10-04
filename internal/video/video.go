@@ -64,12 +64,16 @@ type Style struct {
 	// Background is "blur" (the cover, blurred and darkened, filling the
 	// frame) or "black".
 	Background string
+	// Layout is "centered" (the cover in the middle, the titles under it, the
+	// visualisation across the foot) or "split" (the cover on the left, the
+	// titles and the visualisation beside it on the right).
+	Layout string
 	// Fade is how long each song's picture fades in and out, in seconds.
 	Fade float64
 }
 
 // DefaultStyle is the look before any skill has a say.
-var DefaultStyle = Style{Visualizer: "waves", Color: "FFFFFF", Background: "blur", Fade: 1}
+var DefaultStyle = Style{Visualizer: "waves", Color: "FFFFFF", Background: "blur", Layout: "centered", Fade: 1}
 
 // Normalized fills what is missing from DefaultStyle and drops what is not a
 // value the filtergraph accepts, so a style read from anywhere is safe to use.
@@ -83,6 +87,9 @@ func (s Style) Normalized() Style {
 	}
 	if s.Background == "blur" || s.Background == "black" {
 		out.Background = s.Background
+	}
+	if s.Layout == "centered" || s.Layout == "split" {
+		out.Layout = s.Layout
 	}
 	if s.Fade > 0 && s.Fade <= 5 {
 		out.Fade = s.Fade
@@ -253,19 +260,20 @@ func songArgs(cover, audio, title, font string, seconds float64, style Style, ou
 	} else {
 		fmt.Fprintf(&g, "[0:v]scale=%d:%d:force_original_aspect_ratio=increase,crop=%d:%d,gblur=sigma=40,eq=brightness=-0.2[bg];", width, height, width, height)
 	}
-	g.WriteString("[0:v]scale=560:560[cv];")
+	l := layoutOf(style.Layout)
+	fmt.Fprintf(&g, "[0:v]scale=%d:%d[cv];", l.cover, l.cover)
 	g.WriteString("[1:a]asplit=2[aud][vis];")
 	if style.Visualizer == "bars" {
-		fmt.Fprintf(&g, "[vis]showfreqs=s=1600x220:mode=bar:ascale=sqrt:fscale=log:win_size=2048:colors=%s,format=rgba,colorkey=black:0.1:0.0[wv];", color)
+		fmt.Fprintf(&g, "[vis]showfreqs=s=%dx%d:mode=bar:ascale=sqrt:fscale=log:win_size=2048:colors=%s,format=rgba,colorkey=black:0.1:0.0[wv];", l.visW, l.visH, color)
 	} else {
-		fmt.Fprintf(&g, "[vis]showwaves=s=1600x220:mode=cline:rate=%d:colors=%s@0.9,format=rgba[wv];", fps, color)
+		fmt.Fprintf(&g, "[vis]showwaves=s=%dx%d:mode=cline:rate=%d:colors=%s@0.9,format=rgba[wv];", l.visW, l.visH, fps, color)
 	}
-	g.WriteString("[bg][cv]overlay=(W-w)/2:130:shortest=1[l1];")
-	g.WriteString("[l1][wv]overlay=(W-w)/2:H-h-70[l2];")
+	fmt.Fprintf(&g, "[bg][cv]overlay=%s:%s:shortest=1[l1];", l.coverX, l.coverY)
+	fmt.Fprintf(&g, "[l1][wv]overlay=%s:%s[l2];", l.visX, l.visY)
 	g.WriteString("[l2]")
 	if font != "" {
-		fmt.Fprintf(&g, "drawtext=fontfile=%s:textfile=%s:expansion=none:fontcolor=%s:fontsize=60:x=(w-text_w)/2:y=725,", font, title, color)
-		fmt.Fprintf(&g, "drawtext=fontfile=%s:textfile=artist.txt:expansion=none:fontcolor=%s@0.7:fontsize=34:x=(w-text_w)/2:y=805,", font, color)
+		fmt.Fprintf(&g, "drawtext=fontfile=%s:textfile=%s:expansion=none:fontcolor=%s:fontsize=60:x=%s:y=%d,", font, title, color, l.textX, l.titleY)
+		fmt.Fprintf(&g, "drawtext=fontfile=%s:textfile=artist.txt:expansion=none:fontcolor=%s@0.7:fontsize=34:x=%s:y=%d,", font, color, l.textX, l.titleY+80)
 	}
 	fmt.Fprintf(&g, "fade=t=in:st=0:d=%.3f,fade=t=out:st=%.3f:d=%.3f,setsar=1,format=yuv420p[v];", fade, fadeOut, fade)
 	fmt.Fprintf(&g, "[aud]afade=t=in:st=0:d=0.05,afade=t=out:st=%.3f:d=%.3f,aresample=48000[a]", max(0, seconds-0.5), min(0.5, seconds))
@@ -278,6 +286,32 @@ func songArgs(cover, audio, title, font string, seconds float64, style Style, ou
 		"-t", fmt.Sprintf("%.3f", seconds),
 	}
 	return append(args, encodeArgs(out)...)
+}
+
+// layout is where a Layout puts things, in the 1920x1080 frame. Positions are
+// filtergraph expressions where they depend on what is drawn (W, w, text_w).
+type layout struct {
+	cover          int
+	coverX, coverY string
+	visW, visH     int
+	visX, visY     string
+	textX          string
+	titleY         int
+}
+
+func layoutOf(name string) layout {
+	if name == "split" {
+		return layout{
+			cover: 640, coverX: "160", coverY: "(H-h)/2",
+			visW: 760, visH: 200, visX: "960", visY: "600",
+			textX: "960", titleY: 360,
+		}
+	}
+	return layout{
+		cover: 560, coverX: "(W-w)/2", coverY: "130",
+		visW: 1600, visH: 220, visX: "(W-w)/2", visY: "H-h-70",
+		textX: "(w-text_w)/2", titleY: 725,
+	}
 }
 
 // gapArgs is the black, silent second (or however long) between two songs.

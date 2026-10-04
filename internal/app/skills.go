@@ -45,6 +45,7 @@ const (
 	skillAlbumInterview  = "album-interview"
 	skillTrackGeneration = "track-generation"
 	skillAlbumArtwork    = "album-artwork"
+	skillMusicVideo      = "music-video"
 	skillBugReports      = "bug-reports"
 )
 
@@ -88,6 +89,13 @@ var builtInSkills = []builtIn{
 		description: "The creative brief the album cover is generated from.",
 		tags:        []string{"album", "artwork"},
 		file:        "album-artwork.md",
+	},
+	{
+		id:          skillMusicVideo,
+		title:       "Music video",
+		description: "How an album's music video looks: the visualiser, its colour, the background and the layout, chosen from the record's sound.",
+		tags:        []string{"album", "video"},
+		file:        "music-video.md",
 	},
 	{
 		id:          skillBugReports,
