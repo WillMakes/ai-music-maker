@@ -1,8 +1,7 @@
 import {useCallback, useEffect, useState} from 'react'
-import {Check, Copy, FolderOpen, ListPlus, Pencil, Play, Plus, Star, Trash2} from 'lucide-react'
+import {Check, Copy, FolderOpen, Pencil, Plus, Star, Trash2} from 'lucide-react'
 import {
   ChooseTrackFile,
-  DeleteTrack,
   GetTrack,
   ImportDroppedTrackFile,
   ImportTrackFile,
@@ -11,16 +10,12 @@ import {
   SaveTrack,
 } from '../../wailsjs/go/app/App'
 import {app} from '../../wailsjs/go/models'
-import {CopyButton} from '../components/CopyButton'
 import {StatusPill} from '../components/StatusPill'
 import {TabStrip} from '../components/TabStrip'
 import {useDataChanged} from '../lib/dataChanged'
 import {isAudioPath, readAsDataURL} from '../lib/files'
-import {duration, fileSize, parseDuration} from '../lib/format'
+import {fileSize} from '../lib/format'
 import {toMessage} from '../lib/errors'
-import {usePlayer} from '../player/PlayerProvider'
-import {hasPlayableTake} from '../lib/takes'
-import {AddToPlaylistMenu} from '../playlists/AddToPlaylistMenu'
 
 /**
  * One track, edited in place beside the album's track list (#40).
@@ -30,23 +25,19 @@ import {AddToPlaylistMenu} from '../playlists/AddToPlaylistMenu'
  * old page's whole-form draft made sense when the track was a destination;
  * embedded in the album it meant clicking another track could silently drop
  * edits. A field that is either saved or visibly mid-edit cannot.
+ *
+ * The title, length, and the whole-track actions are on the track's row in
+ * the list (#115), not repeated in a card above this pane.
  */
-type FieldId = 'title' | 'prompt' | 'lyrics' | 'notes'
+type FieldId = 'prompt' | 'lyrics' | 'notes'
 
-export function TrackEditor({
-  trackId,
-  onDeleted,
-}: {
-  trackId: string
-  onDeleted: () => void
-}) {
+export function TrackEditor({trackId}: {trackId: string}) {
   const [track, setTrack] = useState<app.Track | null>(null)
   const [editing, setEditing] = useState<FieldId | null>(null)
   // Which of the two Suno fields is showing (#49); the style prompt first.
   const [fieldTab, setFieldTab] = useState<'prompt' | 'lyrics'>('prompt')
   const [flashed, setFlashed] = useState<FieldId | null>(null)
   const [error, setError] = useState('')
-  const [confirmDelete, setConfirmDelete] = useState(false)
 
   const reload = useCallback(() => {
     GetTrack(trackId)
@@ -63,7 +54,6 @@ export function TrackEditor({
     setEditing(null)
     setFieldTab('prompt')
     setFlashed(null)
-    setConfirmDelete(false)
     reload()
   }, [reload])
   useDataChanged(['tracks'], reload)
@@ -88,49 +78,6 @@ export function TrackEditor({
   return (
     <div className="flex flex-col gap-3">
       {error && <p className="text-sm text-danger">{error}</p>}
-
-      <TitleCard
-        track={track}
-        editing={editing === 'title'}
-        onEdit={() => setEditing('title')}
-        onCancel={() => setEditing(null)}
-        onSave={(name, lengthText) =>
-          save({name, targetSeconds: parseDuration(lengthText)}, 'title')
-        }
-        onDelete={() => setConfirmDelete(true)}
-      />
-
-      {confirmDelete && (
-        <div className="sm-panel space-y-3 border-danger p-4">
-          <p className="text-sm">
-            Delete <strong>{track.name}</strong>? The audio files stay in your music
-            folder.
-          </p>
-          <div className="flex gap-2">
-            <button
-              className="sm-button sm-button-danger"
-              type="button"
-              onClick={async () => {
-                try {
-                  await DeleteTrack(trackId)
-                  onDeleted()
-                } catch (err) {
-                  setError(toMessage(err))
-                }
-              }}
-            >
-              Delete the track
-            </button>
-            <button
-              className="sm-button sm-button-quiet"
-              type="button"
-              onClick={() => setConfirmDelete(false)}
-            >
-              Keep it
-            </button>
-          </div>
-        </div>
-      )}
 
       {/* The two Suno fields behind tabs (#49), the style prompt first —
           it is the field written before anything exists to sing. Hidden
@@ -195,125 +142,6 @@ export function TrackEditor({
       />
 
       <Takes track={track} onChanged={setTrack} onError={setError} />
-    </div>
-  )
-}
-
-/**
- * The name and target length share a card and an edit: they read as one line
- * ("Neon Rain · 3:20") and a producer renaming a track is usually re-aiming
- * its length in the same breath.
- */
-function TitleCard({
-  track,
-  editing,
-  onEdit,
-  onCancel,
-  onSave,
-  onDelete,
-}: {
-  track: app.Track
-  editing: boolean
-  onEdit: () => void
-  onCancel: () => void
-  onSave: (name: string, lengthText: string) => void
-  onDelete: () => void
-}) {
-  const player = usePlayer()
-  const [name, setName] = useState(track.name)
-  const [lengthText, setLengthText] = useState(duration(track.targetSeconds))
-  useEffect(() => {
-    setName(track.name)
-    setLengthText(duration(track.targetSeconds))
-  }, [track.id, track.name, track.targetSeconds, editing])
-
-  return (
-    <div className="group flex items-center gap-3 rounded-lg border border-edge p-3 hover:bg-surface-hover">
-      {editing ? (
-        <>
-          <input
-            className="sm-input min-w-0 flex-1"
-            value={name}
-            autoFocus
-            onChange={(e) => setName(e.target.value)}
-          />
-          <input
-            className="sm-input w-24 tabular-nums"
-            title="Target length — m:ss or seconds"
-            value={lengthText}
-            onChange={(e) => setLengthText(e.target.value)}
-          />
-          <button
-            className="sm-button sm-button-primary"
-            type="button"
-            onClick={() => onSave(name, lengthText)}
-          >
-            Save
-          </button>
-          <button className="sm-button sm-button-quiet" type="button" onClick={onCancel}>
-            Cancel
-          </button>
-        </>
-      ) : (
-        <>
-          {hasPlayableTake(track) && (
-            <>
-              <button
-                className="sm-button sm-button-quiet px-2"
-                type="button"
-                title="Play this track"
-                aria-label="Play this track"
-                onClick={() => void player.play('track', track.id)}
-              >
-                <Play size={15} />
-              </button>
-              {/* Just this track, behind the queue (#60), where play starts
-                  it now (#106). */}
-              <button
-                className="sm-button sm-button-quiet px-2"
-                type="button"
-                title="Add this track to the queue"
-                aria-label="Add this track to the queue"
-                onClick={() => void player.enqueue('track', track.id)}
-              >
-                <ListPlus size={15} />
-              </button>
-            </>
-          )}
-          {/* Into a playlist (#107) whether or not a take exists yet: a
-              playlist can be planned ahead of the songs being made, and it
-              plays whatever of it is there. */}
-          <AddToPlaylistMenu trackId={track.id} />
-          <span className="flex min-w-0 flex-1 items-center gap-2">
-            <span className="truncate text-base font-semibold">{track.name}</span>
-            {/* The title is the third thing Suno asks for beside the prompt
-                and lyrics, and those two already have Copy (#74). */}
-            <CopyButton text={track.name} label="Copy the track title" />
-            <span className="shrink-0 text-xs tabular-nums text-fg-muted">
-              {duration(track.targetSeconds)}
-            </span>
-          </span>
-          <span className="flex shrink-0 gap-1 opacity-0 transition-opacity group-focus-within:opacity-100 group-hover:opacity-100">
-            <button
-              className="sm-button sm-button-quiet px-2 py-1 text-xs"
-              type="button"
-              onClick={onEdit}
-            >
-              <Pencil size={12} />
-              Edit
-            </button>
-            <button
-              className="sm-button sm-button-quiet px-2 py-1 text-xs"
-              type="button"
-              title="Delete this track"
-              aria-label="Delete this track"
-              onClick={onDelete}
-            >
-              <Trash2 size={12} />
-            </button>
-          </span>
-        </>
-      )}
     </div>
   )
 }
@@ -419,7 +247,7 @@ function TextCard({
               type="button"
               onClick={() => onSave(draft)}
             >
-              Save {field === 'title' ? '' : field}
+              Save {field}
             </button>
           </div>
         </>
