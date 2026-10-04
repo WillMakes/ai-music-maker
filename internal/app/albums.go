@@ -6,6 +6,8 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+
+	"aimusicmaker/internal/youtube"
 )
 
 // ---------------------------------------------------------------------------
@@ -53,6 +55,10 @@ type Album struct {
 	// and each song with the time it starts, which YouTube turns into links.
 	// Written with the video, since the times are the render's.
 	VideoDescription string `json:"videoDescription"`
+	// VideoYouTubeID is the video the music video was uploaded as (#122), and
+	// VideoYouTubeURL where it is watched, assembled on read from the id.
+	VideoYouTubeID  string `json:"videoYouTubeId"`
+	VideoYouTubeURL string `json:"videoYouTubeUrl"`
 	// TrackCount is joined for the card, for listArtists' reason.
 	TrackCount int `json:"trackCount"`
 	// WrittenCount and MadeCount are the card's progress (#43): tracks with a
@@ -166,7 +172,7 @@ func (a *App) DeleteAlbum(id string) error {
 
 const albumColumns = `al.id, al.artist_id, al.name, al.slug, al.artwork_file,
 	al.artwork_prompt, al.technical_style, al.apple_music_url, al.spotify_url,
-	al.youtube_url, al.video_file, al.video_description, al.created_at, al.updated_at,
+	al.youtube_url, al.video_file, al.video_description, al.video_youtube_id, al.created_at, al.updated_at,
 	(SELECT COUNT(*) FROM tracks WHERE tracks.album_id = al.id),
 	(SELECT COUNT(*) FROM tracks WHERE tracks.album_id = al.id
 	   AND TRIM(tracks.prompt) <> ''),
@@ -178,8 +184,10 @@ func scanAlbum(scan func(...any) error) (Album, error) {
 	var al Album
 	err := scan(&al.ID, &al.ArtistID, &al.Name, &al.Slug, &al.ArtworkFile,
 		&al.ArtworkPrompt, &al.TechnicalStyle, &al.AppleMusicURL, &al.SpotifyURL,
-		&al.YouTubeURL, &al.VideoFile, &al.VideoDescription, &al.CreatedAt, &al.UpdatedAt, &al.TrackCount,
+		&al.YouTubeURL, &al.VideoFile, &al.VideoDescription, &al.VideoYouTubeID,
+		&al.CreatedAt, &al.UpdatedAt, &al.TrackCount,
 		&al.WrittenCount, &al.MadeCount, &al.ArtistName, &al.ArtistBaseStyle)
+	al.VideoYouTubeURL = youtube.WatchURL(al.VideoYouTubeID)
 	return al, err
 }
 

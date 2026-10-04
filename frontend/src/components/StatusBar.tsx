@@ -202,37 +202,42 @@ export function StatusBar({
           />
         ))}
 
-        {/* The music-video renders (#118), the artwork segments' shape with
-            how far the render has got: it is minutes long, and a spinner
-            alone cannot say whether it is nearly done. */}
-        {videos.map((job) => (
-          <Segment
-            key={'video-' + job.albumId}
-            icon={
-              job.state === 'running' ? (
-                <Loader2 size={12} className="animate-spin" />
-              ) : job.state === 'done' ? (
-                <Clapperboard size={12} />
-              ) : (
-                <AlertTriangle size={12} />
-              )
-            }
-            label={
-              job.state === 'running'
-                ? `Rendering the music video for “${job.albumName}” — ${Math.round(job.fraction * 100)}%`
-                : job.state === 'done'
-                  ? `The music video for “${job.albumName}” is ready — open it`
-                  : `Rendering the music video for “${job.albumName}” failed`
-            }
-            tone={job.state === 'done' ? 'ok' : job.state === 'failed' ? 'warn' : undefined}
-            showLabel
-            live={job.state === 'running'}
-            onClick={() => {
-              if (job.state === 'done') dismissVideo(job.albumId)
-              onOpenAlbum(job.albumId, job.artistId)
-            }}
-          />
-        ))}
+        {/* The music-video renders (#118) and uploads (#122), the artwork
+            segments' shape with how far each has got: they are minutes long,
+            and a spinner alone cannot say whether one is nearly done. */}
+        {videos.map((job) => {
+          const what = job.kind === 'upload' ? 'Uploading' : 'Rendering'
+          return (
+            <Segment
+              key={'video-' + job.kind + '-' + job.albumId}
+              icon={
+                job.state === 'running' ? (
+                  <Loader2 size={12} className="animate-spin" />
+                ) : job.state === 'done' ? (
+                  <Clapperboard size={12} />
+                ) : (
+                  <AlertTriangle size={12} />
+                )
+              }
+              label={
+                job.state === 'running'
+                  ? `${what} the music video for “${job.albumName}” — ${Math.round(job.fraction * 100)}%`
+                  : job.state === 'done'
+                    ? job.kind === 'upload'
+                      ? `The music video for “${job.albumName}” is on YouTube — open it`
+                      : `The music video for “${job.albumName}” is ready — open it`
+                    : `${what} the music video for “${job.albumName}” failed`
+              }
+              tone={job.state === 'done' ? 'ok' : job.state === 'failed' ? 'warn' : undefined}
+              showLabel
+              live={job.state === 'running'}
+              onClick={() => {
+                if (job.state === 'done') dismissVideo(job.albumId, job.kind)
+                onOpenAlbum(job.albumId, job.artistId)
+              }}
+            />
+          )
+        })}
 
         {/* The evolutions in flight (#82): started on an album page, but the
             call outlives it, so the bar is where the producer looks after
