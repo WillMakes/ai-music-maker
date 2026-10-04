@@ -59,6 +59,10 @@ type Album struct {
 	// VideoYouTubeURL where it is watched, assembled on read from the id.
 	VideoYouTubeID  string `json:"videoYouTubeId"`
 	VideoYouTubeURL string `json:"videoYouTubeUrl"`
+	// YTMusicUploadedAt is when the takes were last sent to the producer's
+	// YouTube Music library (#124); empty if never. A second upload adds a
+	// second copy there, so the page says when the first went.
+	YTMusicUploadedAt string `json:"ytmusicUploadedAt"`
 	// TrackCount is joined for the card, for listArtists' reason.
 	TrackCount int `json:"trackCount"`
 	// WrittenCount and MadeCount are the card's progress (#43): tracks with a
@@ -172,7 +176,7 @@ func (a *App) DeleteAlbum(id string) error {
 
 const albumColumns = `al.id, al.artist_id, al.name, al.slug, al.artwork_file,
 	al.artwork_prompt, al.technical_style, al.apple_music_url, al.spotify_url,
-	al.youtube_url, al.video_file, al.video_description, al.video_youtube_id, al.created_at, al.updated_at,
+	al.youtube_url, al.video_file, al.video_description, al.video_youtube_id, al.ytmusic_uploaded_at, al.created_at, al.updated_at,
 	(SELECT COUNT(*) FROM tracks WHERE tracks.album_id = al.id),
 	(SELECT COUNT(*) FROM tracks WHERE tracks.album_id = al.id
 	   AND TRIM(tracks.prompt) <> ''),
@@ -185,7 +189,7 @@ func scanAlbum(scan func(...any) error) (Album, error) {
 	err := scan(&al.ID, &al.ArtistID, &al.Name, &al.Slug, &al.ArtworkFile,
 		&al.ArtworkPrompt, &al.TechnicalStyle, &al.AppleMusicURL, &al.SpotifyURL,
 		&al.YouTubeURL, &al.VideoFile, &al.VideoDescription, &al.VideoYouTubeID,
-		&al.CreatedAt, &al.UpdatedAt, &al.TrackCount,
+		&al.YTMusicUploadedAt, &al.CreatedAt, &al.UpdatedAt, &al.TrackCount,
 		&al.WrittenCount, &al.MadeCount, &al.ArtistName, &al.ArtistBaseStyle)
 	al.VideoYouTubeURL = youtube.WatchURL(al.VideoYouTubeID)
 	return al, err
