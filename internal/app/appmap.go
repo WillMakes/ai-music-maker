@@ -49,8 +49,9 @@ type AppView struct {
 	// Section is the rail item that stays lit for the page.
 	Section string `json:"section"`
 	// Nav says where the page is reached from: "primary" or "bottom" for a
-	// rail entry, "settings-tab" for a tab on the strip, "" for a page opened
-	// from another page.
+	// rail entry, "settings-tab" for a group on the settings page (#116; the
+	// name is from when they were tabs), "" for a page opened from another
+	// page.
 	Nav   string `json:"nav"`
 	Label string `json:"label"`
 	// Components are the source files a route guard picked for this page.

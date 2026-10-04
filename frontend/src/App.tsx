@@ -350,7 +350,6 @@ export default function App() {
             {isSettingsView(current.view) && current.view !== 'settings-ai-service' && (
               <Settings
                 view={current.view}
-                onNavigate={(view) => go({view})}
                 onOpenService={(serviceId) => go({view: 'settings-ai-service', serviceId})}
               />
             )}
