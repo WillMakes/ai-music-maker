@@ -3,6 +3,7 @@ package app
 import (
 	"errors"
 	"testing"
+	"time"
 
 	"aimusicmaker/internal/platform"
 )
@@ -89,5 +90,60 @@ func TestMediaKeysPartlyHeld(t *testing.T) {
 	a.shutdown(nil)
 	if *stops != 1 {
 		t.Fatalf("shutdown did not release the keys: %d", *stops)
+	}
+}
+
+// TestDoublePlayPauseTogglesTheWindow is #113: two Play/Pause presses close
+// together raise the app (or put it away), while every press still reaches
+// the player, so the pair leaves playback where it was.
+func TestDoublePlayPauseTogglesTheWindow(t *testing.T) {
+	a := newTestApp(t)
+	_, _, press := stubMediaKeys(t, nil)
+
+	clock := time.Unix(1_000_000, 0)
+	originalNow, originalToggle := mediaKeyNow, toggleWindowFromKey
+	mediaKeyNow = func() time.Time { return clock }
+	toggles := 0
+	toggleWindowFromKey = func(*App) { toggles++ }
+	t.Cleanup(func() { mediaKeyNow, toggleWindowFromKey = originalNow, originalToggle })
+
+	if err := a.SetMediaKeys(true); err != nil {
+		t.Fatal(err)
+	}
+	at := func(gap time.Duration, key platform.MediaKey) {
+		clock = clock.Add(gap)
+		press(key)
+	}
+
+	at(0, platform.MediaPlayPause)
+	if toggles != 0 {
+		t.Fatal("a single press toggled the window")
+	}
+	at(200*time.Millisecond, platform.MediaPlayPause)
+	if toggles != 1 {
+		t.Fatalf("a double press toggled the window %d times, want once", toggles)
+	}
+	// A third quick press opens a new pair; it must not flip the window back.
+	at(200*time.Millisecond, platform.MediaPlayPause)
+	if toggles != 1 {
+		t.Fatal("a third quick press toggled the window again")
+	}
+
+	// Presses further apart are two ordinary pauses.
+	at(time.Second, platform.MediaPlayPause)
+	at(time.Second, platform.MediaPlayPause)
+	if toggles != 1 {
+		t.Fatal("presses a second apart toggled the window")
+	}
+
+	// Only Play/Pause counts: Next then Play/Pause is not a double press.
+	at(time.Second, platform.MediaNext)
+	at(100*time.Millisecond, platform.MediaPlayPause)
+	if toggles != 1 {
+		t.Fatal("Next followed by Play/Pause toggled the window")
+	}
+	at(100*time.Millisecond, platform.MediaPlayPause)
+	if toggles != 2 {
+		t.Fatalf("toggles = %d after a second double press, want 2", toggles)
 	}
 }

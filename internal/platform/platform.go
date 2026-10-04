@@ -1,8 +1,8 @@
 // Package platform holds the few things AIMusicMaker does differently on each
 // operating system: running a console program without a window, finding a
 // command installed after this process started, showing a file in the file
-// manager, and hearing the keyboard's media keys. Each has a Windows file and a
-// file for everything else.
+// manager, hearing the keyboard's media keys, and telling whether the app is
+// the window in front. Each has a Windows file and a file for everything else.
 package platform
 
 // MediaKey is one of the keyboard's media keys. The values are what the
