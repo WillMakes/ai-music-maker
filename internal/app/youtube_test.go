@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	"encoding/json"
+	"os"
 	"strings"
 	"testing"
 	"time"
@@ -108,4 +109,59 @@ func callTool(t *testing.T, app *App, name string, args map[string]any) string {
 	}
 	t.Fatalf("no tool %s", name)
 	return ""
+}
+
+// TestUploadAlbumVideo is #122: the rendered video goes up with the record's
+// title and the timestamped description, and the album keeps the link. No
+// video, or no connection, is refused before anything is sent.
+func TestUploadAlbumVideo(t *testing.T) {
+	app := newTestApp(t)
+	stubYouTube(t)
+	artist, _ := app.SaveArtist(Artist{Name: "Cassette Motel", Inspirations: []Inspiration{}})
+	album, _ := app.SaveAlbum(Album{ArtistID: artist.ID, Name: "Night Drive"})
+
+	var sent youtube.Video
+	var sentPath string
+	previous := uploadVideo
+	t.Cleanup(func() { uploadVideo = previous })
+	uploadVideo = func(_ context.Context, access, path string, v youtube.Video, progress func(float64)) (string, error) {
+		if access == "" {
+			t.Error("uploaded without a token")
+		}
+		sent, sentPath = v, path
+		progress(1)
+		return "vid123", nil
+	}
+
+	if _, err := app.UploadAlbumVideo(album.ID, "unlisted"); err == nil || !strings.Contains(err.Error(), "render") {
+		t.Fatalf("an album with no video uploaded: %v", err)
+	}
+	videoPath := t.TempDir() + "/night-drive-music-video.mp4"
+	if err := os.WriteFile(videoPath, []byte("mp4"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := app.store.setAlbumVideo(album.ID, videoPath, "Night Drive by Cassette Motel\n\n0:00 Neon Rain"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := app.UploadAlbumVideo(album.ID, "unlisted"); err == nil || !strings.Contains(err.Error(), "not connected") {
+		t.Fatalf("uploaded with YouTube not connected: %v", err)
+	}
+
+	if _, err := app.SaveYouTubeClient("cid.apps.googleusercontent.com", "secret"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := app.ConnectYouTube(); err != nil {
+		t.Fatal(err)
+	}
+	uploaded, err := app.UploadAlbumVideo(album.ID, "unlisted")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if sentPath != videoPath || sent.Privacy != "unlisted" || !strings.Contains(sent.Title, "Night Drive") ||
+		!strings.Contains(sent.Description, "0:00 Neon Rain") {
+		t.Errorf("sent %q as %+v", sentPath, sent)
+	}
+	if uploaded.VideoYouTubeID != "vid123" || uploaded.VideoYouTubeURL != "https://www.youtube.com/watch?v=vid123" {
+		t.Errorf("the album records %q / %q", uploaded.VideoYouTubeID, uploaded.VideoYouTubeURL)
+	}
 }
