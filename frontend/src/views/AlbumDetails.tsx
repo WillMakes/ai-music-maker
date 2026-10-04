@@ -1,9 +1,10 @@
 import {useCallback, useEffect, useRef, useState} from 'react'
-import {FolderInput, ImagePlus, ListMusic, ListPlus, Loader2, Play, RefreshCw, Sparkles, Trash2, Wand2} from 'lucide-react'
+import {FolderInput, ImagePlus, ListMusic, ListPlus, Loader2, Pencil, Play, RefreshCw, Sparkles, Trash2, Wand2} from 'lucide-react'
 import {TrackEditor} from './TrackDetails'
 import {
   ClearChat,
   DeleteAlbum,
+  DeleteTrack,
   ExtractTracks,
   GenerateAlbumStyle,
   GetAlbum,
@@ -29,12 +30,13 @@ import {InterviewDialog} from '../chat/InterviewDialog'
 import {TabStrip} from '../components/TabStrip'
 import {Cover} from './ArtistDetails'
 import {useDataChanged} from '../lib/dataChanged'
-import {duration} from '../lib/format'
+import {duration, parseDuration} from '../lib/format'
 import {toMessage} from '../lib/errors'
 import {attachmentPathsByName, isAudioPath, readAsDataURL} from '../lib/files'
 import {usePlayer} from '../player/PlayerProvider'
 import {useEvolutions} from '../evolutions/EvolutionsProvider'
 import {useArtworks} from '../artworks/ArtworksProvider'
+import {AddToPlaylistMenu} from '../playlists/AddToPlaylistMenu'
 import {hasPlayableTake, takeSummary} from '../lib/takes'
 
 /**
@@ -692,55 +694,22 @@ export function AlbumDetails({
                    that the cover takes the page's left column (#102) — at md the
                    editor would be left a sliver. */
                 <div className="grid items-start gap-4 xl:grid-cols-[260px_minmax(0,1fr)]">
-                  <div className="sm-panel overflow-hidden">
+                  {/* Not overflow-hidden: a row's playlist menu hangs out of the
+                      panel (#115). The first and last rows round themselves. */}
+                  <div className="sm-panel">
                     <ul className="divide-y divide-edge">
                       {tracks.map((track) => (
-                        <li key={track.id}>
-                          <button
-                            className={
-                              'flex w-full items-center gap-2 px-3 py-2 text-left ' +
-                              (track.id === selected?.id ? 'bg-surface-hover' : 'hover:bg-surface-hover')
-                            }
-                            type="button"
-                            onClick={() => setSelectedId(track.id)}
-                          >
-                            {/* Play this track and only this track (#106), shown on
-                                every row that has a take to play rather than swapped
-                                in over the number on hover, where it was easy to miss.
-                                The album's Play in the header is the whole record.
-                                A span, not a button: the row is already a button. A
-                                row with nothing to play keeps the slot so the numbers
-                                stay in one column. */}
-                            {hasPlayableTake(track) ? (
-                              <span
-                                role="button"
-                                aria-label={`Play ${track.name}`}
-                                title="Play this track"
-                                className="flex w-6 shrink-0 items-center justify-center text-fg-muted transition-colors hover:text-accent"
-                                onClick={(e) => {
-                                  e.stopPropagation()
-                                  void player.play('track', track.id)
-                                }}
-                              >
-                                <Play size={14} />
-                              </span>
-                            ) : (
-                              <span className="w-6 shrink-0" aria-hidden="true" />
-                            )}
-                            <span className="w-5 shrink-0 text-center text-xs tabular-nums text-fg-muted">
-                              {track.position}
-                            </span>
-                            <span className="min-w-0 flex-1">
-                              <span className="block truncate text-sm font-medium">{track.name}</span>
-                              <span className="block text-xs text-fg-muted">
-                                {takeSummary(track)}
-                              </span>
-                            </span>
-                            <span className="shrink-0 text-xs tabular-nums text-fg-muted">
-                              {duration(track.targetSeconds)}
-                            </span>
-                          </button>
-                        </li>
+                        <TrackRow
+                          key={track.id}
+                          track={track}
+                          selected={track.id === selected?.id}
+                          onSelect={() => setSelectedId(track.id)}
+                          onChanged={reload}
+                          onDeleted={() => {
+                            if (track.id === selected?.id) setSelectedId('')
+                            reload()
+                          }}
+                        />
                       ))}
                     </ul>
                     <div className="p-2">
@@ -755,14 +724,7 @@ export function AlbumDetails({
                     </div>
                   </div>
                   {selected && (
-                    <TrackEditor
-                      key={selected.id}
-                      trackId={selected.id}
-                      onDeleted={() => {
-                        setSelectedId('')
-                        reload()
-                      }}
-                    />
+                    <TrackEditor key={selected.id} trackId={selected.id} />
                   )}
                 </div>
               )}
@@ -855,5 +817,219 @@ export function AlbumDetails({
         />
       )}
     </div>
+  )
+}
+
+/**
+ * One line of the running order, and everything done to the track as a whole
+ * (#115): queue it, put it in a playlist, copy its title, rename it, delete
+ * it. Those used to sit in a title card above the editor — a second copy of
+ * the row the producer had just clicked — and now wait on the row's own hover,
+ * with focus-within showing them to a keyboard.
+ */
+function TrackRow({
+  track,
+  selected,
+  onSelect,
+  onChanged,
+  onDeleted,
+}: {
+  track: app.Track
+  selected: boolean
+  onSelect: () => void
+  onChanged: () => void
+  onDeleted: () => void
+}) {
+  const player = usePlayer()
+  const [mode, setMode] = useState<'idle' | 'editing' | 'deleting'>('idle')
+  const [name, setName] = useState(track.name)
+  const [lengthText, setLengthText] = useState(duration(track.targetSeconds))
+  const [error, setError] = useState('')
+  const playable = hasPlayableTake(track)
+
+  const startEdit = () => {
+    setName(track.name)
+    setLengthText(duration(track.targetSeconds))
+    setError('')
+    setMode('editing')
+  }
+  const saveEdit = async () => {
+    setError('')
+    try {
+      await SaveTrack(
+        app.Track.createFrom({...track, name, targetSeconds: parseDuration(lengthText)}),
+      )
+      setMode('idle')
+      onChanged()
+    } catch (err) {
+      setError(toMessage(err))
+    }
+  }
+  const remove = async () => {
+    setError('')
+    try {
+      await DeleteTrack(track.id)
+      onDeleted()
+    } catch (err) {
+      setError(toMessage(err))
+    }
+  }
+
+  // The panel no longer clips its rows (the playlist menu hangs out of it),
+  // so the first and last rows carry its corners themselves.
+  const corners = 'group-first/row:rounded-t-lg group-last/row:rounded-b-lg'
+
+  if (mode === 'editing') {
+    return (
+      <li className="group/row">
+        <div className={'space-y-2 bg-surface-hover px-3 py-2 ' + corners}>
+          <input
+            className="sm-input w-full"
+            value={name}
+            autoFocus
+            aria-label="Track title"
+            onChange={(e) => setName(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') void saveEdit()
+              if (e.key === 'Escape') setMode('idle')
+            }}
+          />
+          <div className="flex items-center gap-2">
+            <input
+              className="sm-input w-20 tabular-nums"
+              title="Target length — m:ss or seconds"
+              aria-label="Target length"
+              value={lengthText}
+              onChange={(e) => setLengthText(e.target.value)}
+            />
+            <button className="sm-button sm-button-primary" type="button" onClick={saveEdit}>
+              Save
+            </button>
+            <button
+              className="sm-button sm-button-quiet"
+              type="button"
+              onClick={() => setMode('idle')}
+            >
+              Cancel
+            </button>
+          </div>
+          {error && <p className="text-xs text-danger">{error}</p>}
+        </div>
+      </li>
+    )
+  }
+
+  if (mode === 'deleting') {
+    return (
+      <li className="group/row">
+        <div className={'space-y-2 bg-surface-hover px-3 py-2 ' + corners}>
+          <p className="text-sm">
+            Delete <strong>{track.name}</strong>? The audio files stay in your music folder.
+          </p>
+          <div className="flex gap-2">
+            <button className="sm-button sm-button-danger" type="button" onClick={remove}>
+              Delete the track
+            </button>
+            <button
+              className="sm-button sm-button-quiet"
+              type="button"
+              onClick={() => setMode('idle')}
+            >
+              Keep it
+            </button>
+          </div>
+          {error && <p className="text-xs text-danger">{error}</p>}
+        </div>
+      </li>
+    )
+  }
+
+  return (
+    <li className="group/row">
+      <div
+        className={
+          'group relative flex items-center gap-2 px-3 py-2 ' +
+          corners +
+          ' ' +
+          (selected ? 'bg-surface-hover' : 'hover:bg-surface-hover')
+        }
+      >
+        {/* Play this track and only this track (#106), shown on every row
+            that has a take to play rather than swapped in over the number on
+            hover, where it was easy to miss. The album's Play in the header is
+            the whole record. A row with nothing to play keeps the slot so the
+            numbers stay in one column. */}
+        {playable ? (
+          <button
+            type="button"
+            aria-label={`Play ${track.name}`}
+            title="Play this track"
+            className="flex w-6 shrink-0 items-center justify-center text-fg-muted transition-colors hover:text-accent"
+            onClick={() => void player.play('track', track.id)}
+          >
+            <Play size={14} />
+          </button>
+        ) : (
+          <span className="w-6 shrink-0" aria-hidden="true" />
+        )}
+        <button
+          className="flex min-w-0 flex-1 items-center gap-2 text-left"
+          type="button"
+          onClick={onSelect}
+        >
+          <span className="w-5 shrink-0 text-center text-xs tabular-nums text-fg-muted">
+            {track.position}
+          </span>
+          <span className="min-w-0 flex-1">
+            <span className="block truncate text-sm font-medium">{track.name}</span>
+            <span className="block text-xs text-fg-muted">{takeSummary(track)}</span>
+          </span>
+          <span className="shrink-0 text-xs tabular-nums text-fg-muted">
+            {duration(track.targetSeconds)}
+          </span>
+        </button>
+        {/* Over the row's right end rather than beside it: the column is
+            260px, and room held open for buttons that only show on hover
+            would truncate every title. The row's own background behind them
+            keeps the title and length from showing through. */}
+        <span className="pointer-events-none absolute right-2 top-1/2 flex -translate-y-1/2 items-center gap-0.5 rounded-md bg-surface-hover opacity-0 transition-opacity group-focus-within:pointer-events-auto group-focus-within:opacity-100 group-hover:pointer-events-auto group-hover:opacity-100">
+          {playable && (
+            <button
+              className="sm-button sm-button-quiet border-0 px-1.5 py-1"
+              type="button"
+              title="Add this track to the queue"
+              aria-label="Add this track to the queue"
+              onClick={() => void player.enqueue('track', track.id)}
+            >
+              <ListPlus size={13} />
+            </button>
+          )}
+          {/* Into a playlist (#107) whether or not a take exists yet: a
+              playlist can be planned ahead of the songs being made. */}
+          <AddToPlaylistMenu trackId={track.id} align="right" />
+          {/* The title is the third thing Suno asks for beside the prompt and
+              lyrics, and those two already have Copy (#74). */}
+          <CopyButton text={track.name} label="Copy the track title" />
+          <button
+            className="sm-button sm-button-quiet border-0 px-1.5 py-1"
+            type="button"
+            title="Rename, or change the target length"
+            aria-label="Edit the title and length"
+            onClick={startEdit}
+          >
+            <Pencil size={13} />
+          </button>
+          <button
+            className="sm-button sm-button-quiet border-0 px-1.5 py-1"
+            type="button"
+            title="Delete this track"
+            aria-label="Delete this track"
+            onClick={() => setMode('deleting')}
+          >
+            <Trash2 size={13} />
+          </button>
+        </span>
+      </div>
+    </li>
   )
 }

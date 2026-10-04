@@ -16,7 +16,14 @@ import {usePlaylists} from './PlaylistsProvider'
  * and then find the track again to fill it, is the friction that stops a
  * playlist being made at all.
  */
-export function AddToPlaylistMenu({trackId}: {trackId: string}) {
+export function AddToPlaylistMenu({
+  trackId,
+  align = 'left',
+}: {
+  trackId: string
+  /** Which edge the menu hangs from: 'right' for a button at a row's end (#115). */
+  align?: 'left' | 'right'
+}) {
   const {playlists} = usePlaylists()
   const [open, setOpen] = useState(false)
   const [newName, setNewName] = useState('')
@@ -74,7 +81,12 @@ export function AddToPlaylistMenu({trackId}: {trackId: string}) {
         {added ? <Check size={15} className="text-accent" /> : <ListMusic size={15} />}
       </button>
       {open && (
-        <div className="sm-panel absolute left-0 top-full z-20 mt-1 w-64 space-y-2 p-2 shadow-lg">
+        <div
+          className={
+            'sm-panel absolute top-full z-20 mt-1 w-64 space-y-2 p-2 shadow-lg ' +
+            (align === 'right' ? 'right-0' : 'left-0')
+          }
+        >
           <p className="px-1 text-[11px] font-semibold uppercase tracking-wider text-fg-muted">
             Add to a playlist
           </p>
