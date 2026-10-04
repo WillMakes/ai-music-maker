@@ -7,8 +7,9 @@ import {duration, parseDuration} from '../lib/format'
 import {toMessage} from '../lib/errors'
 
 /**
- * Settings → Library (#34): the two preferences that shape the records
- * themselves — where the audio lives, and what a new track starts at.
+ * Settings → Library (#34): the preferences that shape the records
+ * themselves — where the audio lives, what a new track starts at, and the
+ * gap between songs in an album's music video (#118).
  *
  * They used to sit under the Skills tab, which was where a settings page had
  * room rather than where anybody would look. The redesign gives them their own
@@ -18,6 +19,8 @@ export function LibraryPanel() {
   const [musicRoot, setRoot] = useState('')
   const [rootDraft, setRootDraft] = useState('')
   const [length, setLength] = useState('')
+  const [gap, setGap] = useState('')
+  const [gapSaved, setGapSaved] = useState(false)
   const [error, setError] = useState('')
 
   const reload = useCallback(() => {
@@ -27,6 +30,9 @@ export function LibraryPanel() {
     loadSetting(SETTING_KEYS.defaultTrackLength).then((value) =>
       setLength(duration(Number(value) || 180)),
     )
+    // Unset is one second, the number #117 asked for; the backend falls back
+    // to the same when the setting is not a number.
+    loadSetting(SETTING_KEYS.musicVideoGap).then((value) => setGap(value?.trim() || '1'))
   }, [])
 
   useEffect(reload, [reload])
@@ -87,6 +93,36 @@ export function LibraryPanel() {
           }
         >
           Save
+        </button>
+      </section>
+
+      <section className="sm-panel space-y-3 p-4">
+        <h2 className="text-sm font-semibold">Music videos</h2>
+        <TextField
+          label="Gap between songs"
+          hint="Seconds of silence between one song and the next, 0 to 30. Decimals are fine."
+          type="number"
+          value={gap}
+          onChange={(next) => {
+            setGap(next)
+            setGapSaved(false)
+          }}
+        />
+        <button
+          className="sm-button sm-button-quiet"
+          type="button"
+          onClick={async () => {
+            const seconds = Number(gap)
+            if (!Number.isFinite(seconds) || seconds < 0 || seconds > 30) {
+              setError('The gap between songs is a number of seconds from 0 to 30.')
+              return
+            }
+            setError('')
+            await saveSetting(SETTING_KEYS.musicVideoGap, String(seconds))
+            setGapSaved(true)
+          }}
+        >
+          {gapSaved ? 'Saved' : 'Save'}
         </button>
       </section>
 

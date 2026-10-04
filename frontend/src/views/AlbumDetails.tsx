@@ -1,5 +1,5 @@
 import {useCallback, useEffect, useRef, useState} from 'react'
-import {FolderInput, ImagePlus, ListMusic, ListPlus, Loader2, Pencil, Play, RefreshCw, Sparkles, Trash2, Wand2} from 'lucide-react'
+import {Clapperboard, FolderInput, FolderOpen, ImagePlus, ListMusic, ListPlus, Loader2, Pencil, Play, RefreshCw, Sparkles, Trash2, Wand2} from 'lucide-react'
 import {TrackEditor} from './TrackDetails'
 import {
   ClearChat,
@@ -15,6 +15,7 @@ import {
   ImportTrackFile,
   ListTracks,
   RemoveAlbumArtwork,
+  RevealTrackFile,
   PickAudioFiles,
   SaveAlbum,
   SaveTrack,
@@ -36,6 +37,7 @@ import {attachmentPathsByName, isAudioPath, readAsDataURL} from '../lib/files'
 import {usePlayer} from '../player/PlayerProvider'
 import {useEvolutions} from '../evolutions/EvolutionsProvider'
 import {useArtworks} from '../artworks/ArtworksProvider'
+import {useVideos} from '../videos/VideosProvider'
 import {AddToPlaylistMenu} from '../playlists/AddToPlaylistMenu'
 import {hasPlayableTake, takeSummary} from '../lib/takes'
 
@@ -107,6 +109,9 @@ export function AlbumDetails({
   // as a big generation call does, and the producer must be free to navigate
   // away and find it again — on this page, or in the status bar.
   const {evolutions, evolve, dismiss} = useEvolutions()
+  const {videos, render: renderVideo} = useVideos()
+  const videoJob = videos.find((job) => job.albumId === albumId)
+  const rendering = videoJob?.state === 'running'
   const evolution = evolutions.find((e) => e.albumId === albumId)
   const evolving = evolution?.state === 'running'
   // Auto-open the successor only on the transition seen from this page — the
@@ -525,6 +530,66 @@ export function AlbumDetails({
             )}
             {artworkJob?.state === 'failed' && (
               <p className="text-sm text-danger">{artworkJob.error}</p>
+            )}
+          </section>
+
+          {/* The record as one video (#118): the official takes over the cover.
+              Says what is still missing rather than greying the button out
+              with no reason, since each gap is something to go and fix. */}
+          <section className="sm-panel space-y-3 p-4" aria-label="Music video">
+            <h2 className="text-sm font-semibold">Music video</h2>
+            {(() => {
+              const unmade = tracks.filter((t) => !t.files.some((f) => !f.missing))
+              const missing = [
+                !album.artworkFile && 'a cover',
+                tracks.length === 0 && 'tracks',
+                unmade.length > 0 &&
+                  (unmade.length === 1
+                    ? `a take of “${unmade[0].name}”`
+                    : `takes of ${unmade.length} tracks`),
+              ].filter(Boolean)
+              return (
+                <>
+                  <p className="text-xs text-fg-muted">
+                    {missing.length > 0
+                      ? 'Needs ' + missing.join(' and ') + ' first.'
+                      : 'Every official take over the cover, with each title and a visualiser, the gap from Settings between songs.'}
+                  </p>
+                  <button
+                    className="sm-button sm-button-primary"
+                    type="button"
+                    disabled={rendering || missing.length > 0}
+                    onClick={() =>
+                      renderVideo({id: album.id, name: album.name, artistId: album.artistId})
+                    }
+                  >
+                    {rendering ? <Loader2 size={15} className="animate-spin" /> : <Clapperboard size={15} />}
+                    {rendering
+                      ? `Rendering… ${Math.round((videoJob?.fraction ?? 0) * 100)}%`
+                      : album.videoFile
+                        ? 'Render again'
+                        : 'Render the video'}
+                  </button>
+                </>
+              )
+            })()}
+            {rendering && (
+              <p className="text-xs text-fg-muted">
+                This keeps running if you navigate away — watch the status bar.
+              </p>
+            )}
+            {videoJob?.state === 'failed' && (
+              <p className="text-sm text-danger">{videoJob.error}</p>
+            )}
+            {album.videoFile && !rendering && (
+              <button
+                className="sm-button sm-button-quiet w-full"
+                type="button"
+                onClick={() => void RevealTrackFile(album.videoFile).catch((err) => setError(toMessage(err)))}
+              >
+                <FolderOpen size={15} />
+                Show in folder
+              </button>
             )}
           </section>
 

@@ -1,10 +1,12 @@
 package app
 
 import (
+	"context"
 	"path/filepath"
 	"testing"
 
 	"aimusicmaker/internal/audio"
+	"aimusicmaker/internal/video"
 )
 
 // newTestApp builds an app backed by a temp-dir database and a temp music
@@ -39,6 +41,11 @@ func newTestApp(t *testing.T) *App {
 	// by accident. A test of the conversion sets its own.
 	previousEncode := audio.EncodeMP3
 	audio.EncodeMP3 = func(string, string) error { return audio.ErrNoEncoder }
+	// Nor a music video (#118): a test of the binding stubs the render.
+	previousRender := renderVideo
+	renderVideo = func(context.Context, video.Spec, func(float64)) (video.Rendered, error) {
+		return video.Rendered{}, video.ErrNoFFmpeg
+	}
 	// Standing in no checkout, so no test pins the real repository into its
 	// database or runs git to find out (#94). A test of the resolution stands
 	// where it needs to.
@@ -53,6 +60,7 @@ func newTestApp(t *testing.T) *App {
 	t.Cleanup(func() {
 		dataDir, osMusicDir, githubToken = previousData, previousMusic, previousToken
 		audio.EncodeMP3 = previousEncode
+		renderVideo = previousRender
 		checkoutAt, checkRepoTakesIssues = previousCheckout, previousCheck
 		agySettingsPath = previousAgySettings
 	})

@@ -12,6 +12,7 @@ export const SETTING_KEYS = {
   lastRoute: 'last_route',
   musicRoot: 'music_root',
   defaultTrackLength: 'default_track_length',
+  musicVideoGap: 'music_video_gap',
 } as const
 
 /**
