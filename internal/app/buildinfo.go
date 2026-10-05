@@ -6,7 +6,8 @@ import (
 )
 
 // appVersion is what this build calls itself. Set at link time by a release
-// build (-ldflags "-X main.appVersion=1.2.0"); "dev" is what a developer's own
+// build (-ldflags "-X aimusicmaker/internal/app.appVersion=1.2.0", as
+// .github/workflows/release.yml does); "dev" is what a developer's own
 // build honestly is, and saying so is more use than a version number nobody
 // released.
 var appVersion = "dev"
