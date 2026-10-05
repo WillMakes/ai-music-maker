@@ -47,7 +47,7 @@ jobs:
     outputs:
       version: ${{ steps.version.outputs.version }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       # The next version is the latest v* tag with its patch bumped. Read from
       # the remote rather than a full-history clone, which is all a deep fetch
@@ -65,27 +65,28 @@ jobs:
           echo "version=$next" >> "$GITHUB_OUTPUT"
           echo "Releasing v$next"
 
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@v6
         with:
           go-version-file: go.mod
           cache-dependency-path: go.sum
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
           node-version: 22
           cache: npm
           cache-dependency-path: frontend/package-lock.json
 
-      # Cached as a package set, so a warm run skips apt-get update and the
-      # download of GTK and WebKit entirely.
-      - uses: awalsh128/cache-apt-pkgs-action@v1
-        with:
-          packages: libgtk-3-dev libwebkit2gtk-4.1-dev
-          version: 1
+      # Installed plainly rather than through a package cache: the first run
+      # used awalsh128/cache-apt-pkgs-action, which restored the -dev packages
+      # without their pkg-config files and the cgo build could not find GTK.
+      - name: Install GTK and WebKit
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq --no-install-recommends libgtk-3-dev libwebkit2gtk-4.1-dev
 
       - name: Restore Wails CLI
         id: wails-cache
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: ~/go/bin/wails
           key: wails-${{ env.WAILS_VERSION }}-${{ runner.os }}-${{ runner.arch }}
@@ -154,21 +155,21 @@ jobs:
     runs-on: macos-15
     timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - uses: actions/download-artifact@v4
         with:
           name: frontend-dist
           path: frontend/dist
 
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@v6
         with:
           go-version-file: go.mod
           cache-dependency-path: go.sum
 
       - name: Restore Wails CLI
         id: wails-cache
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: ~/go/bin/wails
           key: wails-${{ env.WAILS_VERSION }}-${{ runner.os }}-${{ runner.arch }}
