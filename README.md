@@ -7,14 +7,13 @@ your artists, albums and tracks in one library, writes Suno style prompts and
 lyrics with the AI you already use, fills Suno's create form for you, and files
 the finished songs where your music player will find them.
 
-**Website:** [sunomaker.willmakes.tv](https://sunomaker.willmakes.tv) ·
 **License:** [MIT](LICENSE)
 
 ![An album in AIMusicMaker: its cover and sound, the running order, a track's Suno style prompt, and its takes](docs/screenshots/album.png)
 
-> AIMusicMaker is distributed as source code only. There are no installers or
-> prebuilt binaries: you build it yourself with Go, which takes a few minutes
-> and is described below.
+> Prebuilt Windows, macOS and Linux builds are on the
+> [Releases](https://github.com/WillMakes/ai-music-maker/releases) page, or you
+> can build it yourself with Go as described below.
 
 ---
 
@@ -122,8 +121,8 @@ To build from source:
 
 ```bash
 # 1. Get the source
-git clone https://github.com/WillMakes/suno-maker.git
-cd suno-maker
+git clone https://github.com/WillMakes/ai-music-maker.git
+cd ai-music-maker
 
 # 2. Install the Wails CLI (once)
 go install github.com/wailsapp/wails/v2/cmd/wails@v2.13.0
@@ -270,22 +269,6 @@ survives an uninstall and your music player finds it. The Music folder is
 
 To back up everything, copy those two folders.
 
-### Upgrading from SunoMaker
-
-The app used to be called SunoMaker. On its first launch under the new name it
-moves `~/.sunomaker` to `~/.aimusicmaker`, so your library, settings and bug
-queue come with it. If an old copy of the app is still running, the move waits
-until a launch when it is not. A music library already at
-`<Music folder>/SunoMaker/` stays where it is and keeps being used.
-
-Two things need doing once by hand:
-
-- **The Chrome extension.** Chrome loads it from the old folder, which has moved.
-  Re-export it from **Settings → Chrome extension** and load it again from the
-  new folder.
-- **AI assistants.** Reconnect each one in **Settings → AI assistants**. This
-  replaces the old `suno-maker` server entry with `aimusicmaker`.
-
 ## Development
 
 ```bash
@@ -313,7 +296,7 @@ cd frontend && npm run build    # TypeScript (strict) and the production UI buil
 ## Reporting bugs and contributing
 
 Bugs and ideas go on the
-[issue tracker](https://github.com/WillMakes/suno-maker/issues). Pull requests
+[issue tracker](https://github.com/WillMakes/ai-music-maker/issues). Pull requests
 are welcome. Please run the three checks under [Development](#development)
 first.
 
@@ -325,7 +308,7 @@ source checkout. To send reports to your own fork instead, change it there or
 run:
 
 ```bash
-aimusicmaker bugs repo your-name/suno-maker
+aimusicmaker bugs repo your-name/ai-music-maker
 ```
 
 With no network or no credential, a report is kept locally and filed later.
