@@ -11,16 +11,22 @@ import {Playlist, ReportNowPlaying, SetMediaKeys} from '../../wailsjs/go/app/App
 import {app} from '../../wailsjs/go/models'
 import {EventsOn} from '../../wailsjs/runtime/runtime'
 import {toMessage} from '../lib/errors'
+import {NativeAudio} from './nativeAudio'
 
 /**
- * The player (#45): one audio element for the whole app, a queue, and the
- * Media Session hookup that hands the OS its play/pause/next keys.
+ * The player (#45): one speaker for the whole app, and a queue.
  *
  * A provider rather than per-view state for the same reason the library tree
  * is one: the bar at the bottom, the Queue page and the Now Playing page are
  * three windows onto the same playback, and three copies of it would be three
- * songs at once. The <audio> lives outside React entirely — it must survive
+ * songs at once. The speaker lives outside React entirely — it must survive
  * every navigation, and no view owns it.
+ *
+ * The speaker is the app's own process (#125, see nativeAudio.ts), not an
+ * <audio> element: the webview's sound comes out of WebView2's processes,
+ * which OBS's Application Audio Capture cannot hear. Gone with the element is
+ * the Media Session overlay (#45), which only ever appeared while the webview
+ * itself was playing; the media keys are the backend's already (#101).
  */
 
 /** What a play button can name (#107 added playlists). */
@@ -54,7 +60,7 @@ export type PlayerState = {
 const PlayerContext = createContext<PlayerState | null>(null)
 
 export function PlayerProvider({children}: {children: React.ReactNode}) {
-  const audioRef = useRef<HTMLAudioElement | null>(null)
+  const audioRef = useRef<NativeAudio | null>(null)
   const [queue, setQueue] = useState<app.PlayerTrack[]>([])
   const [index, setIndex] = useState(0)
   const [playing, setPlaying] = useState(false)
@@ -66,33 +72,29 @@ export function PlayerProvider({children}: {children: React.ReactNode}) {
 
   const audio = () => {
     if (!audioRef.current) {
-      audioRef.current = new Audio()
-      audioRef.current.preload = 'auto'
+      audioRef.current = new NativeAudio()
     }
     return audioRef.current
   }
 
   const current = queue[index]
 
-  // Load and start whenever the queue entry changes. Play is called from the
-  // same effect that set the source: the browser allows it because the chain
-  // began with a click, and splitting them apart would lose that.
+  // Load and start whenever the queue entry changes.
   useEffect(() => {
     const el = audio()
     if (!current) {
-      el.pause()
-      el.removeAttribute('src')
+      el.stop()
       setPlaying(false)
       setPosition(0)
       setDuration(0)
       return
     }
-    el.src = current.audioUrl
+    void el.load(current.fileId)
     el.play().catch((err) => setError(toMessage(err)))
-  }, [current?.audioUrl])
+  }, [current?.fileId])
 
-  // The element is the source of truth for time and play state; React only
-  // mirrors it, so a seek from the OS overlay shows up in the bar too.
+  // The speaker is the source of truth for time and play state; React only
+  // mirrors it.
   useEffect(() => {
     const el = audio()
     const onTime = () => setPosition(el.currentTime)
@@ -274,10 +276,10 @@ export function PlayerProvider({children}: {children: React.ReactNode}) {
     return () => el.removeEventListener('seeked', reportNowPlaying)
   }, [reportNowPlaying])
 
-  // The keyboard's media keys (#101). WebView2 under Wails never passes them
-  // to the Media Session below, so the backend holds them itself and sends
-  // each press back as an event — and holds them only while there is a queue,
-  // since a held key is taken from every other program on the machine.
+  // The keyboard's media keys (#101). WebView2 under Wails never passed them
+  // to the webview, so the backend holds them itself and sends each press
+  // back as an event — and holds them only while there is a queue, since a
+  // held key is taken from every other program on the machine.
   const hasQueue = queue.length > 0
   useEffect(() => {
     SetMediaKeys(hasQueue).catch((err) => setError(toMessage(err)))
@@ -292,38 +294,6 @@ export function PlayerProvider({children}: {children: React.ReactNode}) {
       }),
     [toggle, next, previous],
   )
-
-  // The OS's own controls (#45): metadata for the overlay, handlers for the
-  // media keys, through the Media Session API. Kept for the webviews that do
-  // forward it; on Windows the keys come through the effect above.
-  useEffect(() => {
-    if (!('mediaSession' in navigator)) return
-    const session = navigator.mediaSession
-    if (current) {
-      session.metadata = new MediaMetadata({
-        title: current.name,
-        artist: current.artistName,
-        album: current.albumName,
-        artwork: current.artworkUrl ? [{src: current.artworkUrl}] : [],
-      })
-    } else {
-      session.metadata = null
-    }
-    session.setActionHandler('play', toggle)
-    session.setActionHandler('pause', toggle)
-    session.setActionHandler('previoustrack', previous)
-    session.setActionHandler('nexttrack', next)
-    session.setActionHandler('seekto', (details) => {
-      if (details.seekTime != null) seek(details.seekTime)
-    })
-    return () => {
-      session.setActionHandler('play', null)
-      session.setActionHandler('pause', null)
-      session.setActionHandler('previoustrack', null)
-      session.setActionHandler('nexttrack', null)
-      session.setActionHandler('seekto', null)
-    }
-  }, [current, toggle, previous, next, seek])
 
   const value = useMemo(
     () => ({
