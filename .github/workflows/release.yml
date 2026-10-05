@@ -1,0 +1,227 @@
+# Every merge to main becomes a numbered release with a build for each OS.
+#
+# The repository is private, so minutes are billed: Linux at 1x, Windows at 2x
+# and macOS at 10x. The shape of this file follows from that:
+#
+#   - Windows is cross-compiled on Linux. Wails' Windows target needs no cgo
+#     (WebView2 is reached through syscalls, SQLite is modernc's pure Go), so a
+#     Windows runner would buy nothing but a doubled bill.
+#   - macOS is the only job that cannot move, so it does as little as possible:
+#     no npm, no tests, no binding generation. It receives the built frontend
+#     from the Linux job and only links the app.
+#   - Tests, vet and the frontend build run once, on Linux.
+#   - Every job has a timeout. A hung job otherwise bills for six hours.
+name: Release
+
+on:
+  push:
+    branches: [main]
+    # Files nothing is built from. skills/*.md are NOT listed: they are embedded.
+    paths-ignore:
+      - README.md
+      - CLAUDE.md
+      - LICENSE
+      - docs/**
+      - .idea/**
+      - .claude/**
+  workflow_dispatch:
+
+# One release at a time, so two quick merges cannot both read "latest is v0.1.4"
+# and race to create v0.1.5. A merge that lands while another is queued
+# replaces it: the later run builds a main that already contains both.
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+env:
+  WAILS_VERSION: v2.13.0
+
+jobs:
+  linux:
+    name: Test, frontend, Linux and Windows
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+
+      # The next version is the latest v* tag with its patch bumped. Read from
+      # the remote rather than a full-history clone, which is all a deep fetch
+      # would have been for.
+      - name: Choose version
+        id: version
+        run: |
+          latest=$(git ls-remote --tags --refs origin 'v*' | sed 's|.*refs/tags/v||' | sort -V | tail -n1)
+          if [ -z "$latest" ]; then
+            next=0.1.0
+          else
+            IFS=. read -r major minor patch <<<"$latest"
+            next="$major.$minor.$((patch + 1))"
+          fi
+          echo "version=$next" >> "$GITHUB_OUTPUT"
+          echo "Releasing v$next"
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache-dependency-path: go.sum
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      # Cached as a package set, so a warm run skips apt-get update and the
+      # download of GTK and WebKit entirely.
+      - uses: awalsh128/cache-apt-pkgs-action@v1
+        with:
+          packages: libgtk-3-dev libwebkit2gtk-4.1-dev
+          version: 1
+
+      - name: Restore Wails CLI
+        id: wails-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/go/bin/wails
+          key: wails-${{ env.WAILS_VERSION }}-${{ runner.os }}-${{ runner.arch }}
+      - name: Install Wails CLI
+        if: steps.wails-cache.outputs.cache-hit != 'true'
+        run: go install github.com/wailsapp/wails/v2/cmd/wails@${{ env.WAILS_VERSION }}
+
+      - name: Stamp version
+        run: .github/scripts/stamp-version.sh "${{ steps.version.outputs.version }}"
+
+      # Done by hand rather than inside `wails build` so the frontend is built
+      # once, with `npm ci`, and can be handed to the macOS job as-is. The
+      # placeholder lets the bindings pass compile frontend.Dist's go:embed
+      # before there is a dist to embed.
+      - name: Generate bindings
+        run: |
+          mkdir -p frontend/dist && touch frontend/dist/.placeholder
+          wails generate module
+      - name: Build frontend
+        working-directory: frontend
+        run: |
+          npm ci --no-audit --no-fund
+          npm run build
+
+      - name: Vet and test
+        run: |
+          go vet ./...
+          go test ./...
+
+      - name: Build Linux
+        run: >
+          wails build -s -skipbindings -m -trimpath
+          -platform linux/amd64 -tags webkit2_41
+          -ldflags "-X aimusicmaker/internal/app.appVersion=${{ steps.version.outputs.version }}"
+      - name: Build Windows
+        run: >
+          wails build -s -skipbindings -m -trimpath
+          -platform windows/amd64
+          -ldflags "-X aimusicmaker/internal/app.appVersion=${{ steps.version.outputs.version }}"
+
+      - name: Package
+        run: |
+          v=${{ steps.version.outputs.version }}
+          mkdir -p release
+          tar -czf "release/AIMusicMaker-v$v-linux-amd64.tar.gz" -C build/bin aimusicmaker
+          (cd build/bin && zip -q "../../release/AIMusicMaker-v$v-windows-amd64.zip" aimusicmaker.exe)
+
+      # Intermediate artifacts live a day: storage is billed too, and the
+      # release is where the builds are kept.
+      - uses: actions/upload-artifact@v4
+        with:
+          name: frontend-dist
+          path: frontend/dist
+          include-hidden-files: true
+          retention-days: 1
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-linux-windows
+          path: release/
+          retention-days: 1
+
+  macos:
+    name: macOS
+    needs: linux
+    # Apple silicon. Builds a universal app, so Intel Macs are covered too.
+    runs-on: macos-15
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: frontend-dist
+          path: frontend/dist
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache-dependency-path: go.sum
+
+      - name: Restore Wails CLI
+        id: wails-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/go/bin/wails
+          key: wails-${{ env.WAILS_VERSION }}-${{ runner.os }}-${{ runner.arch }}
+      - name: Install Wails CLI
+        if: steps.wails-cache.outputs.cache-hit != 'true'
+        run: go install github.com/wailsapp/wails/v2/cmd/wails@${{ env.WAILS_VERSION }}
+
+      - name: Stamp version
+        run: .github/scripts/stamp-version.sh "${{ needs.linux.outputs.version }}"
+
+      - name: Build macOS
+        run: >
+          wails build -s -skipbindings -m -trimpath
+          -platform darwin/universal
+          -ldflags "-X aimusicmaker/internal/app.appVersion=${{ needs.linux.outputs.version }}"
+
+      # ditto rather than zip: it keeps the bundle's symlinks and extended
+      # attributes, which zip flattens into an app that will not launch.
+      - name: Package
+        run: |
+          mkdir -p release
+          ditto -c -k --keepParent build/bin/aimusicmaker.app \
+            "release/AIMusicMaker-v${{ needs.linux.outputs.version }}-macos-universal.zip"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-macos
+          path: release/
+          retention-days: 1
+
+  release:
+    name: Publish release
+    needs: [linux, macos]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: release-*
+          path: release
+          merge-multiple: true
+
+      # gh creates the tag on the merged commit; notes are the PRs since the
+      # previous tag.
+      - name: Create release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          v=v${{ needs.linux.outputs.version }}
+          gh release create "$v" release/* \
+            --repo "${{ github.repository }}" \
+            --target "${{ github.sha }}" \
+            --title "$v" \
+            --generate-notes

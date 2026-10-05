@@ -106,6 +106,20 @@ what is missing.
 
 ## Build and install
 
+**Or download a build.** Every merge to `main` publishes a release on the
+repository's Releases page, with a build for each platform:
+
+| Platform | Asset | Notes |
+| --- | --- | --- |
+| Windows | `AIMusicMaker-vX.Y.Z-windows-amd64.zip` | Unsigned: SmartScreen asks once. |
+| macOS | `AIMusicMaker-vX.Y.Z-macos-universal.zip` | Apple silicon and Intel. Unsigned: right-click → Open the first time. |
+| Linux | `AIMusicMaker-vX.Y.Z-linux-amd64.tar.gz` | Built on Ubuntu 24.04 against WebKit2GTK 4.1. |
+
+The workflow is `.github/workflows/release.yml`. It numbers releases by bumping
+the patch of the latest `v*` tag.
+
+To build from source:
+
 ```bash
 # 1. Get the source
 git clone https://github.com/WillMakes/suno-maker.git
