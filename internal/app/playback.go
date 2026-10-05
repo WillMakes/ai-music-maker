@@ -33,6 +33,10 @@ type PlayerTrack struct {
 	AlbumName  string `json:"albumName"`
 	ArtworkURL string `json:"artworkUrl"`
 	AudioURL   string `json:"audioUrl"`
+	// FileID is the take that plays, which the window's player loads into
+	// this process's speaker (#125). AudioURL is kept for the browser
+	// extension and the MCP playlist, which play over the loopback bridge.
+	FileID string `json:"fileId"`
 }
 
 // Playlist builds the queue for one press of a play button. kind is "track",
@@ -198,6 +202,7 @@ func (a *App) appendPlayable(out []PlayerTrack, album Album, tracks []Track, mis
 			AlbumName:  album.Name,
 			ArtworkURL: album.ArtworkURL,
 			AudioURL:   audio,
+			FileID:     file.ID,
 		})
 	}
 	return out

@@ -6,6 +6,8 @@ import (
 	"sync"
 	"time"
 
+	"aimusicmaker/internal/playback"
+
 	wruntime "github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
@@ -44,6 +46,10 @@ type App struct {
 	// keys waits on while holding mediaKeysMu.
 	mediaPressMu  sync.Mutex
 	lastPlayPause time.Time
+
+	// speaker plays the window's player's takes from this process (#125);
+	// nil until the first song. See nativeplayer.go.
+	speaker *playback.Engine
 
 	// nowPlaying is the player's last report (see nowplaying.go, #111).
 	nowPlaying nowPlayingState
@@ -111,6 +117,9 @@ func (a *App) shutdown(_ context.Context) {
 	// The process exiting would release the media keys anyway; this is for the
 	// window closing while the process lingers, which must not leave them held.
 	_ = a.SetMediaKeys(false)
+	if a.speaker != nil {
+		a.speaker.Close()
+	}
 	if a.store != nil {
 		if err := a.store.Close(); err != nil {
 			log.Printf("aimusicmaker: closing the database: %v", err)
