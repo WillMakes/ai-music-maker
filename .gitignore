@@ -38,3 +38,7 @@ Thumbs.db
 
 # Logs
 *.log
+
+# Wails writes these next to the committed project.nsi on every -nsis build.
+build/windows/installer/wails_tools.nsh
+build/windows/installer/tmp/
