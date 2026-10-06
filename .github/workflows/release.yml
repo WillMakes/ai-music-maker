@@ -79,10 +79,11 @@ jobs:
       # Installed plainly rather than through a package cache: the first run
       # used awalsh128/cache-apt-pkgs-action, which restored the -dev packages
       # without their pkg-config files and the cgo build could not find GTK.
-      - name: Install GTK and WebKit
+      # nsis is makensis, which builds the Windows installer (#130).
+      - name: Install GTK, WebKit and NSIS
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y -qq --no-install-recommends libgtk-3-dev libwebkit2gtk-4.1-dev
+          sudo apt-get install -y -qq --no-install-recommends libgtk-3-dev libwebkit2gtk-4.1-dev nsis
 
       - name: Restore Wails CLI
         id: wails-cache
@@ -121,9 +122,12 @@ jobs:
           wails build -s -skipbindings -m -trimpath
           -platform linux/amd64 -tags webkit2_41
           -ldflags "-X aimusicmaker/internal/app.appVersion=${{ steps.version.outputs.version }}"
+      # An installer rather than a bare exe (#130): Start menu and desktop
+      # shortcuts, an uninstaller, and the WebView2 runtime installed if the
+      # machine lacks it.
       - name: Build Windows
         run: >
-          wails build -s -skipbindings -m -trimpath
+          wails build -s -skipbindings -m -trimpath -nsis
           -platform windows/amd64
           -ldflags "-X aimusicmaker/internal/app.appVersion=${{ steps.version.outputs.version }}"
 
@@ -132,7 +136,9 @@ jobs:
           v=${{ steps.version.outputs.version }}
           mkdir -p release
           tar -czf "release/AIMusicMaker-v$v-linux-amd64.tar.gz" -C build/bin aimusicmaker
-          (cd build/bin && zip -q "../../release/AIMusicMaker-v$v-windows-amd64.zip" aimusicmaker.exe)
+          # Wails only warns when makensis is missing and carries on, so this
+          # copy is what fails the run if the installer was not made.
+          cp build/bin/aimusicmaker-amd64-installer.exe "release/AIMusicMaker-v$v-windows-amd64-setup.exe"
 
       # Intermediate artifacts live a day: storage is billed too, and the
       # release is where the builds are kept.
