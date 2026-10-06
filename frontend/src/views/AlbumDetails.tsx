@@ -1157,9 +1157,13 @@ function TrackRow({
 
   return (
     <li className="group/row">
+      {/* The row with an open menu is lifted above its neighbours (#126). The
+          menu's own z-index cannot do it: the button cluster's translate makes
+          it a stacking context, so the menu only outranks its own cluster, and
+          every later row — positioned, and painted after — covered it. */}
       <div
         className={
-          'group relative flex items-center gap-2 px-3 py-2 ' +
+          'group relative flex items-center gap-2 px-3 py-2 has-[[aria-expanded=true]]:z-30 ' +
           corners +
           ' ' +
           (selected ? 'bg-surface-hover' : 'hover:bg-surface-hover')
@@ -1202,8 +1206,11 @@ function TrackRow({
         {/* Over the row's right end rather than beside it: the column is
             260px, and room held open for buttons that only show on hover
             would truncate every title. The row's own background behind them
-            keeps the title and length from showing through. */}
-        <span className="pointer-events-none absolute right-2 top-1/2 flex -translate-y-1/2 items-center gap-0.5 rounded-md bg-surface-hover opacity-0 transition-opacity group-focus-within:pointer-events-auto group-focus-within:opacity-100 group-hover:pointer-events-auto group-hover:opacity-100">
+            keeps the title and length from showing through. Held shown while
+            the playlist menu is open, which lives inside it: WebKit does not
+            focus a clicked button, so focus-within alone would fade the menu
+            out the moment the pointer left the row on its way into it. */}
+        <span className="pointer-events-none absolute right-2 top-1/2 flex -translate-y-1/2 items-center gap-0.5 rounded-md bg-surface-hover opacity-0 transition-opacity group-focus-within:pointer-events-auto group-focus-within:opacity-100 group-hover:pointer-events-auto group-hover:opacity-100 has-[[aria-expanded=true]]:pointer-events-auto has-[[aria-expanded=true]]:opacity-100">
           {playable && (
             <button
               className="sm-button sm-button-quiet border-0 px-1.5 py-1"
