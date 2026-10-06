@@ -262,5 +262,17 @@ func settingsTools() []mcpTool {
 				return mcpResult(app.GetBuildInfo())
 			}),
 		},
+		{
+			name: "check_for_update",
+			description: "Whether a newer release of the app is published: the running and " +
+				"latest versions, the release notes, and the installer for this platform. " +
+				"A development build or an unreachable GitHub answers with a problem rather " +
+				"than an error. Installing is the producer's, from the update button in the window.",
+			binding: "CheckForUpdate",
+			schema:  object(map[string]any{}),
+			run: with(func(app *App, _ noArgs) map[string]any {
+				return mcpResult(app.CheckForUpdate())
+			}),
+		},
 	}
 }

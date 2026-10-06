@@ -111,11 +111,22 @@ repository's Releases page, with a build for each platform:
 | Platform | Asset | Notes |
 | --- | --- | --- |
 | Windows | `AIMusicMaker-vX.Y.Z-windows-amd64-setup.exe` | An installer, with Start menu shortcuts and an uninstaller. Run a newer one over an installed copy to update it in place. Unsigned: SmartScreen asks once. |
-| macOS | `AIMusicMaker-vX.Y.Z-macos-universal.zip` | Apple silicon and Intel. Unsigned: right-click → Open the first time. |
+| macOS | `AIMusicMaker-vX.Y.Z-macos-universal.dmg` | Apple silicon and Intel. Drag the app into Applications. Unsigned: right-click → Open the first time. |
 | Linux | `AIMusicMaker-vX.Y.Z-linux-amd64.tar.gz` | Built on Ubuntu 24.04 against WebKit2GTK 4.1. |
 
 The workflow is `.github/workflows/release.yml`. It numbers releases by bumping
-the patch of the latest `v*` tag.
+the patch of the latest `v*` tag, and attaches a `manifest.json` and
+`checksums.txt` naming each platform's file and its SHA-256.
+
+**Updating.** An installed release checks for a newer one at launch and every
+few hours. When there is one, an **Update to X.Y.Z** button appears in the top
+bar beside Report a bug: it shows the release notes, downloads the file for
+your platform to your Downloads folder, checks it against the release's
+checksum, and opens it. On Windows that runs the installer, which updates the
+installed copy in place. **Settings → About** checks on demand. The repository
+is private, so checking needs a GitHub credential, the same one the bug
+reporter uses (`gh auth login`). A build made from source says `dev` and does
+not check.
 
 To build from source:
 

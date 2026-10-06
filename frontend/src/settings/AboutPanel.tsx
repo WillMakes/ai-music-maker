@@ -1,10 +1,12 @@
 import {useEffect, useState} from 'react'
-import {ExternalLink} from 'lucide-react'
+import {ExternalLink, RefreshCw} from 'lucide-react'
 import {Documentation, GetBuildInfo, OpenURL} from '../../wailsjs/go/app/App'
 import {app} from '../../wailsjs/go/models'
 import {StatusPill} from '../components/StatusPill'
 import logo from '../assets/logo.png'
 import {toMessage} from '../lib/errors'
+import {UpdateDialog} from '../updates/UpdateButton'
+import {useUpdates} from '../updates/UpdatesProvider'
 
 /**
  * Settings → About: what is running, and where it came from.
@@ -65,6 +67,8 @@ export function AboutPanel() {
         )}
       </section>
 
+      <UpdatesSection />
+
       {docs && (
         <section className="sm-panel p-4">
           <h2 className="text-sm font-semibold">What this app is</h2>
@@ -89,5 +93,44 @@ function Row({label, value}: {label: string; value: string}) {
       <dt className="text-fg-muted">{label}</dt>
       <dd className="truncate font-mono text-xs">{value}</dd>
     </>
+  )
+}
+
+/**
+ * Whether this is the newest release, and a way to ask again (#132). The top
+ * bar only speaks up when there is an update; this is where "you are up to
+ * date", and why a check could not answer, are said.
+ */
+function UpdatesSection() {
+  const {status, checking, check} = useUpdates()
+  const [open, setOpen] = useState(false)
+
+  let line = 'Not checked yet.'
+  if (status?.available) line = status.latest + ' is available.'
+  else if (status?.problem) line = status.problem.charAt(0).toUpperCase() + status.problem.slice(1) + '.'
+  else if (status?.latest) line = 'Up to date: ' + status.latest + ' is the newest release.'
+
+  return (
+    <section className="sm-panel space-y-3 p-4">
+      <h2 className="text-sm font-semibold">Updates</h2>
+      <p className="text-sm text-fg-muted">{line}</p>
+      <div className="flex flex-wrap gap-2">
+        <button
+          className="sm-button sm-button-quiet"
+          type="button"
+          disabled={checking}
+          onClick={() => void check()}
+        >
+          <RefreshCw size={15} />
+          {checking ? 'Checking…' : 'Check for updates'}
+        </button>
+        {status?.available && (
+          <button className="sm-button sm-button-primary" type="button" onClick={() => setOpen(true)}>
+            See the update
+          </button>
+        )}
+      </div>
+      {open && <UpdateDialog onClose={() => setOpen(false)} />}
+    </section>
   )
 }
