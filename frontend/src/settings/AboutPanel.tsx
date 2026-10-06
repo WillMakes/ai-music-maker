@@ -2,6 +2,7 @@ import {useEffect, useState} from 'react'
 import {ExternalLink, RefreshCw} from 'lucide-react'
 import {Documentation, GetBuildInfo, OpenURL} from '../../wailsjs/go/app/App'
 import {app} from '../../wailsjs/go/models'
+import {Markdown} from '../components/Markdown'
 import {StatusPill} from '../components/StatusPill'
 import logo from '../assets/logo.png'
 import {toMessage} from '../lib/errors'
@@ -76,9 +77,12 @@ export function AboutPanel() {
             The same document <span className="font-mono">aimusicmaker docs</span> prints
             and an assistant reads over MCP.
           </p>
-          <pre className="mt-3 overflow-x-auto whitespace-pre-wrap rounded bg-surface-hover p-3 font-mono text-xs">
-            {docs}
-          </pre>
+          {/* Rendered rather than shown as source (#136): it is Markdown, and
+              its indented blocks become preformatted ones, which keeps the
+              aligned columns of the model and the settings lists. */}
+          <div className="mt-3">
+            <Markdown>{docs}</Markdown>
+          </div>
         </section>
       )}
 
