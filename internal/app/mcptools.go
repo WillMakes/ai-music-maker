@@ -53,6 +53,8 @@ var mcpNotOffered = map[string]string{
 	"SaveYouTubeClient":   "takes the producer's Google OAuth secret, which they paste into Settings → YouTube themselves rather than hand to an agent",
 	"ConnectYouTube":      "signs in to Google in the producer's browser, which needs the window to open it and the producer to approve it",
 	"ConnectYouTubeMusic": "takes the cookies of the producer's signed-in browser, which are their Google sign-in and theirs to paste into Settings → YouTube, not an agent's to handle",
+	"DownloadUpdate":      "fetches a new version of the app to install, which is the producer's decision; check_for_update says whether there is one",
+	"InstallUpdate":       "runs the installer and closes the window, which is the producer's to do from the update dialog",
 }
 
 // mcpTool is one tool's definition and its implementation together.

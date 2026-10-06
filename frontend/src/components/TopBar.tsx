@@ -1,9 +1,10 @@
 import {ArrowLeft, ArrowRight, Bug} from 'lucide-react'
 import type {Route} from '../App'
+import {UpdateButton} from '../updates/UpdateButton'
 
 /**
- * The bar above the content: where you are, where you have been, the theme, and
- * the bug button.
+ * The bar above the content: where you are, where you have been, a newer
+ * release when there is one, and the bug button.
  *
  * Back and forward are here rather than in the rail because they are about the
  * history stack, which is what a title bar owns in every application that has
@@ -67,6 +68,8 @@ export function TopBar({
           </span>
         ))}
       </nav>
+
+      <UpdateButton />
 
       <button
         className="sm-button sm-button-quiet relative"

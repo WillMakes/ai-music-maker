@@ -9,6 +9,7 @@ import {EvolutionsProvider} from './evolutions/EvolutionsProvider'
 import {ArtworksProvider} from './artworks/ArtworksProvider'
 import {VideosProvider} from './videos/VideosProvider'
 import {BugsProvider} from './bugs/BugsProvider'
+import {UpdatesProvider} from './updates/UpdatesProvider'
 import {ThemeProvider} from './theme/ThemeProvider'
 import './style.css'
 
@@ -17,7 +18,7 @@ import './style.css'
  *
  * Theme before everything, because it decides what the first paint looks like.
  * Bugs before the shell, because the top bar's badge reads it and the top bar is
- * on every page. Artists last of the three, since only the content region needs
+ * on every page; updates likewise, for the top bar's update button (#132). Artists last of the three, since only the content region needs
  * it.
  *
  * StrictMode is on. It double-invokes effects in development, which is exactly
@@ -34,25 +35,27 @@ createRoot(container).render(
   <React.StrictMode>
     <ThemeProvider>
       <BugsProvider>
-        <ArtistsProvider>
-          <LibraryProvider>
-            <PlaylistsProvider>
-              <PlayerProvider>
-                {/* Above the shell so an evolution (#82), an artwork
-                    generation (#83) and a music-video render (#118) outlive
-                    the page that started them - the status bar and the album
-                    page both read them. */}
-                <EvolutionsProvider>
-                  <ArtworksProvider>
-                    <VideosProvider>
-                      <App />
-                    </VideosProvider>
-                  </ArtworksProvider>
-                </EvolutionsProvider>
-              </PlayerProvider>
-            </PlaylistsProvider>
-          </LibraryProvider>
-        </ArtistsProvider>
+        <UpdatesProvider>
+          <ArtistsProvider>
+            <LibraryProvider>
+              <PlaylistsProvider>
+                <PlayerProvider>
+                  {/* Above the shell so an evolution (#82), an artwork
+                      generation (#83) and a music-video render (#118) outlive
+                      the page that started them - the status bar and the album
+                      page both read them. */}
+                  <EvolutionsProvider>
+                    <ArtworksProvider>
+                      <VideosProvider>
+                        <App />
+                      </VideosProvider>
+                    </ArtworksProvider>
+                  </EvolutionsProvider>
+                </PlayerProvider>
+              </PlaylistsProvider>
+            </LibraryProvider>
+          </ArtistsProvider>
+        </UpdatesProvider>
       </BugsProvider>
     </ThemeProvider>
   </React.StrictMode>,

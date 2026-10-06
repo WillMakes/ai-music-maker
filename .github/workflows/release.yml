@@ -192,13 +192,19 @@ jobs:
           -platform darwin/universal
           -ldflags "-X aimusicmaker/internal/app.appVersion=${{ needs.linux.outputs.version }}"
 
-      # ditto rather than zip: it keeps the bundle's symlinks and extended
-      # attributes, which zip flattens into an app that will not launch.
+      # A disk image with the app beside an Applications link (#132), the
+      # drag-to-install a Mac user expects, and what the in-app updater opens.
+      # hdiutil ships with macOS, so this costs seconds rather than a brew
+      # install on the most expensive runner. ditto, not cp, keeps the bundle's
+      # symlinks and extended attributes; the copy is named after the product
+      # so Applications lists it the way the app calls itself.
       - name: Package
         run: |
-          mkdir -p release
-          ditto -c -k --keepParent build/bin/aimusicmaker.app \
-            "release/AIMusicMaker-v${{ needs.linux.outputs.version }}-macos-universal.zip"
+          mkdir -p release dmg
+          ditto build/bin/aimusicmaker.app dmg/AIMusicMaker.app
+          ln -s /Applications dmg/Applications
+          hdiutil create -volname AIMusicMaker -srcfolder dmg -fs HFS+ -format UDZO -ov \
+            "release/AIMusicMaker-v${{ needs.linux.outputs.version }}-macos-universal.dmg"
 
       - uses: actions/upload-artifact@v7
         with:
@@ -219,6 +225,33 @@ jobs:
           pattern: release-*
           path: release
           merge-multiple: true
+
+      # The index the in-app updater reads (#132), after RapidRabbit's
+      # manifest: which file is each platform's, and the SHA-256 it must match.
+      # The updater offers nothing from a release without one, so a missing
+      # platform fails the run rather than publish a release no copy can
+      # update to.
+      - name: Write manifest and checksums
+        working-directory: release
+        run: |
+          pick() { find . -maxdepth 1 -name "$1" -printf '%f\n' | head -n1; }
+          win=$(pick '*-windows-amd64-setup.exe')
+          mac=$(pick '*-macos-universal.dmg')
+          lin=$(pick '*-linux-amd64.tar.gz')
+          for f in "$win" "$mac" "$lin"; do
+            [ -n "$f" ] || { echo "::error::a platform's file is missing from the release"; exit 1; }
+          done
+          sha256sum "$win" "$mac" "$lin" > checksums.txt
+          sum() { sha256sum "$1" | cut -d' ' -f1; }
+          jq -n --arg v "${{ needs.linux.outputs.version }}" --arg c "${{ github.sha }}" \
+            --arg win "$win" --arg winsum "$(sum "$win")" \
+            --arg mac "$mac" --arg macsum "$(sum "$mac")" \
+            --arg lin "$lin" --arg linsum "$(sum "$lin")" \
+            '{version: $v, commit: $c, assets: {
+               "windows-amd64":    {name: $win, sha256: $winsum},
+               "darwin-universal": {name: $mac, sha256: $macsum},
+               "linux-amd64":      {name: $lin, sha256: $linsum}}}' > manifest.json
+          cat manifest.json
 
       # gh creates the tag on the merged commit; notes are the PRs since the
       # previous tag.
