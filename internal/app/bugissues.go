@@ -79,6 +79,11 @@ var issuesHTTP = &http.Client{Timeout: 20 * time.Second}
 // all of them.
 var githubAPI = "https://api.github.com"
 
+// renameFollowed is whether this process has asked GitHub for the pinned
+// repository's current name (see followRename). Package-level for the same
+// reason as lastReconcile.
+var renameFollowed bool
+
 // lastReconcile is when the projection was last swept. Package-level rather than
 // on App because the bug CLI runs in its own process with no App worth the name,
 // and both want the same rate limit.
@@ -524,6 +529,36 @@ func (a *App) closeIssue(report BugReport, commitURL string) {
 	}
 }
 
+// followRename re-pins the bug repository under its current name when it has
+// been renamed (#134).
+//
+// GitHub redirects an old name to the new one, so a stale pin keeps working —
+// which is exactly why nothing ever corrected it, and About went on naming a
+// repository that no longer exists by that name. The repository's own record
+// says what it is called now. Asked once per process, and only after a sweep
+// has proved the forge reachable; a pin changed meanwhile is left alone.
+func (a *App) followRename(queue issueQueue) {
+	if renameFollowed || a.store == nil {
+		return
+	}
+	var repo struct {
+		FullName string `json:"full_name"`
+	}
+	if err := queue.call("GET", "/repos/"+queue.slug, nil, &repo); err != nil {
+		return
+	}
+	renameFollowed = true
+	if !validRepoSlug(repo.FullName) || repo.FullName == queue.slug {
+		return
+	}
+	if pinned, _ := a.store.setting(keyBugRepo); pinned != queue.slug {
+		return
+	}
+	if err := a.store.setSetting(keyBugRepo, repo.FullName); err == nil {
+		a.store.changed(keyBugRepo)
+	}
+}
+
 // reconcileIssues brings the local projection in line with the forge.
 //
 // Three things happen, and the order is what keeps them from fighting:
@@ -554,6 +589,7 @@ func (a *App) reconcileIssues() {
 	// Stamped only after a successful read, so a run of failures keeps retrying
 	// rather than backing off for a minute at a time on the strength of one.
 	lastReconcile = time.Now()
+	a.followRename(queue)
 
 	local, err := a.store.bugReports()
 	if err != nil {
