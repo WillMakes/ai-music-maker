@@ -87,13 +87,11 @@ the ones made afterwards.
 4. **Make them in Suno.** The browser extension puts a button on Suno's Lyrics,
    Style and Title fields. Press one, pick a track, and the field is filled.
 
-5. **Bring the files back.** Press the extension's toolbar button on the Suno
-   tab to record, and a song you listen to all the way through is recorded
-   onto the track with the same title. Or import the finished audio against
-   its track. Files are copied into the operating
-   system's music folder under AIMusicMaker/Artist/Album, so a music player finds
-   them without being told to. A WAV is kept as a 320 kbps MP3 when ffmpeg is
-   installed, and as the WAV when it is not.
+5. **Bring the files back.** Import the finished audio against its track.
+   Files are copied into the operating system's music folder under
+   AIMusicMaker/Artist/Album, so a music player finds them without being told
+   to. A WAV is kept as a 320 kbps MP3 when ffmpeg is installed, and as the
+   WAV when it is not.
 
 6. **Render the music video.** With a cover and an official take on every
    track, the album page renders one video of the whole record: each take over
@@ -136,8 +134,7 @@ the ones made afterwards.
                 prompt, what a cover should look like. Built-ins can be edited
                 and reset; you can write your own.
     Extension   exports the Chrome extension with this app's bridge token in
-                it, says where to point "Load unpacked", and turns off recording
-                the songs you listen to in Suno.
+                it, and says where to point "Load unpacked".
     Bug reports the open queue, what has been fixed, and the repository reports
                 are filed on, which can be changed there.
     About       what is running, and where it came from.
