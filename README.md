@@ -118,7 +118,7 @@ the patch of the latest `v*` tag, and attaches a `manifest.json` and
 `checksums.txt` naming each platform's file and its SHA-256.
 
 **Updating.** An installed release checks for a newer one at launch and every
-few hours. When there is one, an **Update to X.Y.Z** button appears in the top
+few hours. When there is one, an **Update Available** button appears in the top
 bar beside Report a bug: it shows the release notes, downloads the file for
 your platform to your Downloads folder, checks it against the release's
 checksum, and opens it. On Windows that runs the installer, which updates the

@@ -17,14 +17,16 @@ export function UpdateButton() {
   if (!status?.available) return null
   return (
     <>
+      {/* Compact and versionless (#135): the bar only needs to say there is
+          one. The version is in the tooltip and heads the dialog. */}
       <button
-        className="sm-button sm-button-primary"
+        className="sm-button sm-button-primary px-2 py-1 text-xs"
         type="button"
         title={'AIMusicMaker ' + status.latest + ' is available'}
         onClick={() => setOpen(true)}
       >
-        <ArrowDownCircle size={15} />
-        <span>Update to {status.latest}</span>
+        <ArrowDownCircle size={13} />
+        <span>Update Available</span>
       </button>
       {open && <UpdateDialog onClose={() => setOpen(false)} />}
     </>
