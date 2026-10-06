@@ -53,10 +53,31 @@
         'textarea[aria-label*="lyric" i]',
         // Suno's current form (#79) names nothing: the lyrics box is the one
         // textarea with a 3000-character limit, an example song as its
-        // placeholder, and no label near it.
+        // placeholder, and no label near it. Suno has since raised that limit
+        // (#128), so 5000 is tried too.
         'textarea[maxlength="3000"]',
+        'textarea[maxlength="5000"]',
       ],
       match: /lyric/i,
+      // The last resort (#128): the form's other textarea. When Suno moved the
+      // limit, Style kept matching by its wrapper while Lyrics matched nothing,
+      // so only one field got a button. Custom mode is a styles box and a
+      // lyrics box, and the lyrics box is the taller one; the guard on finding
+      // Style first keeps this off Simple mode, whose one description box is
+      // not a place for lyrics.
+      fallback: () => {
+        const style = findField(FIELDS.find((one) => one.key === 'style'))
+        if (!style) return null
+        const boxes = Array.from(document.querySelectorAll('textarea')).filter(
+          (box) =>
+            box !== style &&
+            box.offsetParent !== null &&
+            !box.closest('[data-testid="create-form-styles-wrapper"]') &&
+            !box.closest('.sm-picker'),
+        )
+        boxes.sort((a, b) => b.clientHeight - a.clientHeight)
+        return boxes[0] || null
+      },
     },
     {
       key: 'style',
@@ -614,7 +635,7 @@
       const control = scope && scope.querySelector('textarea, input[type="text"]')
       if (control) return control
     }
-    return null
+    return field.fallback ? field.fallback() : null
   }
 
   // The dock is the one element that does not depend on finding Suno's
