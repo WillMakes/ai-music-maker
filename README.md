@@ -45,8 +45,7 @@ the finished songs where your music player will find them.
 - **Album artwork.** Covers are generated from the album's description or
   dropped in from a file.
 - **A Chrome extension for Suno.** One click fills Suno's Lyrics, Style, Title
-  and Duration fields from a track. With recording switched on, a song you
-  listen to all the way through in Suno is saved onto the matching track.
+  and Duration fields from a track.
 - **Your takes, filed properly.** Audio is copied into your music folder as
   `Artist/Album/01 Track.mp3`. WAVs become 320 kbps MP3s when ffmpeg is
   installed.
@@ -98,7 +97,7 @@ what is missing.
 
 | Tool | What it adds |
 | --- | --- |
-| [Google Chrome](https://www.google.com/chrome/) | The Suno extension: form filling and recording. |
+| [Google Chrome](https://www.google.com/chrome/) | The Suno extension, which fills Suno's form. |
 | [ffmpeg](https://ffmpeg.org/download.html) | WAV takes are converted to 320 kbps MP3. Without it they stay WAV. |
 | An AI CLI: [`claude`](https://docs.anthropic.com/en/docs/claude-code), [`codex`](https://github.com/openai/codex), [`gemini`](https://github.com/google-gemini/gemini-cli) or `agy` | Use your existing subscription instead of an API key. |
 | [GitHub CLI](https://cli.github.com/) (`gh`) | Signs the in-app bug reporter in to GitHub. |
@@ -208,9 +207,7 @@ wails build
    field. Pick a track, and the form is filled.
 5. **Bring the songs back.** Import finished audio onto its track, or drop a
    batch of downloads on the album and each file is matched to its track by
-   name. To record instead, press AIMusicMaker's button in Chrome's toolbar on the
-   Suno tab. Each song you then hear from start to finish is saved onto the
-   track with the same title. Mark the take that is the song.
+   name. Mark the take that is the song.
 6. **Release it.** Add the album's Apple Music, Spotify and YouTube Music links
    once it is out.
 

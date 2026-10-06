@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "AIMusicMaker",
-  "version": "1.2.1",
-  "description": "Fills Suno's Lyrics, Style and Title fields from a track planned in AIMusicMaker, and records the songs you listen to all the way through onto their tracks.",
+  "version": "1.2.2",
+  "description": "Fills Suno's Lyrics, Style and Title fields from a track planned in AIMusicMaker.",
   "icons": {
     "16": "icon-16.png",
     "32": "icon-32.png",
