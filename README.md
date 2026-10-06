@@ -110,7 +110,7 @@ repository's Releases page, with a build for each platform:
 
 | Platform | Asset | Notes |
 | --- | --- | --- |
-| Windows | `AIMusicMaker-vX.Y.Z-windows-amd64-setup.exe` | An installer, with Start menu shortcuts and an uninstaller. Unsigned: SmartScreen asks once. |
+| Windows | `AIMusicMaker-vX.Y.Z-windows-amd64-setup.exe` | An installer, with Start menu shortcuts and an uninstaller. Run a newer one over an installed copy to update it in place. Unsigned: SmartScreen asks once. |
 | macOS | `AIMusicMaker-vX.Y.Z-macos-universal.zip` | Apple silicon and Intel. Unsigned: right-click → Open the first time. |
 | Linux | `AIMusicMaker-vX.Y.Z-linux-amd64.tar.gz` | Built on Ubuntu 24.04 against WebKit2GTK 4.1. |
 
