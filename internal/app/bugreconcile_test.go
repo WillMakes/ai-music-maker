@@ -37,6 +37,9 @@ type stubForge struct {
 	listCalls  int
 	issueCalls int
 	patches    int
+	// renamedTo, when set, is the name the repository's own record answers
+	// with, as GitHub does for a renamed repository reached by its old name.
+	renamedTo string
 }
 
 func (f *stubForge) start(t *testing.T) {
@@ -48,6 +51,13 @@ func (f *stubForge) start(t *testing.T) {
 			f.patches++
 		}
 		switch {
+		case r.Method == http.MethodGet && strings.Count(path, "/") == 3 && strings.HasPrefix(path, "/repos/"):
+			if f.renamedTo == "" {
+				http.NotFound(w, r)
+				return
+			}
+			_ = json.NewEncoder(w).Encode(map[string]any{"full_name": f.renamedTo})
+
 		// The label-creation calls ensureLabels makes are best effort and
 		// unchecked; answered so they do not look like failures in a trace.
 		case strings.HasSuffix(path, "/labels") && r.Method == http.MethodPost:
@@ -495,5 +505,26 @@ func TestAJustFiledReportIsNotRecreatedByTheSweep(t *testing.T) {
 	}
 	if len(forge.issues) != 0 {
 		t.Fatalf("the sweep created an issue for a report mid-filing: %v", forge.issues)
+	}
+}
+
+// TestARenamedRepositoryIsRepinnedUnderItsNewName is #134: the pin made when
+// the repository was suno-maker survived its rename, because GitHub redirects
+// the old name and nothing failed to say otherwise.
+func TestARenamedRepositoryIsRepinnedUnderItsNewName(t *testing.T) {
+	app := newTestApp(t)
+	forge := &stubForge{issues: map[int]githubIssue{}, renamedTo: "WillMakes/ai-music-maker"}
+	forge.start(t)
+	allowReconcile(t)
+	previous := renameFollowed
+	renameFollowed = false
+	t.Cleanup(func() { renameFollowed = previous })
+
+	if got := app.GetBugRepo().Slug; got != "WillMakes/suno-maker" {
+		t.Fatalf("pinned %q before the sweep", got)
+	}
+	app.reconcileIssues()
+	if got := app.GetBugRepo().Slug; got != "WillMakes/ai-music-maker" {
+		t.Fatalf("still pinned to %q after the sweep", got)
 	}
 }
