@@ -398,6 +398,18 @@ const shellFiles = VIEW_IDS.map((v) => all.get(v).files)
   .reduce((acc, files) => new Set([...acc].filter((f) => files.has(f))))
 const shellBindings = VIEW_IDS.map((v) => new Set(all.get(v).bindings.keys()))
   .reduce((acc, names) => new Set([...acc].filter((n) => names.has(n))))
+// Where the shell itself calls each of its bindings from: the files every view
+// reaches it through. A view still owns a shell binding that it also calls
+// from somewhere else (#129) — the setup guide connects MCP clients from the
+// shell, and that must not take Connect off the AI tab, whose own panel calls
+// it too.
+const shellVia = new Map([...shellBindings].map((name) => [
+  name,
+  VIEW_IDS.map((v) => all.get(v).bindings.get(name))
+    .reduce((acc, via) => new Set([...acc].filter((f) => via.has(f)))),
+]))
+const ownsBinding = (r, name) =>
+  !shellBindings.has(name) || [...r.bindings.get(name)].some((f) => !shellVia.get(name).has(f))
 
 const sorted = (set) => [...set].sort()
 const bindingsOf = (r, keep) => sorted(r.bindings.keys())
@@ -432,7 +444,7 @@ const views = VIEW_IDS.map((id) => {
     label: navLabel(id),
     components: sorted(r.components),
     files: sorted(r.files).filter((f) => !shellFiles.has(f)),
-    bindings: bindingsOf(r, (name) => !shellBindings.has(name)),
+    bindings: bindingsOf(r, (name) => ownsBinding(r, name)),
   }
 })
 
