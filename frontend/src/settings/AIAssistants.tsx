@@ -73,17 +73,7 @@ export function AIAssistants() {
             <span className="min-w-0 flex-1">
               <span className="flex items-center gap-2">
                 <span className="font-medium">{client.name}</span>
-                {client.problem ? (
-                  <StatusPill tone="danger">Left alone</StatusPill>
-                ) : !client.present ? (
-                  <StatusPill tone="muted">Not installed</StatusPill>
-                ) : client.connected && client.current ? (
-                  <StatusPill tone="ok">Connected</StatusPill>
-                ) : client.connected ? (
-                  <StatusPill tone="warn">Points elsewhere</StatusPill>
-                ) : (
-                  <StatusPill tone="muted">Not connected</StatusPill>
-                )}
+                <MCPClientPill client={client} />
               </span>
               <span className="mt-0.5 block truncate font-mono text-xs text-fg-muted">
                 {client.problem || client.path}
@@ -133,6 +123,18 @@ export function AIAssistants() {
       <ToolList count={status.toolCount} />
     </div>
   )
+}
+
+/**
+ * Where one client stands, as a pill. Shared with the setup guide (#129) so
+ * the two places that offer Connect cannot disagree about what a state means.
+ */
+export function MCPClientPill({client}: {client: app.MCPClient}) {
+  if (client.problem) return <StatusPill tone="danger">Left alone</StatusPill>
+  if (!client.present) return <StatusPill tone="muted">Not installed</StatusPill>
+  if (client.connected && client.current) return <StatusPill tone="ok">Connected</StatusPill>
+  if (client.connected) return <StatusPill tone="warn">Points elsewhere</StatusPill>
+  return <StatusPill tone="muted">Not connected</StatusPill>
 }
 
 /**
