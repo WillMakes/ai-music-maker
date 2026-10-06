@@ -45,6 +45,10 @@ const (
 	// keyMusicVideoGap is the silence between songs in an album's music video,
 	// in seconds (#118). Unset is one second.
 	keyMusicVideoGap = "music_video_gap"
+	// keyOnboardingHelper is whether the setup guide opens at launch (#127):
+	// "on" or "off". Unset is a fresh install, and the frontend decides it by
+	// whether any AI is connected yet. Written and read by the frontend alone.
+	keyOnboardingHelper = "onboarding_helper"
 )
 
 // Change scopes emitted on the "data:changed" event. A scope is either a

@@ -13,6 +13,7 @@ export const SETTING_KEYS = {
   musicRoot: 'music_root',
   defaultTrackLength: 'default_track_length',
   musicVideoGap: 'music_video_gap',
+  onboardingHelper: 'onboarding_helper',
 } as const
 
 /**

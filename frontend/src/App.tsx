@@ -3,6 +3,7 @@ import {Sidebar} from './components/Sidebar'
 import {StatusBar} from './components/StatusBar'
 import {TopBar} from './components/TopBar'
 import {ReportBugModal} from './bugs/ReportBugModal'
+import {OnboardingHelper} from './onboarding/OnboardingHelper'
 import {useBugs} from './bugs/BugsProvider'
 import {useLibrary} from './library/LibraryProvider'
 import {usePlaylists} from './playlists/PlaylistsProvider'
@@ -16,6 +17,7 @@ import {
   type ViewId,
 } from './navigation'
 import {app} from '../wailsjs/go/models'
+import {GetAIServices} from '../wailsjs/go/app/App'
 import {AIServiceDetail} from './settings/AIServiceDetail'
 import {AlbumDetails} from './views/AlbumDetails'
 import {ArtistDetails} from './views/ArtistDetails'
@@ -173,6 +175,33 @@ export default function App() {
     index: 0,
   })
   const [reporting, setReporting] = useState(false)
+  const [onboarding, setOnboarding] = useState(false)
+
+  // The setup guide (#127), decided once at launch. "on" and "off" are the
+  // producer's own answer; unset is a fresh install, and a fresh install is one
+  // with no AI connected yet. Without that check, everyone already set up would
+  // get the guide once on the release that added it. Settled into "off" so
+  // Preferences shows the real state from then on.
+  useEffect(() => {
+    void (async () => {
+      const value = await loadSetting(SETTING_KEYS.onboardingHelper)
+      if (value === 'on') {
+        setOnboarding(true)
+        return
+      }
+      if (value === 'off') return
+      try {
+        const services = (await GetAIServices()) ?? []
+        if (services.some((one) => one.connected)) {
+          void saveSetting(SETTING_KEYS.onboardingHelper, 'off')
+        } else {
+          setOnboarding(true)
+        }
+      } catch {
+        // No backend (a plain browser): nothing to set up against.
+      }
+    })()
+  }, [])
 
   const current = nav.stack[nav.index]
   const {tree} = useLibrary()
@@ -372,6 +401,8 @@ export default function App() {
           onOpenAlbum={(albumId, artistId) => go({view: 'album-details', albumId, artistId})}
         />
       </div>
+
+      {onboarding && <OnboardingHelper onClose={() => setOnboarding(false)} />}
 
       {reporting && (
         <ReportBugModal
