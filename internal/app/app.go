@@ -53,6 +53,10 @@ type App struct {
 
 	// nowPlaying is the player's last report (see nowplaying.go, #111).
 	nowPlaying nowPlayingState
+
+	// updates is the last update check and any installer it fetched (see
+	// updates.go, #132).
+	updates updateState
 }
 
 // NewApp builds the app and opens its database.
