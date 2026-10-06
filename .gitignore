@@ -23,6 +23,7 @@ vendor/
 # Editor state. The run configurations under .idea/ ARE committed — they are how
 # the project is run — so this is deliberately a list of files rather than the
 # whole folder.
+.idea/*
 .idea/workspace.xml
 .idea/shelf/
 .idea/httpRequests/
@@ -38,6 +39,9 @@ Thumbs.db
 
 # Logs
 *.log
+
+# Claude.MD
+claude.md
 
 # Wails writes these next to the committed project.nsi on every -nsis build.
 build/windows/installer/wails_tools.nsh
