@@ -1,6 +1,6 @@
 import {useCallback, useEffect, useRef, useState} from 'react'
 import {BarChart3, Clapperboard, ExternalLink, FolderInput, FolderOpen, ImagePlus, ListMusic, ListPlus, Loader2, Pause, Pencil, Play, RefreshCw, Sparkles, Trash2, Upload, Wand2} from 'lucide-react'
-import {TrackEditor} from './TrackDetails'
+import {Takes, TrackEditor} from './TrackDetails'
 import {
   ClearChat,
   DeleteAlbum,
@@ -96,7 +96,7 @@ export function AlbumDetails({
   // default: it is where the producer spends the session, the sound is
   // written once and then read, and the release links are filled in once,
   // after the record is out.
-  const [pageTab, setPageTab] = useState<'tracks' | 'sound' | 'releases'>('tracks')
+  const [pageTab, setPageTab] = useState<'tracks' | 'sound' | 'releases' | 'takes'>('tracks')
   // The style distillation (#38) has its own busy state, like the artwork's.
   const [generating, setGenerating] = useState(false)
   // The record's two style panes as tabs (#48), this record's own style the
@@ -776,6 +776,7 @@ export function AlbumDetails({
               {id: 'tracks', label: tracks.length ? 'Tracks (' + tracks.length + ')' : 'Tracks'},
               {id: 'sound', label: 'Sound'},
               {id: 'releases', label: 'Releases'},
+              {id: 'takes', label: 'Takes'},
             ]}
             current={pageTab}
             onSelect={setPageTab}
@@ -938,6 +939,39 @@ export function AlbumDetails({
                     <TrackEditor key={selected.id} trackId={selected.id} />
                   )}
                 </div>
+              )}
+            </section>
+          )}
+
+          {/* Every track's takes on one tab (#144), in running order: choosing
+              the official take is done by listening across the record, which
+              one track's editor at a time made a round of clicks. */}
+          {pageTab === 'takes' && (
+            <section className="space-y-3" aria-label="Takes">
+              {tracks.length === 0 ? (
+                <div className="sm-panel p-4">
+                  <EmptyState
+                    icon={ListMusic}
+                    title="No tracks yet"
+                    body="Takes are filed on tracks. Write the track list first, then import or drop the files Suno gave you."
+                  />
+                </div>
+              ) : (
+                <>
+                  <p className="text-xs text-fg-muted">
+                    Drop a file on a track to add it there, or a batch anywhere on this page to
+                    have each one land on the track it is named after.
+                  </p>
+                  {tracks.map((track) => (
+                    <Takes
+                      key={track.id}
+                      track={track}
+                      title={`${track.position}. ${track.name}`}
+                      onChanged={() => void reload()}
+                      onError={setError}
+                    />
+                  ))}
+                </>
               )}
             </section>
           )}

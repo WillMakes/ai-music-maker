@@ -140,8 +140,6 @@ export function TrackEditor({trackId}: {trackId: string}) {
         onCancel={() => setEditing(null)}
         onSave={(notes) => save({notes}, 'notes')}
       />
-
-      <Takes track={track} onChanged={setTrack} onError={setError} />
     </div>
   )
 }
@@ -270,13 +268,20 @@ function TextCard({
  * Exactly one is the take that is the track, which is why choosing is a radio
  * rather than a per-row toggle: "which of these is the song" has one answer, and
  * a list where three are ticked has not answered it.
+ *
+ * Shown on the album page's own Takes tab (#144), one panel per track, rather
+ * than under the track editor: takes are listened to and compared across the
+ * record, not written, and the editor is for the words Suno is sent.
  */
-function Takes({
+export function Takes({
   track,
+  title = 'Takes',
   onChanged,
   onError,
 }: {
   track: app.Track
+  /** The panel's heading: the track's name where several panels are listed. */
+  title?: string
   onChanged: (next: app.Track) => void
   onError: (message: string) => void
 }) {
@@ -329,7 +334,7 @@ function Takes({
       }}
     >
       <div className="flex items-center gap-3">
-        <h2 className="flex-1 text-sm font-semibold">Takes</h2>
+        <h2 className="flex-1 text-sm font-semibold">{title}</h2>
         <button
           className="sm-button sm-button-quiet"
           type="button"
