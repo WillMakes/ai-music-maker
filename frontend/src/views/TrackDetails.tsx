@@ -1,5 +1,5 @@
 import {useCallback, useEffect, useState} from 'react'
-import {Check, Copy, FolderOpen, Pencil, Plus, Star, Trash2} from 'lucide-react'
+import {AlertTriangle, Check, Copy, FolderOpen, Pencil, Plus, Star, Trash2} from 'lucide-react'
 import {
   ChooseTrackFile,
   GetTrack,
@@ -10,7 +10,6 @@ import {
   SaveTrack,
 } from '../../wailsjs/go/app/App'
 import {app} from '../../wailsjs/go/models'
-import {StatusPill} from '../components/StatusPill'
 import {TabStrip} from '../components/TabStrip'
 import {useDataChanged} from '../lib/dataChanged'
 import {isAudioPath, readAsDataURL} from '../lib/files'
@@ -263,35 +262,49 @@ function TextCard({
 }
 
 /**
- * The files Suno gave back.
+ * The files Suno gave back, every track's in one list (#144, #146): a short
+ * heading per track and a line per take, so the whole record's takes read at
+ * a glance on the album page's Takes tab rather than as a panel per track.
  *
- * Exactly one is the take that is the track, which is why choosing is a radio
- * rather than a per-row toggle: "which of these is the song" has one answer, and
- * a list where three are ticked has not answered it.
- *
- * Shown on the album page's own Takes tab (#144), one panel per track, rather
- * than under the track editor: takes are listened to and compared across the
- * record, not written, and the editor is for the words Suno is sent.
+ * Exactly one take per track is the official one, which is why choosing is a
+ * star rather than a per-row toggle: "which of these is the song" has one
+ * answer, and a list where three are ticked has not answered it.
  */
-export function Takes({
+export function TakesList({
+  tracks,
+  onChanged,
+  onError,
+}: {
+  tracks: app.Track[]
+  onChanged: () => void
+  onError: (message: string) => void
+}) {
+  return (
+    <ul className="sm-panel divide-y divide-edge">
+      {tracks.map((track) => (
+        <TakeGroup key={track.id} track={track} onChanged={onChanged} onError={onError} />
+      ))}
+    </ul>
+  )
+}
+
+function TakeGroup({
   track,
-  title = 'Takes',
   onChanged,
   onError,
 }: {
   track: app.Track
-  /** The panel's heading: the track's name where several panels are listed. */
-  title?: string
-  onChanged: (next: app.Track) => void
+  onChanged: () => void
   onError: (message: string) => void
 }) {
   const files = track.files ?? []
-  // Whether a drag is hovering the panel (#57) — the ring is the "drop it
-  // here" answer to the file being carried over the window.
+  // Whether a drag is hovering this track's group (#57) — the ring is the
+  // "drop it here" answer to the file being carried over the window.
   const [dragging, setDragging] = useState(false)
   const act = async (work: Promise<app.Track>) => {
     try {
-      onChanged(await work)
+      await work
+      onChanged()
       onError('')
     } catch (err) {
       onError(toMessage(err))
@@ -315,11 +328,11 @@ export function Takes({
   }
 
   return (
-    <section
-      className={'sm-panel space-y-3 p-4' + (dragging ? ' ring-2 ring-accent' : '')}
-      // The bubble stops here (#84): the album page behind this panel is a
-      // drop zone of its own, and a take dropped on a specific track must land
-      // on that track once — not once here and once more by name.
+    <li
+      className={'px-3 py-1.5' + (dragging ? ' ring-2 ring-inset ring-accent' : '')}
+      // The bubble stops here (#84): the album page behind this list is a drop
+      // zone of its own, and a take dropped on a specific track must land on
+      // that track once — not once here and once more by name.
       onDragOver={(event) => {
         event.preventDefault()
         event.stopPropagation()
@@ -333,41 +346,35 @@ export function Takes({
         if (event.dataTransfer.files.length) void importDropped(event.dataTransfer.files)
       }}
     >
-      <div className="flex items-center gap-3">
-        <h2 className="flex-1 text-sm font-semibold">{title}</h2>
+      <div className="flex items-center gap-2">
+        <span className="min-w-0 flex-1 truncate text-xs font-semibold text-fg-muted">
+          {track.position}. {track.name}
+        </span>
+        {files.length === 0 && <span className="text-xs text-fg-muted">No takes yet</span>}
         <button
-          className="sm-button sm-button-quiet"
+          className="sm-button sm-button-quiet border-0 px-1.5 py-0.5"
           type="button"
+          title="Import a file"
+          aria-label={`Import a take for ${track.name}`}
           onClick={() => {
             const path = window.prompt('Path to the audio file Suno gave you')
             if (!path) return
             void act(ImportTrackFile(track.id, path, ''))
           }}
         >
-          <Plus size={15} />
-          Import a file
+          <Plus size={13} />
         </button>
       </div>
-
-      {files.length === 0 ? (
-        <p className="text-sm text-fg-muted">
-          Nothing imported yet — drop the file here, or import it above. Files are
-          copied into your music folder under{' '}
-          <span className="font-mono text-xs">AIMusicMaker/Artist/Album</span>, so a music
-          player finds them.
-        </p>
-      ) : (
-        <ul className="divide-y divide-edge">
+      {files.length > 0 && (
+        <ul>
           {files.map((file) => (
-            <li key={file.id} className="flex items-center gap-3 py-2">
+            <li key={file.id} className="flex items-center gap-2 py-0.5">
               {/* The star is the choice (#86): the filled one is the official
                   take — the one the extension and the release act on — and
-                  every other take reads as a remix of it. A star rather than
-                  the old radio because that is the gesture every music app
-                  taught: favourites are starred, not selected. */}
+                  every other take reads as a remix of it. */}
               <button
                 className={
-                  'shrink-0 p-1 transition-colors ' +
+                  'shrink-0 p-0.5 transition-colors ' +
                   (file.chosen ? 'text-warn' : 'text-fg-muted hover:text-fg')
                 }
                 type="button"
@@ -378,44 +385,33 @@ export function Takes({
                   if (!file.chosen) void act(ChooseTrackFile(track.id, file.id))
                 }}
               >
-                <Star size={16} fill={file.chosen ? 'currentColor' : 'none'} />
+                <Star size={14} fill={file.chosen ? 'currentColor' : 'none'} />
               </button>
-              <span className="min-w-0 flex-1">
-                <span className="block truncate text-sm">{file.label}</span>
-                <span className="block truncate font-mono text-xs text-fg-muted">
-                  {file.name}
-                </span>
-                {/* Filed by path, and the file has gone from it (#105) —
-                    moved or deleted outside the app. Said here, on the take,
-                    rather than left for the player to fail on. */}
-                {file.missing && (
-                  <span className="block truncate text-xs text-danger">
-                    The file is no longer at {file.path}
-                  </span>
-                )}
+              <span className="min-w-0 flex-1 truncate text-sm" title={file.name}>
+                {file.label}
               </span>
-              {/* Both states carry their word (see StatusPill): the official
-                  take and the remixes name themselves, rather than one pill
-                  whose absence has to mean something. */}
-              {file.chosen ? (
-                <StatusPill tone="ok">Official</StatusPill>
-              ) : (
-                <StatusPill tone="muted">Remix</StatusPill>
+              {/* Filed by path, and the file has gone from it (#105) — moved or
+                  deleted outside the app. Said on the take rather than left for
+                  the player to fail on. */}
+              {file.missing && (
+                <span className="shrink-0 text-danger" title={'The file is no longer at ' + file.path}>
+                  <AlertTriangle size={13} aria-label="The file is missing" />
+                </span>
               )}
               <span className="shrink-0 text-xs tabular-nums text-fg-muted">
                 {fileSize(file.bytes)}
               </span>
               <button
-                className="sm-button sm-button-quiet px-2"
+                className="sm-button sm-button-quiet border-0 px-1.5 py-0.5"
                 type="button"
                 title="Show in folder"
                 aria-label="Show in folder"
                 onClick={() => void RevealTrackFile(file.path).catch(() => {})}
               >
-                <FolderOpen size={15} />
+                <FolderOpen size={13} />
               </button>
               <button
-                className="sm-button sm-button-quiet px-2"
+                className="sm-button sm-button-quiet border-0 px-1.5 py-0.5"
                 type="button"
                 title="Forget this take"
                 aria-label="Forget this take"
@@ -423,12 +419,12 @@ export function Takes({
                 // importing it again, and deleting somebody's music is not.
                 onClick={() => void act(RemoveTrackFile(track.id, file.id, false))}
               >
-                <Trash2 size={15} />
+                <Trash2 size={13} />
               </button>
             </li>
           ))}
         </ul>
       )}
-    </section>
+    </li>
   )
 }

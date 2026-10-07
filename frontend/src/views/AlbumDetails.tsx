@@ -1,6 +1,6 @@
 import {useCallback, useEffect, useRef, useState} from 'react'
 import {BarChart3, ChevronDown, ChevronRight, Clapperboard, ExternalLink, FolderInput, FolderOpen, ImagePlus, ListMusic, ListPlus, Loader2, Maximize2, Pause, Pencil, Play, RefreshCw, Sparkles, Trash2, Upload, Wand2} from 'lucide-react'
-import {Takes, TrackEditor} from './TrackDetails'
+import {TakesList, TrackEditor} from './TrackDetails'
 import {
   ClearChat,
   DeleteAlbum,
@@ -1039,15 +1039,7 @@ export function AlbumDetails({
                     Drop a file on a track to add it there, or a batch anywhere on this page to
                     have each one land on the track it is named after.
                   </p>
-                  {tracks.map((track) => (
-                    <Takes
-                      key={track.id}
-                      track={track}
-                      title={`${track.position}. ${track.name}`}
-                      onChanged={() => void reload()}
-                      onError={setError}
-                    />
-                  ))}
+                  <TakesList tracks={tracks} onChanged={() => void reload()} onError={setError} />
                 </>
               )}
             </section>
