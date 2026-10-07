@@ -1,4 +1,4 @@
-import {useCallback, useEffect, useState, type ReactNode} from 'react'
+import {useCallback, useEffect, useRef, useState, type ReactNode} from 'react'
 import {
   AlertTriangle,
   Clapperboard,
@@ -107,6 +107,118 @@ export function StatusBar({
     return () => clearInterval(timer)
   }, [working])
 
+  // The transient messages, as one list (#137). Each kind keeps its own words
+  // and destination; what changes is that the bar shows only the oldest, with
+  // how many wait behind it.
+  //
+  //  - artwork generations (#83): every click goes to the record the cover is
+  //    for, and a ready one retires on the way;
+  //  - music-video renders (#118) and uploads (#122, #124), with how far each
+  //    has got, since they are minutes long;
+  //  - evolutions (#82): running walks back to the source, ready opens the
+  //    successor and retires, failed walks back to where the retry is;
+  //  - the report being worked: what the queue is *doing*, named and timed,
+  //    because which report and how long are the reasons to look.
+  const notices: Notice[] = [
+    ...artworks.map((job): Notice => ({
+      key: 'artwork:' + job.albumId,
+      state: job.state,
+      icon:
+        job.state === 'running' ? (
+          <Loader2 size={12} className="animate-spin" />
+        ) : job.state === 'done' ? (
+          <ImageIcon size={12} />
+        ) : (
+          <AlertTriangle size={12} />
+        ),
+      label:
+        job.state === 'running'
+          ? `Drawing the cover for “${job.albumName}”…`
+          : job.state === 'done'
+            ? `The cover for “${job.albumName}” is ready — open it`
+            : `Drawing the cover for “${job.albumName}” failed`,
+      open: () => {
+        if (job.state === 'done') dismissArtwork(job.albumId)
+        onOpenAlbum(job.albumId, job.artistId)
+      },
+      retire: () => dismissArtwork(job.albumId),
+    })),
+    ...videos.map((job): Notice => {
+      const what = job.kind === 'render' ? 'Rendering' : 'Uploading'
+      const thing =
+        job.kind === 'ytmusic'
+          ? `“${job.albumName}” to YouTube Music`
+          : `the music video for “${job.albumName}”`
+      return {
+        key: 'video:' + job.kind + ':' + job.albumId,
+        state: job.state,
+        icon:
+          job.state === 'running' ? (
+            <Loader2 size={12} className="animate-spin" />
+          ) : job.state === 'done' ? (
+            <Clapperboard size={12} />
+          ) : (
+            <AlertTriangle size={12} />
+          ),
+        label:
+          job.state === 'running'
+            ? `${what} ${thing} — ${Math.round(job.fraction * 100)}%`
+            : job.state === 'done'
+              ? job.kind === 'upload'
+                ? `The music video for “${job.albumName}” is on YouTube — open it`
+                : job.kind === 'ytmusic'
+                  ? `“${job.albumName}” is in your YouTube Music library — open it`
+                  : `The music video for “${job.albumName}” is ready — open it`
+              : `${what} ${thing} failed`,
+        open: () => {
+          if (job.state === 'done') dismissVideo(job.albumId, job.kind)
+          onOpenAlbum(job.albumId, job.artistId)
+        },
+        retire: () => dismissVideo(job.albumId, job.kind),
+      }
+    }),
+    ...evolutions.map((evolution): Notice => ({
+      key: 'evolution:' + evolution.albumId,
+      state: evolution.state,
+      icon:
+        evolution.state === 'running' ? (
+          <Loader2 size={12} className="animate-spin" />
+        ) : evolution.state === 'done' ? (
+          <Sparkles size={12} />
+        ) : (
+          <AlertTriangle size={12} />
+        ),
+      label:
+        evolution.state === 'running'
+          ? `Evolving “${evolution.albumName}”…`
+          : evolution.state === 'done'
+            ? `“${evolution.nextAlbumName}” is ready — open it`
+            : `Evolving “${evolution.albumName}” failed`,
+      open: () => {
+        if (evolution.state === 'done') {
+          dismiss(evolution.albumId)
+          onOpenAlbum(evolution.nextAlbumId, evolution.artistId)
+        } else {
+          onOpenAlbum(evolution.albumId, evolution.artistId)
+        }
+      },
+      retire: () => dismiss(evolution.albumId),
+    })),
+    ...(working
+      ? [
+          {
+            key: 'bug:' + working.id,
+            state: 'running' as const,
+            // A spinner rather than a gear: at twelve pixels the one thing this
+            // has to say is that something is happening.
+            icon: <Loader2 size={12} className="animate-spin" />,
+            label: `${summarise(working.description, 60)} · ${formatElapsed(working.updatedAt)}`,
+            open: () => onNavigate('settings-bugs'),
+          },
+        ]
+      : []),
+  ]
+
   const connected = services.filter((service) => service.connected)
   const starred = connected.find((service) => service.default)
   const albums = artists.reduce((total, artist) => total + artist.albumCount, 0)
@@ -170,146 +282,8 @@ export function StatusBar({
       {/* Pushed right: the queue is the one segment whose best news is saying
           nothing at all. */}
       <span className="ml-auto flex items-center gap-4">
-        {/* The artwork generations in flight (#83), the same shape as the
-            evolutions below: every click goes to the record the cover is for,
-            and a ready one retires its segment on the way. */}
-        {artworks.map((job) => (
-          <Segment
-            key={'artwork-' + job.albumId}
-            icon={
-              job.state === 'running' ? (
-                <Loader2 size={12} className="animate-spin" />
-              ) : job.state === 'done' ? (
-                <ImageIcon size={12} />
-              ) : (
-                <AlertTriangle size={12} />
-              )
-            }
-            label={
-              job.state === 'running'
-                ? `Drawing the cover for “${job.albumName}”…`
-                : job.state === 'done'
-                  ? `The cover for “${job.albumName}” is ready — open it`
-                  : `Drawing the cover for “${job.albumName}” failed`
-            }
-            tone={job.state === 'done' ? 'ok' : job.state === 'failed' ? 'warn' : undefined}
-            showLabel
-            live={job.state === 'running'}
-            onClick={() => {
-              if (job.state === 'done') dismissArtwork(job.albumId)
-              onOpenAlbum(job.albumId, job.artistId)
-            }}
-          />
-        ))}
-
-        {/* The music-video renders (#118) and uploads (#122), the artwork
-            segments' shape with how far each has got: they are minutes long,
-            and a spinner alone cannot say whether one is nearly done. */}
-        {videos.map((job) => {
-          const what = job.kind === 'render' ? 'Rendering' : 'Uploading'
-          const thing =
-            job.kind === 'ytmusic'
-              ? `“${job.albumName}” to YouTube Music`
-              : `the music video for “${job.albumName}”`
-          return (
-            <Segment
-              key={'video-' + job.kind + '-' + job.albumId}
-              icon={
-                job.state === 'running' ? (
-                  <Loader2 size={12} className="animate-spin" />
-                ) : job.state === 'done' ? (
-                  <Clapperboard size={12} />
-                ) : (
-                  <AlertTriangle size={12} />
-                )
-              }
-              label={
-                job.state === 'running'
-                  ? `${what} ${thing} — ${Math.round(job.fraction * 100)}%`
-                  : job.state === 'done'
-                    ? job.kind === 'upload'
-                      ? `The music video for “${job.albumName}” is on YouTube — open it`
-                      : job.kind === 'ytmusic'
-                        ? `“${job.albumName}” is in your YouTube Music library — open it`
-                        : `The music video for “${job.albumName}” is ready — open it`
-                    : `${what} ${thing} failed`
-              }
-              tone={job.state === 'done' ? 'ok' : job.state === 'failed' ? 'warn' : undefined}
-              showLabel
-              live={job.state === 'running'}
-              onClick={() => {
-                if (job.state === 'done') dismissVideo(job.albumId, job.kind)
-                onOpenAlbum(job.albumId, job.artistId)
-              }}
-            />
-          )
-        })}
-
-        {/* The evolutions in flight (#82): started on an album page, but the
-            call outlives it, so the bar is where the producer looks after
-            navigating away. Running walks back to the source; ready opens the
-            successor and retires the segment; failed walks back to the source,
-            where the message is shown beside the button that can retry. */}
-        {evolutions.map((evolution) => (
-          <Segment
-            key={evolution.albumId}
-            icon={
-              evolution.state === 'running' ? (
-                <Loader2 size={12} className="animate-spin" />
-              ) : evolution.state === 'done' ? (
-                <Sparkles size={12} />
-              ) : (
-                <AlertTriangle size={12} />
-              )
-            }
-            label={
-              evolution.state === 'running'
-                ? `Evolving “${evolution.albumName}”…`
-                : evolution.state === 'done'
-                  ? `“${evolution.nextAlbumName}” is ready — open it`
-                  : `Evolving “${evolution.albumName}” failed`
-            }
-            tone={
-              evolution.state === 'done'
-                ? 'ok'
-                : evolution.state === 'failed'
-                  ? 'warn'
-                  : undefined
-            }
-            showLabel
-            live={evolution.state === 'running'}
-            onClick={() => {
-              if (evolution.state === 'done') {
-                dismiss(evolution.albumId)
-                onOpenAlbum(evolution.nextAlbumId, evolution.artistId)
-              } else {
-                onOpenAlbum(evolution.albumId, evolution.artistId)
-              }
-            }}
-          />
-        ))}
-        {/* What the queue is *doing*, beside what is in it. A count says how many
-            reports are open and nothing about whether anything is happening to
-            them, which is the question somebody who has just filed one actually
-            has. A claimed report is an agent working — reading, editing, running
-            tests — and without this the only sign of it is the count failing to
-            go down.
-
-            Named and timed, because both are the reason to look: which report
-            says whether it is theirs, and how long says whether it is going
-            well. */}
-        {working && (
-          <Segment
-            // A spinner rather than a gear: at twelve pixels the one thing this
-            // has to say at a glance is that something is happening, and a
-            // spinner is the shape everybody reads as "in progress".
-            icon={<Loader2 size={12} className="animate-spin" />}
-            label={`${summarise(working.description, 60)} · ${formatElapsed(working.updatedAt)}`}
-            showLabel
-            live
-            onClick={() => onNavigate('settings-bugs')}
-          />
-        )}
+        {/* One message at a time, oldest first (#137). */}
+        <Notices notices={notices} />
 
         <Segment
           icon={<Bug size={12} />}
@@ -366,6 +340,96 @@ function AssistantsSegment({
   }
 
   return <Segment icon={<Plug size={12} />} label={label} tone={tone} onClick={onOpen} />
+}
+
+/** One transient message on the bar. */
+interface Notice {
+  /** Stable for the job's life, whatever its state. */
+  key: string
+  state: 'running' | 'done' | 'failed'
+  icon: ReactNode
+  label: string
+  /** What clicking the message does. */
+  open: () => void
+  /** Takes a finished job off its provider; absent for what cannot be. */
+  retire?: () => void
+}
+
+/**
+ * The oldest message, with a "+N" for the rest (#137). Several jobs at once
+ * used to be several labelled segments, which ran off the bar and truncated
+ * each other; one at a time is readable, and the count says there is more.
+ *
+ * "+N" clears the message shown and brings up the next. A finished or failed
+ * job is retired, as opening it would; a job still running is only set aside,
+ * keyed by its state, so it comes back when it finishes — clearing a progress
+ * line is not asking never to hear how it ended.
+ *
+ * Oldest is by when this bar first saw each job. The providers keep no start
+ * time and re-append a job when its state changes, so their own order is
+ * "most recently changed" — the wrong one for a queue read front to back.
+ */
+function Notices({notices}: {notices: Notice[]}) {
+  const firstSeen = useRef(new Map<string, number>())
+  const [setAside, setSetAside] = useState<Set<string>>(new Set())
+
+  // A set-aside job that has since changed state or gone is forgotten, so the
+  // same job started again later is not hidden from the start.
+  const present = notices.map((notice) => notice.key + ':' + notice.state).join('|')
+  useEffect(() => {
+    const live = new Set(present.split('|'))
+    setSetAside((was) => {
+      const kept = [...was].filter((key) => live.has(key))
+      return kept.length === was.size ? was : new Set(kept)
+    })
+  }, [present])
+
+  const now = Date.now()
+  for (const notice of notices) {
+    if (!firstSeen.current.has(notice.key)) firstSeen.current.set(notice.key, now)
+  }
+  // Forget jobs that have gone, so the map does not grow for the life of the
+  // app and a job started again later counts as new.
+  for (const key of [...firstSeen.current.keys()]) {
+    if (!notices.some((notice) => notice.key === key)) firstSeen.current.delete(key)
+  }
+
+  const waiting = notices
+    .filter((notice) => !setAside.has(notice.key + ':' + notice.state))
+    .sort((a, b) => (firstSeen.current.get(a.key) ?? 0) - (firstSeen.current.get(b.key) ?? 0))
+  const shown = waiting[0]
+  if (!shown) return null
+
+  return (
+    <span className="flex min-w-0 items-center gap-1.5">
+      <Segment
+        icon={shown.icon}
+        label={shown.label}
+        tone={shown.state === 'done' ? 'ok' : shown.state === 'failed' ? 'warn' : undefined}
+        showLabel
+        live={shown.state === 'running'}
+        align="right"
+        onClick={shown.open}
+      />
+      {waiting.length > 1 && (
+        <button
+          type="button"
+          className="shrink-0 rounded-full border border-edge px-1.5 leading-4 tabular-nums hover:bg-surface-hover hover:text-fg"
+          title="Clear this message and show the next"
+          aria-label={`Clear this message; ${waiting.length - 1} more behind it`}
+          onClick={() => {
+            if (shown.retire && shown.state !== 'running') {
+              shown.retire()
+            } else {
+              setSetAside((was) => new Set(was).add(shown.key + ':' + shown.state))
+            }
+          }}
+        >
+          +{waiting.length - 1}
+        </button>
+      )}
+    </span>
+  )
 }
 
 function Segment({
