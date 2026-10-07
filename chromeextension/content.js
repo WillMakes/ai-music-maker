@@ -236,13 +236,17 @@
   // One click, the whole form (#77): every field this page has and the track
   // has an answer for is filled together — three picks per track was this
   // extension's own version of the round trip it exists to end.
+  //
+  // Rich-text editors go last (#139). The lyrics editor applies a paste a
+  // moment after taking it, into wherever its selection is by then; filled
+  // first, it lost its selection to the next field's focus before the paste
+  // landed, and only Style came through. Last, nothing moves focus after it.
   const fillAll = (track, mode) => {
     rememberTrack(track)
-    FIELDS.forEach((field) => {
-      const target = findField(field)
-      const value = field.value(track) || ''
-      if (target && value) fill(target, value, mode)
-    })
+    FIELDS.map((field) => ({target: findField(field), value: field.value(track) || ''}))
+      .filter(({target, value}) => target && value)
+      .sort((a, b) => Number(a.target.isContentEditable) - Number(b.target.isContentEditable))
+      .forEach(({target, value}) => fill(target, value, mode))
   }
 
   // ---- The picker ----
