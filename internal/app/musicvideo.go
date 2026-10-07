@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -264,4 +266,50 @@ func (s *Store) setAlbumVideo(id, path, description string) error {
 	}
 	s.changed(scopeAlbums)
 	return nil
+}
+
+// videoURL is where the window plays an album's music video from (#143): the
+// bridge, addressed by album, with the bridge token for artworkURL's reason.
+// The file's modification time rides along, because a render again writes the
+// same path, and without it the webview would go on playing the cut it cached.
+func (a *App) videoURL(album Album) string {
+	if album.VideoFile == "" {
+		return ""
+	}
+	info, err := os.Stat(album.VideoFile)
+	if err != nil {
+		return ""
+	}
+	token, err := a.extensionToken()
+	if err != nil {
+		return ""
+	}
+	return fmt.Sprintf("http://127.0.0.1:%d/video/%s?t=%s&v=%d",
+		extensionBridgePort, url.PathEscape(album.ID), url.QueryEscape(token), info.ModTime().Unix())
+}
+
+// bridgeVideo streams an album's music video, for the player on the album
+// page (#143). By album id rather than by path: the path comes from the
+// database this app wrote, never from the request. http.ServeFile answers
+// Range requests, which is what lets the video element seek.
+func (a *App) bridgeVideo(w http.ResponseWriter, r *http.Request) {
+	if r.Method == http.MethodOptions {
+		w.WriteHeader(http.StatusNoContent)
+		return
+	}
+	if !a.bridgeAuthed(w, r) {
+		return
+	}
+	id := strings.TrimPrefix(r.URL.Path, "/video/")
+	if id == "" || strings.ContainsAny(id, "/\\") {
+		http.NotFound(w, r)
+		return
+	}
+	album, err := a.store.album(id)
+	if err != nil || album.VideoFile == "" {
+		http.NotFound(w, r)
+		return
+	}
+	w.Header().Set("Cache-Control", "private, no-cache")
+	http.ServeFile(w, r, filepath.Clean(album.VideoFile))
 }

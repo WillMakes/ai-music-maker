@@ -1,5 +1,5 @@
 import {useCallback, useEffect, useRef, useState} from 'react'
-import {BarChart3, Clapperboard, ExternalLink, FolderInput, FolderOpen, ImagePlus, ListMusic, ListPlus, Loader2, Pause, Pencil, Play, RefreshCw, Sparkles, Trash2, Upload, Wand2} from 'lucide-react'
+import {BarChart3, ChevronDown, ChevronRight, Clapperboard, ExternalLink, FolderInput, FolderOpen, ImagePlus, ListMusic, ListPlus, Loader2, Maximize2, Pause, Pencil, Play, RefreshCw, Sparkles, Trash2, Upload, Wand2} from 'lucide-react'
 import {Takes, TrackEditor} from './TrackDetails'
 import {
   ClearChat,
@@ -92,6 +92,11 @@ export function AlbumDetails({
   const [confirmDelete, setConfirmDelete] = useState(false)
   // The tracks section, scrolled to when a route names a track (#97).
   const tracksRef = useRef<HTMLElement>(null)
+  // The cover swapped for the rendered video (#143), and the music-video
+  // section's folded-away description and upload.
+  const [watching, setWatching] = useState(false)
+  const [videoMore, setVideoMore] = useState(false)
+  const videoRef = useRef<HTMLVideoElement>(null)
   // The tabs on the right of the cover (#102, #104, #110), Tracks the
   // default: it is where the producer spends the session, the sound is
   // written once and then read, and the release links are filled in once,
@@ -359,6 +364,18 @@ export function AlbumDetails({
               <ListPlus size={15} />
               Queue
             </button>
+            {/* The finished thing, where it is seen (#143): once the video is
+                on YouTube, watching it there is the page's main action. */}
+            {album.videoYouTubeUrl && (
+              <button
+                className="sm-button sm-button-primary"
+                type="button"
+                onClick={() => void OpenURL(album.videoYouTubeUrl)}
+              >
+                <ExternalLink size={15} />
+                Watch on YouTube
+              </button>
+            )}
             {/* In the header, where it is in reach from anywhere on the page
                 (#84): the picked files are matched to tracks by name, the same
                 as a drop anywhere on the page. */}
@@ -433,12 +450,55 @@ export function AlbumDetails({
           {/* Always mounted, with no tab to hide it behind: a cover generation
               runs for minutes and its busy state lives here. */}
           <section className="sm-panel space-y-3 p-4" aria-label="Artwork">
-            {album.artworkFile ? (
+            {/* The rendered video plays in the cover's place (#143), with the
+                browser's own controls and a way to full screen: at the
+                sidebar's width it is a preview, and full screen is how it is
+                actually watched. */}
+            {watching && album.videoUrl && !rendering ? (
+              <div className="space-y-2">
+                <video
+                  ref={videoRef}
+                  src={album.videoUrl}
+                  poster={album.artworkUrl || undefined}
+                  controls
+                  autoPlay
+                  className="w-full rounded bg-tile"
+                />
+                <div className="flex gap-2">
+                  <button
+                    className="sm-button sm-button-quiet flex-1"
+                    type="button"
+                    onClick={() => void videoRef.current?.requestFullscreen().catch(() => {})}
+                  >
+                    <Maximize2 size={15} />
+                    Full screen
+                  </button>
+                  <button
+                    className="sm-button sm-button-quiet"
+                    type="button"
+                    onClick={() => setWatching(false)}
+                  >
+                    Cover
+                  </button>
+                </div>
+              </div>
+            ) : album.artworkFile ? (
               // A finished cover is looked at, not worked on (#114): replacing
               // or removing it waits behind a hover on the image itself, and
               // focus-within shows the same controls to a keyboard.
               <div className="group relative w-fit">
                 <Cover url={album.artworkUrl} name={album.name} size={200} />
+                {album.videoUrl && !rendering && (
+                  <button
+                    className="sm-button sm-button-primary absolute left-1/2 top-1/2 z-10 h-12 w-12 -translate-x-1/2 -translate-y-1/2 rounded-full p-0 shadow-lg"
+                    type="button"
+                    aria-label="Play the music video"
+                    title="Play the music video"
+                    onClick={() => setWatching(true)}
+                  >
+                    <Play size={20} />
+                  </button>
+                )}
                 <div className="absolute inset-0 flex items-end justify-center gap-2 rounded bg-scrim p-3 opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100">
                   <button
                     className="sm-button sm-button-quiet"
@@ -558,9 +618,27 @@ export function AlbumDetails({
 
           {/* The record as one video (#118): the official takes over the cover.
               Says what is still missing rather than greying the button out
-              with no reason, since each gap is something to go and fix. */}
+              with no reason, since each gap is something to go and fix.
+
+              Condensed (#143): a line of state and the render button. The
+              video is watched from the cover and on YouTube from the header;
+              its description and the upload fold away under More, opened
+              while an upload runs so its progress is not hidden. */}
           <section className="sm-panel space-y-3 p-4" aria-label="Music video">
-            <h2 className="text-sm font-semibold">Music video</h2>
+            <div className="flex items-center gap-2">
+              <h2 className="flex-1 text-sm font-semibold">Music video</h2>
+              {album.videoFile && !rendering && (
+                <button
+                  className="sm-button sm-button-quiet border-0 px-1.5 py-1"
+                  type="button"
+                  aria-label="Show the video in its folder"
+                  title="Show in folder"
+                  onClick={() => void RevealTrackFile(album.videoFile).catch((err) => setError(toMessage(err)))}
+                >
+                  <FolderOpen size={15} />
+                </button>
+              )}
+            </div>
             {(() => {
               const unmade = tracks.filter((t) => !t.files.some((f) => !f.missing))
               const missing = [
@@ -576,10 +654,16 @@ export function AlbumDetails({
                   <p className="text-xs text-fg-muted">
                     {missing.length > 0
                       ? 'Needs ' + missing.join(' and ') + ' first.'
-                      : 'Every official take over the cover, with each title and a visualiser, in the look the Music video skill picks for this record.'}
+                      : album.videoFile
+                        ? (album.videoYouTubeUrl ? 'Rendered, and on YouTube.' : 'Rendered.') +
+                          ' Play it from the cover.'
+                        : 'Every official take over the cover, with each title and a visualiser.'}
                   </p>
                   <button
-                    className="sm-button sm-button-primary"
+                    className={
+                      'sm-button w-full ' +
+                      (album.videoFile ? 'sm-button-quiet' : 'sm-button-primary')
+                    }
                     type="button"
                     disabled={rendering || missing.length > 0}
                     onClick={() =>
@@ -604,89 +688,82 @@ export function AlbumDetails({
             {videoJob?.state === 'failed' && (
               <p className="text-sm text-danger">{videoJob.error}</p>
             )}
-            {album.videoFile && !rendering && (
-              <button
-                className="sm-button sm-button-quiet w-full"
-                type="button"
-                onClick={() => void RevealTrackFile(album.videoFile).catch((err) => setError(toMessage(err)))}
-              >
-                <FolderOpen size={15} />
-                Show in folder
-              </button>
+            {uploadJob?.state === 'failed' && (
+              <p className="text-sm text-danger">{uploadJob.error}</p>
             )}
-            {/* The YouTube description (#120), written with the video because
-                its timestamps are the render's. Read-only: a time typed over
-                by hand would stop matching the video it describes. */}
-            {album.videoDescription && !rendering && (
-              <div className="space-y-1">
-                <div className="flex items-center gap-1">
-                  <h3 className="flex-1 text-xs font-semibold text-fg-muted">Description</h3>
-                  <CopyButton text={album.videoDescription} label="Copy the description" />
-                </div>
-                <pre className="max-h-48 overflow-auto whitespace-pre-wrap rounded-md border border-edge bg-surface px-2 py-1.5 font-mono text-[11px] leading-relaxed text-fg-muted">
-                  {album.videoDescription}
-                </pre>
-              </div>
-            )}
-            {/* To the channel (#122), once there is a video to send. Says
-                where to connect rather than hiding the control, and that
-                Google keeps an unaudited project's uploads private — the
-                privacy chosen here would otherwise look ignored. */}
             {album.videoFile && !rendering && (
-              <div className="space-y-2 border-t border-edge pt-3">
-                {album.videoYouTubeUrl && (
-                  <button
-                    className="flex items-center gap-1 text-xs text-accent hover:underline"
-                    type="button"
-                    onClick={() => void OpenURL(album.videoYouTubeUrl)}
-                  >
-                    <ExternalLink size={12} />
-                    Watch on YouTube
-                  </button>
+              <>
+                <button
+                  className="flex w-full items-center gap-1 text-xs text-fg-muted hover:text-fg"
+                  type="button"
+                  aria-expanded={videoMore || uploading}
+                  onClick={() => setVideoMore((was) => !was)}
+                >
+                  {videoMore || uploading ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
+                  Description, upload and stats
+                </button>
+                {(videoMore || uploading) && (
+                  <div className="space-y-3">
+                    {/* The YouTube description (#120), written with the video
+                        because its timestamps are the render's. Read-only: a
+                        time typed over by hand would stop matching the video. */}
+                    {album.videoDescription && (
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-1">
+                          <h3 className="flex-1 text-xs font-semibold text-fg-muted">Description</h3>
+                          <CopyButton text={album.videoDescription} label="Copy the description" />
+                        </div>
+                        <pre className="max-h-48 overflow-auto whitespace-pre-wrap rounded-md border border-edge bg-surface px-2 py-1.5 font-mono text-[11px] leading-relaxed text-fg-muted">
+                          {album.videoDescription}
+                        </pre>
+                      </div>
+                    )}
+                    {/* To the channel (#122). Says where to connect rather than
+                        hiding the control, and that Google keeps an unaudited
+                        project's uploads private — the privacy chosen here
+                        would otherwise look ignored. */}
+                    {album.videoYouTubeUrl && youtubeConnected && <VideoStatsBlock albumId={album.id} />}
+                    {youtubeConnected ? (
+                      <>
+                        <SelectField
+                          label="Privacy"
+                          value={privacy}
+                          onChange={setPrivacy}
+                          disabled={uploading}
+                          options={[
+                            {value: 'private', label: 'Private'},
+                            {value: 'unlisted', label: 'Unlisted'},
+                            {value: 'public', label: 'Public'},
+                          ]}
+                        />
+                        <button
+                          className="sm-button sm-button-quiet w-full"
+                          type="button"
+                          disabled={uploading}
+                          onClick={() =>
+                            uploadVideo({id: album.id, name: album.name, artistId: album.artistId}, privacy)
+                          }
+                        >
+                          {uploading ? <Loader2 size={15} className="animate-spin" /> : <Upload size={15} />}
+                          {uploading
+                            ? `Uploading… ${Math.round((uploadJob?.fraction ?? 0) * 100)}%`
+                            : album.videoYouTubeUrl
+                              ? 'Upload again'
+                              : 'Upload to YouTube'}
+                        </button>
+                        <p className="text-xs text-fg-muted">
+                          Google keeps uploads from an unaudited OAuth project private until the
+                          project passes its audit, whatever is chosen here.
+                        </p>
+                      </>
+                    ) : (
+                      <p className="text-xs text-fg-muted">
+                        Connect YouTube in Settings → YouTube to upload this video.
+                      </p>
+                    )}
+                  </div>
                 )}
-                {album.videoYouTubeUrl && youtubeConnected && <VideoStatsBlock albumId={album.id} />}
-                {youtubeConnected ? (
-                  <>
-                    <SelectField
-                      label="Privacy"
-                      value={privacy}
-                      onChange={setPrivacy}
-                      disabled={uploading}
-                      options={[
-                        {value: 'private', label: 'Private'},
-                        {value: 'unlisted', label: 'Unlisted'},
-                        {value: 'public', label: 'Public'},
-                      ]}
-                    />
-                    <button
-                      className="sm-button sm-button-quiet w-full"
-                      type="button"
-                      disabled={uploading}
-                      onClick={() =>
-                        uploadVideo({id: album.id, name: album.name, artistId: album.artistId}, privacy)
-                      }
-                    >
-                      {uploading ? <Loader2 size={15} className="animate-spin" /> : <Upload size={15} />}
-                      {uploading
-                        ? `Uploading… ${Math.round((uploadJob?.fraction ?? 0) * 100)}%`
-                        : album.videoYouTubeUrl
-                          ? 'Upload again'
-                          : 'Upload to YouTube'}
-                    </button>
-                    <p className="text-xs text-fg-muted">
-                      Google keeps uploads from an unaudited OAuth project private until the
-                      project passes its audit, whatever is chosen here.
-                    </p>
-                  </>
-                ) : (
-                  <p className="text-xs text-fg-muted">
-                    Connect YouTube in Settings → YouTube to upload this video.
-                  </p>
-                )}
-                {uploadJob?.state === 'failed' && (
-                  <p className="text-sm text-danger">{uploadJob.error}</p>
-                )}
-              </div>
+              </>
             )}
           </section>
 

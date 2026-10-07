@@ -4,6 +4,9 @@ import (
 	"context"
 	"image"
 	"image/png"
+	"net/http"
+	"net/http/httptest"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -181,5 +184,54 @@ func TestMusicVideoStyleFromTheSkill(t *testing.T) {
 	}
 	if got := app.musicVideoStyle(artist, album); got != video.DefaultStyle {
 		t.Errorf("prose answer: %+v", got)
+	}
+}
+
+// TestTheVideoIsServedForTheAlbumPage is #143: the album carries a URL for its
+// rendered video, and the bridge streams the file behind it to a request with
+// the token, and to nothing else.
+func TestTheVideoIsServedForTheAlbumPage(t *testing.T) {
+	app := newTestApp(t)
+	artist, err := app.SaveArtist(Artist{Name: "Cassette Motel", Inspirations: []Inspiration{}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	album, err := app.SaveAlbum(Album{ArtistID: artist.ID, Name: "Night Drive"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got, _ := app.GetAlbum(album.ID); got.VideoURL != "" {
+		t.Fatalf("an album with no video has a URL: %q", got.VideoURL)
+	}
+
+	file := filepath.Join(t.TempDir(), "Night Drive.mp4")
+	if err := os.WriteFile(file, []byte("not really a video"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := app.store.setAlbumVideo(album.ID, file, ""); err != nil {
+		t.Fatal(err)
+	}
+	got, err := app.GetAlbum(album.ID)
+	if err != nil || got.VideoURL == "" {
+		t.Fatalf("no video URL after a render: %q, %v", got.VideoURL, err)
+	}
+
+	link, err := url.Parse(got.VideoURL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	serve := func(target string) *httptest.ResponseRecorder {
+		rec := httptest.NewRecorder()
+		app.bridgeVideo(rec, httptest.NewRequest(http.MethodGet, target, nil))
+		return rec
+	}
+	if rec := serve(link.RequestURI()); rec.Code != http.StatusOK || rec.Body.String() != "not really a video" {
+		t.Fatalf("the video URL answered %d %q", rec.Code, rec.Body.String())
+	}
+	if rec := serve(link.Path); rec.Code != http.StatusUnauthorized {
+		t.Errorf("without the token the video answered %d", rec.Code)
+	}
+	if rec := serve("/video/alb_nothing?" + link.RawQuery); rec.Code != http.StatusNotFound {
+		t.Errorf("an unknown album answered %d", rec.Code)
 	}
 }

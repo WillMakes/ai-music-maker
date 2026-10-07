@@ -100,6 +100,7 @@ func (a *App) superviseExtensionBridge(ctx context.Context) {
 	mux.HandleFunc("/open", a.bridgeOpen)
 	mux.HandleFunc("/artwork/", a.bridgeArtwork)
 	mux.HandleFunc("/audio/", a.bridgeAudio)
+	mux.HandleFunc("/video/", a.bridgeVideo)
 	mux.HandleFunc("/changed", a.bridgeChanged)
 	mux.HandleFunc("/capture", a.bridgeCapture)
 	// Open, no token (#111): see nowplaying.go.
