@@ -48,36 +48,20 @@
       // What to put in it, given a track.
       value: (track) => track.lyrics,
       selectors: [
+        // Suno's current form (#138): the lyrics box is a Lexical rich-text
+        // editor, a contenteditable div rather than a textarea. fill() knows
+        // the difference.
+        '[aria-label="Lyrics editor"][contenteditable="true"]',
+        '.lyrics-editor-content[data-lexical-editor]',
         'textarea[data-testid="lyrics-input-textarea"]',
         'textarea[placeholder*="lyric" i]',
         'textarea[aria-label*="lyric" i]',
-        // Suno's current form (#79) names nothing: the lyrics box is the one
-        // textarea with a 3000-character limit, an example song as its
-        // placeholder, and no label near it. Suno has since raised that limit
-        // (#128), so 5000 is tried too.
+        // The form before that (#79) named nothing: the lyrics box was the one
+        // textarea with a 3000-character limit, since raised to 5000.
         'textarea[maxlength="3000"]',
         'textarea[maxlength="5000"]',
       ],
       match: /lyric/i,
-      // The last resort (#128): the form's other textarea. When Suno moved the
-      // limit, Style kept matching by its wrapper while Lyrics matched nothing,
-      // so only one field got a button. Custom mode is a styles box and a
-      // lyrics box, and the lyrics box is the taller one; the guard on finding
-      // Style first keeps this off Simple mode, whose one description box is
-      // not a place for lyrics.
-      fallback: () => {
-        const style = findField(FIELDS.find((one) => one.key === 'style'))
-        if (!style) return null
-        const boxes = Array.from(document.querySelectorAll('textarea')).filter(
-          (box) =>
-            box !== style &&
-            box.offsetParent !== null &&
-            !box.closest('[data-testid="create-form-styles-wrapper"]') &&
-            !box.closest('.sm-picker'),
-        )
-        boxes.sort((a, b) => b.clientHeight - a.clientHeight)
-        return boxes[0] || null
-      },
     },
     {
       key: 'style',
@@ -175,7 +159,70 @@
     element.dispatchEvent(new Event('change', {bubbles: true}))
   }
 
+  // The most a rich-text field will take, from the counter Suno draws beside it
+  // ("120 / 5000"), or 5000, its lyrics limit, when no counter is found. The
+  // nearest counter walking up from the field, a few levels at most: the form
+  // as a whole also holds the styles box's counter, which is not this one. A
+  // textarea says its own with maxlength and needs none of this.
+  const editorLimit = (element) => {
+    let scope = element.parentElement
+    for (let level = 0; scope && level < 4; level++, scope = scope.parentElement) {
+      const counter = (scope.textContent || '').match(/\b\d{1,5}\s*\/\s*(\d{3,5})\b/)
+      if (counter) return Number(counter[1])
+    }
+    return 5000
+  }
+
+  // Filling a rich-text editor (#138). Its content is the editor's own state,
+  // not the DOM: a .value does not exist, and HTML written in is overwritten on
+  // the next render. What it does accept is what a person does — a paste, or
+  // typing — so that is what this sends. Replace selects everything first, so
+  // the paste lands over it; append puts the caret at the end.
+  //
+  // A paste first, because the editor turns a pasted text's line breaks into
+  // lines. Whether it took the paste is read off the event, not the page: the
+  // editor cancels a paste it handles but applies it a moment later, so the
+  // text has not changed yet when dispatch returns, and reading the text would
+  // send it a second time. A paste nobody took falls back to insertText line
+  // by line, with a paragraph break between, which is typing.
+  const fillEditor = (element, value, mode) => {
+    element.focus()
+    const existing = (element.innerText || '').trim()
+    const appending = mode === 'append' && existing !== ''
+    let text = appending ? '\n\n' + value : value
+
+    const room = editorLimit(element) - (appending ? existing.length : 0)
+    if (text.length > room) {
+      text = text.slice(0, Math.max(0, room))
+      toast(`Suno's lyrics take ${editorLimit(element)} characters, so the end was left off.`, true)
+    }
+
+    const selection = window.getSelection()
+    const range = document.createRange()
+    range.selectNodeContents(element)
+    if (appending) range.collapse(false)
+    selection.removeAllRanges()
+    selection.addRange(range)
+
+    if (text === '') return
+    const data = new DataTransfer()
+    data.setData('text/plain', text)
+    const ignored = element.dispatchEvent(
+      new ClipboardEvent('paste', {clipboardData: data, bubbles: true, cancelable: true}),
+    )
+    if (!ignored) return
+
+    text.split('\n').forEach((line, i) => {
+      if (i > 0) document.execCommand('insertParagraph')
+      if (line) document.execCommand('insertText', false, line)
+    })
+  }
+
   const fill = (element, value, mode) => {
+    if (element.isContentEditable) {
+      fillEditor(element, value, mode)
+      return
+    }
     const existing = element.value || ''
     // Insert appends at the caret's end rather than replacing, because "add this
     // verse to what I have" is a real thing to want and an overwrite of forty
@@ -635,7 +682,7 @@
       const control = scope && scope.querySelector('textarea, input[type="text"]')
       if (control) return control
     }
-    return field.fallback ? field.fallback() : null
+    return null
   }
 
   // The dock is the one element that does not depend on finding Suno's
