@@ -203,6 +203,11 @@
     if (appending) range.collapse(false)
     selection.removeAllRanges()
     selection.addRange(range)
+    // Told at once rather than left to the browser's own selectionchange,
+    // which arrives after this function has returned. During a paste the
+    // editor uses the selection it last recorded, not the page's, so without
+    // this Replace could paste at an old caret instead of over everything.
+    document.dispatchEvent(new Event('selectionchange'))
 
     if (text === '') return
     const data = new DataTransfer()
@@ -237,16 +242,35 @@
   // has an answer for is filled together — three picks per track was this
   // extension's own version of the round trip it exists to end.
   //
-  // Rich-text editors go last (#139). The lyrics editor applies a paste a
-  // moment after taking it, into wherever its selection is by then; filled
-  // first, it lost its selection to the next field's focus before the paste
-  // landed, and only Style came through. Last, nothing moves focus after it.
-  const fillAll = (track, mode) => {
+  // The rich-text lyrics editor goes last, after the form has settled, and is
+  // looked up again when its turn comes (#139, #140). Filling Style, Title and
+  // Duration makes Suno re-render the form, and the editor found before that
+  // can be a node the re-render has since replaced: the paste went into a
+  // copy nobody sees, which is why the Lyrics button alone worked and the
+  // one-click fill did not. Last, nothing moves focus away from it either.
+  const fillAll = async (track, mode) => {
     rememberTrack(track)
-    FIELDS.map((field) => ({target: findField(field), value: field.value(track) || ''}))
-      .filter(({target, value}) => target && value)
-      .sort((a, b) => Number(a.target.isContentEditable) - Number(b.target.isContentEditable))
-      .forEach(({target, value}) => fill(target, value, mode))
+    const wanted = FIELDS.map((field) => ({field, value: field.value(track) || ''})).filter(
+      ({value}) => value,
+    )
+    const isEditor = ({field}) => {
+      const target = findField(field)
+      return !!(target && target.isContentEditable)
+    }
+    const plain = wanted.filter((one) => !isEditor(one))
+    const editors = wanted.filter(isEditor)
+    plain.forEach(({field, value}) => {
+      const target = findField(field)
+      if (target) fill(target, value, mode)
+    })
+    if (editors.length === 0) return
+    // Two frames: one for the re-render the fills above set off, one for the
+    // editor to mount and register its listeners if it was replaced.
+    await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)))
+    editors.forEach(({field, value}) => {
+      const target = findField(field)
+      if (target) fill(target, value, mode)
+    })
   }
 
   // ---- The picker ----
