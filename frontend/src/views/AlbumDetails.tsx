@@ -1,5 +1,5 @@
 import {useCallback, useEffect, useRef, useState} from 'react'
-import {BarChart3, ChevronDown, ChevronRight, Clapperboard, ExternalLink, FolderInput, FolderOpen, ImagePlus, ListMusic, ListPlus, Loader2, Maximize2, Pause, Pencil, Play, RefreshCw, Sparkles, Trash2, Upload, Wand2} from 'lucide-react'
+import {BarChart3, ChevronDown, ChevronRight, Clapperboard, ExternalLink, FileText, FolderInput, FolderOpen, ImagePlus, ListMusic, ListPlus, Loader2, Maximize2, Pause, Pencil, Play, RefreshCw, Sparkles, Trash2, Upload, Wand2} from 'lucide-react'
 import {TakesList, TrackEditor} from './TrackDetails'
 import {
   ClearChat,
@@ -32,6 +32,7 @@ import {PageHeader} from '../components/PageHeader'
 import {SelectField, TextField} from '../components/Field'
 import {MarkdownField} from '../components/MarkdownField'
 import {InterviewDialog} from '../chat/InterviewDialog'
+import {Modal} from '../components/Modal'
 import {TabStrip} from '../components/TabStrip'
 import {Cover} from './ArtistDetails'
 import {useDataChanged} from '../lib/dataChanged'
@@ -96,6 +97,9 @@ export function AlbumDetails({
   // section's folded-away description and upload.
   const [watching, setWatching] = useState(false)
   const [videoMore, setVideoMore] = useState(false)
+  const [showDescription, setShowDescription] = useState(false)
+  // Where the playing video is, for which song it is on (#145).
+  const [videoTime, setVideoTime] = useState(0)
   const videoRef = useRef<HTMLVideoElement>(null)
   // The tabs on the right of the cover (#102, #104, #110), Tracks the
   // default: it is where the producer spends the session, the sound is
@@ -304,6 +308,19 @@ export function AlbumDetails({
   // while the record has songs - and heals when the selected one is deleted.
   const selected = tracks.find((t) => t.id === selectedId) ?? tracks[0]
 
+  // The song the playing video is on (#145), read off the description's
+  // timestamps — the render wrote them, so they are where each song really
+  // starts. Matched to a track by title, and by position when a title does
+  // not match, since the video is the record in running order.
+  const chapters = videoChapters(album.videoDescription)
+  const chapterAt = watching
+    ? chapters.reduce<number>((at, chapter, i) => (chapter.start <= videoTime ? i : at), -1)
+    : -1
+  const videoSong = chapterAt >= 0 ? chapters[chapterAt] : undefined
+  const videoTrackId = videoSong
+    ? (tracks.find((t) => t.name === videoSong.title) ?? tracks[chapterAt])?.id ?? ''
+    : ''
+
   return (
     /* The whole page is the batch drop zone (#84): each file is routed to its
        track by name, and several files for one track land as several takes.
@@ -447,14 +464,17 @@ export function AlbumDetails({
           be read whole. */}
       <div className="grid items-start gap-4 md:grid-cols-[232px_minmax(0,1fr)]">
         <div className="space-y-4">
-          {/* Always mounted, with no tab to hide it behind: a cover generation
-              runs for minutes and its busy state lives here. */}
-          <section className="sm-panel space-y-3 p-4" aria-label="Artwork">
-            {/* The rendered video plays in the cover's place (#143), with the
-                browser's own controls and a way to full screen: at the
-                sidebar's width it is a preview, and full screen is how it is
-                actually watched. */}
+          {/* The cover and the record's video in one panel (#145): the video
+              plays in the cover's place, and its render button sits with the
+              cover's own under the image. Always mounted, with no tab to hide
+              it behind: a cover generation or a render runs for minutes and
+              its busy state lives here. */}
+          <section className="sm-panel space-y-3 p-4" aria-label="Artwork and music video">
             {watching && album.videoUrl && !rendering ? (
+              /* The browser's own controls, and a way to full screen: at the
+                 sidebar's width this is a preview (#143). Pausing goes back to
+                 the cover (#145), and starting it stops the app's player, so
+                 two records do not play over each other. */
               <div className="space-y-2">
                 <video
                   ref={videoRef}
@@ -463,7 +483,22 @@ export function AlbumDetails({
                   controls
                   autoPlay
                   className="w-full rounded bg-tile"
+                  onPlay={() => {
+                    if (player.playing) player.toggle()
+                  }}
+                  onPause={() => {
+                    // Full screen is left on Escape with the video still
+                    // playing; a pause is a pause wherever it happened.
+                    if (document.fullscreenElement) void document.exitFullscreen().catch(() => {})
+                    setWatching(false)
+                  }}
+                  onTimeUpdate={(event) => setVideoTime(event.currentTarget.currentTime)}
                 />
+                {videoSong && (
+                  <p className="truncate text-xs text-fg-muted" aria-live="polite">
+                    Now: <span className="text-fg">{videoSong.title}</span>
+                  </p>
+                )}
                 <div className="flex gap-2">
                   <button
                     className="sm-button sm-button-quiet flex-1"
@@ -473,19 +508,24 @@ export function AlbumDetails({
                     <Maximize2 size={15} />
                     Full screen
                   </button>
-                  <button
-                    className="sm-button sm-button-quiet"
-                    type="button"
-                    onClick={() => setWatching(false)}
-                  >
-                    Cover
-                  </button>
+                  {album.videoDescription && (
+                    <button
+                      className="sm-button sm-button-quiet px-2"
+                      type="button"
+                      title="The description"
+                      aria-label="Show the video's description"
+                      onClick={() => setShowDescription(true)}
+                    >
+                      <FileText size={15} />
+                    </button>
+                  )}
                 </div>
               </div>
             ) : album.artworkFile ? (
               // A finished cover is looked at, not worked on (#114): replacing
-              // or removing it waits behind a hover on the image itself, and
-              // focus-within shows the same controls to a keyboard.
+              // or removing it, and reading the video's description (#145),
+              // wait behind a hover on the image, and focus-within shows the
+              // same controls to a keyboard. The play button stays in view.
               <div className="group relative w-fit">
                 <Cover url={album.artworkUrl} name={album.name} size={200} />
                 {album.videoUrl && !rendering && (
@@ -509,6 +549,17 @@ export function AlbumDetails({
                     <ImagePlus size={15} />
                     Replace
                   </button>
+                  {album.videoDescription && !rendering && (
+                    <button
+                      className="sm-button sm-button-quiet px-2"
+                      type="button"
+                      title="The video's description"
+                      aria-label="Show the video's description"
+                      onClick={() => setShowDescription(true)}
+                    >
+                      <FileText size={15} />
+                    </button>
+                  )}
                   <button
                     className="sm-button sm-button-quiet"
                     type="button"
@@ -614,31 +665,11 @@ export function AlbumDetails({
             {artworkJob?.state === 'failed' && (
               <p className="text-sm text-danger">{artworkJob.error}</p>
             )}
-          </section>
 
-          {/* The record as one video (#118): the official takes over the cover.
-              Says what is still missing rather than greying the button out
-              with no reason, since each gap is something to go and fix.
-
-              Condensed (#143): a line of state and the render button. The
-              video is watched from the cover and on YouTube from the header;
-              its description and the upload fold away under More, opened
-              while an upload runs so its progress is not hidden. */}
-          <section className="sm-panel space-y-3 p-4" aria-label="Music video">
-            <div className="flex items-center gap-2">
-              <h2 className="flex-1 text-sm font-semibold">Music video</h2>
-              {album.videoFile && !rendering && (
-                <button
-                  className="sm-button sm-button-quiet border-0 px-1.5 py-1"
-                  type="button"
-                  aria-label="Show the video in its folder"
-                  title="Show in folder"
-                  onClick={() => void RevealTrackFile(album.videoFile).catch((err) => setError(toMessage(err)))}
-                >
-                  <FolderOpen size={15} />
-                </button>
-              )}
-            </div>
+            {/* The record as one video (#118), its button under the cover's
+                (#145). Says what is still missing rather than greying the
+                button out with no reason, since each gap is something to go
+                and fix. */}
             {(() => {
               const unmade = tracks.filter((t) => !t.files.some((f) => !f.missing))
               const missing = [
@@ -650,34 +681,44 @@ export function AlbumDetails({
                     : `takes of ${unmade.length} tracks`),
               ].filter(Boolean)
               return (
-                <>
-                  <p className="text-xs text-fg-muted">
-                    {missing.length > 0
-                      ? 'Needs ' + missing.join(' and ') + ' first.'
-                      : album.videoFile
-                        ? (album.videoYouTubeUrl ? 'Rendered, and on YouTube.' : 'Rendered.') +
-                          ' Play it from the cover.'
-                        : 'Every official take over the cover, with each title and a visualiser.'}
-                  </p>
-                  <button
-                    className={
-                      'sm-button w-full ' +
-                      (album.videoFile ? 'sm-button-quiet' : 'sm-button-primary')
-                    }
-                    type="button"
-                    disabled={rendering || missing.length > 0}
-                    onClick={() =>
-                      renderVideo({id: album.id, name: album.name, artistId: album.artistId})
-                    }
-                  >
-                    {rendering ? <Loader2 size={15} className="animate-spin" /> : <Clapperboard size={15} />}
-                    {rendering
-                      ? `Rendering… ${Math.round((videoJob?.fraction ?? 0) * 100)}%`
-                      : album.videoFile
-                        ? 'Render again'
-                        : 'Render the video'}
-                  </button>
-                </>
+                <div className="space-y-1">
+                  <div className="flex gap-2">
+                    <button
+                      className={
+                        'sm-button flex-1 ' +
+                        (album.videoFile ? 'sm-button-quiet' : 'sm-button-primary')
+                      }
+                      type="button"
+                      disabled={rendering || missing.length > 0}
+                      onClick={() =>
+                        renderVideo({id: album.id, name: album.name, artistId: album.artistId})
+                      }
+                    >
+                      {rendering ? <Loader2 size={15} className="animate-spin" /> : <Clapperboard size={15} />}
+                      {rendering
+                        ? `Rendering… ${Math.round((videoJob?.fraction ?? 0) * 100)}%`
+                        : album.videoFile
+                          ? 'Render the video again'
+                          : 'Render the video'}
+                    </button>
+                    {album.videoFile && !rendering && (
+                      <button
+                        className="sm-button sm-button-quiet px-2"
+                        type="button"
+                        aria-label="Show the video in its folder"
+                        title="Show the video in its folder"
+                        onClick={() => void RevealTrackFile(album.videoFile).catch((err) => setError(toMessage(err)))}
+                      >
+                        <FolderOpen size={15} />
+                      </button>
+                    )}
+                  </div>
+                  {missing.length > 0 && !album.videoFile && (
+                    <p className="text-xs text-fg-muted">
+                      The video needs {missing.join(' and ')} first.
+                    </p>
+                  )}
+                </div>
               )
             })()}
             {rendering && (
@@ -691,6 +732,8 @@ export function AlbumDetails({
             {uploadJob?.state === 'failed' && (
               <p className="text-sm text-danger">{uploadJob.error}</p>
             )}
+            {/* To the channel (#122), folded away (#143) and opened while an
+                upload runs so its progress is not hidden. */}
             {album.videoFile && !rendering && (
               <>
                 <button
@@ -700,28 +743,10 @@ export function AlbumDetails({
                   onClick={() => setVideoMore((was) => !was)}
                 >
                   {videoMore || uploading ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
-                  Description, upload and stats
+                  YouTube upload and stats
                 </button>
                 {(videoMore || uploading) && (
                   <div className="space-y-3">
-                    {/* The YouTube description (#120), written with the video
-                        because its timestamps are the render's. Read-only: a
-                        time typed over by hand would stop matching the video. */}
-                    {album.videoDescription && (
-                      <div className="space-y-1">
-                        <div className="flex items-center gap-1">
-                          <h3 className="flex-1 text-xs font-semibold text-fg-muted">Description</h3>
-                          <CopyButton text={album.videoDescription} label="Copy the description" />
-                        </div>
-                        <pre className="max-h-48 overflow-auto whitespace-pre-wrap rounded-md border border-edge bg-surface px-2 py-1.5 font-mono text-[11px] leading-relaxed text-fg-muted">
-                          {album.videoDescription}
-                        </pre>
-                      </div>
-                    )}
-                    {/* To the channel (#122). Says where to connect rather than
-                        hiding the control, and that Google keeps an unaudited
-                        project's uploads private — the privacy chosen here
-                        would otherwise look ignored. */}
                     {album.videoYouTubeUrl && youtubeConnected && <VideoStatsBlock albumId={album.id} />}
                     {youtubeConnected ? (
                       <>
@@ -751,6 +776,9 @@ export function AlbumDetails({
                               ? 'Upload again'
                               : 'Upload to YouTube'}
                         </button>
+                        {/* Google keeps an unaudited project's uploads private,
+                            and the privacy chosen here would otherwise look
+                            ignored. */}
                         <p className="text-xs text-fg-muted">
                           Google keeps uploads from an unaudited OAuth project private until the
                           project passes its audit, whatever is chosen here.
@@ -767,21 +795,33 @@ export function AlbumDetails({
             )}
           </section>
 
+          {/* The YouTube description (#120), written with the video because
+              its timestamps are the render's — opened from the cover's hover
+              or beside the playing video (#145). Read-only: a time typed over
+              by hand would stop matching the video it describes. */}
+          {showDescription && album.videoDescription && (
+            <Modal title="The video's description" onClose={() => setShowDescription(false)}>
+              <div className="space-y-2">
+                <div className="flex justify-end">
+                  <CopyButton text={album.videoDescription} label="Copy the description" />
+                </div>
+                <pre className="whitespace-pre-wrap rounded-md border border-edge bg-surface px-3 py-2 font-mono text-xs leading-relaxed text-fg-muted">
+                  {album.videoDescription}
+                </pre>
+              </div>
+            </Modal>
+          )}
+
           {/* The takes to the producer's own YouTube Music library (#124),
               tagged for the record. Says when it last went, because a second
-              upload is a second copy in the library, not a replacement. */}
+              upload is a second copy in the library, not a replacement. Only
+              once YouTube Music is connected (#145): before that the panel was
+              a sentence pointing at Settings on every album. */}
+          {ytmusicConnected && (
           <section className="sm-panel space-y-3 p-4" aria-label="YouTube Music">
             <h2 className="text-sm font-semibold">YouTube Music library</h2>
             {(() => {
               const unmade = tracks.filter((t) => !t.files.some((f) => !f.missing))
-              if (!ytmusicConnected) {
-                return (
-                  <p className="text-xs text-fg-muted">
-                    Connect YouTube Music in Settings → YouTube to put this record in your
-                    library.
-                  </p>
-                )
-              }
               return (
                 <>
                   <p className="text-xs text-fg-muted">
@@ -815,6 +855,7 @@ export function AlbumDetails({
               <p className="text-sm text-danger">{ytmusicJob.error}</p>
             )}
           </section>
+          )}
 
           {/* The successor (#42): a new record under the same artist, the
               technical style evolved one step and a fresh track list written to
@@ -992,6 +1033,7 @@ export function AlbumDetails({
                           key={track.id}
                           track={track}
                           selected={track.id === selected?.id}
+                          inVideo={track.id === videoTrackId}
                           onSelect={() => setSelectedId(track.id)}
                           onChanged={reload}
                           onDeleted={() => {
@@ -1144,12 +1186,15 @@ export function AlbumDetails({
 function TrackRow({
   track,
   selected,
+  inVideo = false,
   onSelect,
   onChanged,
   onDeleted,
 }: {
   track: app.Track
   selected: boolean
+  /** The song the album's playing video is on (#145). */
+  inVideo?: boolean
   onSelect: () => void
   onChanged: () => void
   onDeleted: () => void
@@ -1305,8 +1350,16 @@ function TrackRow({
           type="button"
           onClick={onSelect}
         >
-          <span className="w-5 shrink-0 text-center text-xs tabular-nums text-fg-muted">
-            {track.position}
+          {/* The song the album's video is on as it plays (#145), in place
+              of its number so the column does not move. */}
+          <span
+            className={
+              'flex w-5 shrink-0 justify-center text-xs tabular-nums ' +
+              (inVideo ? 'text-accent' : 'text-fg-muted')
+            }
+            title={inVideo ? 'Playing in the video' : undefined}
+          >
+            {inVideo ? <Clapperboard size={13} aria-label="Playing in the video" /> : track.position}
           </span>
           <span className="min-w-0 flex-1">
             <span className="block truncate text-sm font-medium">{track.name}</span>
@@ -1425,4 +1478,20 @@ function VideoStatsBlock({albumId}: {albumId: string}) {
       {error && <p className="text-xs text-danger">{error}</p>}
     </div>
   )
+}
+
+/**
+ * The songs of a music video's description (#120), each with where it starts
+ * in seconds: the "M:SS Title" or "H:MM:SS Title" lines the render wrote.
+ */
+function videoChapters(description: string): {start: number; title: string}[] {
+  const out: {start: number; title: string}[] = []
+  for (const line of (description || '').split('\n')) {
+    const match = line.match(/^(\d+):(\d{2})(?::(\d{2}))?\s+(.+)$/)
+    if (!match) continue
+    const [, a, b, c, title] = match
+    const start = c !== undefined ? +a * 3600 + +b * 60 + +c : +a * 60 + +b
+    out.push({start, title: title.trim()})
+  }
+  return out
 }
