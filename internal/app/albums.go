@@ -51,6 +51,9 @@ type Album struct {
 	// folder of the music library; empty until one is rendered. Written only
 	// by a render, never by saveAlbum, so an edit to the album cannot clear it.
 	VideoFile string `json:"videoFile"`
+	// VideoURL is where the window plays the video from (#143), assembled on
+	// read like ArtworkURL; empty without a video.
+	VideoURL string `json:"videoUrl"`
 	// VideoDescription is the video's YouTube description (#120): the record,
 	// and each song with the time it starts, which YouTube turns into links.
 	// Written with the video, since the times are the render's.
@@ -112,6 +115,7 @@ func (a *App) ListAlbums(artistID string) ([]Album, error) {
 	}
 	for i := range albums {
 		albums[i].ArtworkURL = a.artworkURL(albums[i].ArtworkFile)
+		albums[i].VideoURL = a.videoURL(albums[i])
 	}
 	return albums, nil
 }
@@ -126,6 +130,7 @@ func (a *App) GetAlbum(id string) (Album, error) {
 		return Album{}, err
 	}
 	album.ArtworkURL = a.artworkURL(album.ArtworkFile)
+	album.VideoURL = a.videoURL(album)
 	return album, nil
 }
 
@@ -152,6 +157,7 @@ func (a *App) SaveAlbum(album Album) (Album, error) {
 		return Album{}, err
 	}
 	saved.ArtworkURL = a.artworkURL(saved.ArtworkFile)
+	saved.VideoURL = a.videoURL(saved)
 	a.store.changed(scopeAlbums)
 	return saved, nil
 }
