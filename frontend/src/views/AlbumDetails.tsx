@@ -1,5 +1,5 @@
 import {useCallback, useEffect, useRef, useState} from 'react'
-import {BarChart3, Clapperboard, ExternalLink, FolderInput, FolderOpen, ImagePlus, ListMusic, ListPlus, Loader2, Pencil, Play, RefreshCw, Sparkles, Trash2, Upload, Wand2} from 'lucide-react'
+import {BarChart3, Clapperboard, ExternalLink, FolderInput, FolderOpen, ImagePlus, ListMusic, ListPlus, Loader2, Pause, Pencil, Play, RefreshCw, Sparkles, Trash2, Upload, Wand2} from 'lucide-react'
 import {TrackEditor} from './TrackDetails'
 import {
   ClearChat,
@@ -1057,6 +1057,8 @@ function TrackRow({
   const [lengthText, setLengthText] = useState(duration(track.targetSeconds))
   const [error, setError] = useState('')
   const playable = hasPlayableTake(track)
+  // Whether the player is on this track, playing or paused.
+  const current = player.queue[player.index]?.trackId === track.id
 
   const startEdit = () => {
     setName(track.name)
@@ -1173,16 +1175,24 @@ function TrackRow({
             that has a take to play rather than swapped in over the number on
             hover, where it was easy to miss. The album's Play in the header is
             the whole record. A row with nothing to play keeps the slot so the
-            numbers stay in one column. */}
+            numbers stay in one column.
+
+            The track the player is on answers for the player (#142): Pause
+            while it plays, and Play resumes it where it stopped rather than
+            starting it over, which is what pressing play on a paused song
+            means. In the accent, so the row that is playing is findable. */}
         {playable ? (
           <button
             type="button"
-            aria-label={`Play ${track.name}`}
-            title="Play this track"
-            className="flex w-6 shrink-0 items-center justify-center text-fg-muted transition-colors hover:text-accent"
-            onClick={() => void player.play('track', track.id)}
+            aria-label={`${current && player.playing ? 'Pause' : 'Play'} ${track.name}`}
+            title={current && player.playing ? 'Pause' : current ? 'Resume' : 'Play this track'}
+            className={
+              'flex w-6 shrink-0 items-center justify-center transition-colors hover:text-accent ' +
+              (current ? 'text-accent' : 'text-fg-muted')
+            }
+            onClick={() => (current ? player.toggle() : void player.play('track', track.id))}
           >
-            <Play size={14} />
+            {current && player.playing ? <Pause size={14} /> : <Play size={14} />}
           </button>
         ) : (
           <span className="w-6 shrink-0" aria-hidden="true" />
