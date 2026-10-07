@@ -242,12 +242,15 @@
   // has an answer for is filled together — three picks per track was this
   // extension's own version of the round trip it exists to end.
   //
-  // The rich-text lyrics editor goes last, after the form has settled, and is
-  // looked up again when its turn comes (#139, #140). Filling Style, Title and
-  // Duration makes Suno re-render the form, and the editor found before that
-  // can be a node the re-render has since replaced: the paste went into a
-  // copy nobody sees, which is why the Lyrics button alone worked and the
-  // one-click fill did not. Last, nothing moves focus away from it either.
+  // The rich-text lyrics editor goes last, once the page has gone quiet, and
+  // is checked afterwards (#139, #140, #141). Filling Style, Title and
+  // Duration sets Suno's form re-rendering, and that re-render puts the lyrics
+  // editor back to what the form last stored — empty — a moment after the
+  // paste had landed. The Lyrics button alone never hit it because it changes
+  // nothing else. Reproduced against a real Lexical editor before this was
+  // written: filling after a fixed two frames lost the race, as the reset
+  // came later. So: wait for the form to stop changing, fill, look again a
+  // little later, and fill again if a late re-render wiped it.
   const fillAll = async (track, mode) => {
     rememberTrack(track)
     const wanted = FIELDS.map((field) => ({field, value: field.value(track) || ''})).filter(
@@ -263,14 +266,60 @@
       const target = findField(field)
       if (target) fill(target, value, mode)
     })
-    if (editors.length === 0) return
-    // Two frames: one for the re-render the fills above set off, one for the
-    // editor to mount and register its listeners if it was replaced.
-    await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)))
-    editors.forEach(({field, value}) => {
-      const target = findField(field)
-      if (target) fill(target, value, mode)
+
+    for (const {field, value} of editors) {
+      let landed = false
+      for (let attempt = 0; attempt < 3 && !landed; attempt++) {
+        await settled()
+        const target = findField(field)
+        if (!target) break
+        // Looked for before filling as well as after: on a retry the paste
+        // may yet have landed, and pasting again would double it.
+        if (!holds(target, value)) fill(target, value, attempt === 0 ? mode : 'replace')
+        await wait(600)
+        const now = findField(field)
+        landed = !!now && holds(now, value)
+      }
+      if (!landed) {
+        toast(`Could not fill ${field.label} — use the ${field.label} button on the field.`, true)
+      }
+    }
+  }
+
+  const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
+
+  // Resolves once the page has gone 300ms without a change, or after 2.5s
+  // regardless: a page with an animation somewhere never goes fully quiet.
+  const settled = () =>
+    new Promise((resolve) => {
+      let quiet = 0
+      const done = () => {
+        observer.disconnect()
+        clearTimeout(quiet)
+        clearTimeout(cap)
+        resolve()
+      }
+      const observer = new MutationObserver(() => {
+        clearTimeout(quiet)
+        quiet = setTimeout(done, 300)
+      })
+      observer.observe(document.body, {
+        childList: true,
+        subtree: true,
+        characterData: true,
+        attributes: true,
+      })
+      quiet = setTimeout(done, 300)
+      const cap = setTimeout(done, 2500)
     })
+
+  // Whether the editor shows the value, compared without whitespace: the
+  // editor turns each line into a paragraph, and innerText spaces those out
+  // differently from the text that went in.
+  const holds = (element, value) => {
+    const squash = (text) => (text || '').replace(/\s+/g, '')
+    const want = squash(value).slice(0, 200)
+    return want !== '' && squash(element.innerText).includes(want)
   }
 
   // ---- The picker ----
