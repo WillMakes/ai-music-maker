@@ -163,7 +163,14 @@ jobs:
     needs: linux
     # Apple silicon. Builds a universal app, so Intel Macs are covered too.
     runs-on: macos-15
-    timeout-minutes: 20
+    # Notarization is most of the extra time over a plain build: usually two to
+    # five minutes of waiting on Apple, capped at 20 by package-macos.sh.
+    timeout-minutes: 30
+    # Signing is skipped, with a warning, until the certificate and its password
+    # both exist, so a repository without them still releases. Steps cannot
+    # test secrets directly, hence this flag.
+    env:
+      HAS_SIGNING_CERT: ${{ secrets.APPLE_CERTIFICATE_BASE64 != '' && secrets.APPLE_CERTIFICATE_PASSWORD != '' }}
     steps:
       - uses: actions/checkout@v5
 
@@ -196,19 +203,48 @@ jobs:
           -platform darwin/universal
           -ldflags "-X aimusicmaker/internal/app.appVersion=${{ needs.linux.outputs.version }}"
 
+      # The Developer ID certificate goes into a keychain of its own rather than
+      # the runner's login keychain, so nothing prompts for access and the key
+      # is gone with the keychain at the end of the job.
+      - name: Import signing certificate
+        if: env.HAS_SIGNING_CERT == 'true'
+        env:
+          APPLE_CERTIFICATE_BASE64: ${{ secrets.APPLE_CERTIFICATE_BASE64 }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+        run: |
+          keychain="$RUNNER_TEMP/signing.keychain-db"
+          password=$(uuidgen)
+          echo "$APPLE_CERTIFICATE_BASE64" | base64 --decode > "$RUNNER_TEMP/certificate.p12"
+          security create-keychain -p "$password" "$keychain"
+          security set-keychain-settings -lut 3600 "$keychain"
+          security unlock-keychain -p "$password" "$keychain"
+          security import "$RUNNER_TEMP/certificate.p12" -k "$keychain" \
+            -P "$APPLE_CERTIFICATE_PASSWORD" -T /usr/bin/codesign
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$password" "$keychain"
+          security list-keychains -d user -s "$keychain" $(security list-keychains -d user | tr -d '"')
+          rm "$RUNNER_TEMP/certificate.p12"
+
       # A disk image with the app beside an Applications link (#132), the
       # drag-to-install a Mac user expects, and what the in-app updater opens.
-      # hdiutil ships with macOS, so this costs seconds rather than a brew
-      # install on the most expensive runner. ditto, not cp, keeps the bundle's
-      # symlinks and extended attributes; the copy is named after the product
-      # so Applications lists it the way the app calls itself.
-      - name: Package
-        run: |
-          mkdir -p release dmg
-          ditto build/bin/aimusicmaker.app dmg/AIMusicMaker.app
-          ln -s /Applications dmg/Applications
-          hdiutil create -volname AIMusicMaker -srcfolder dmg -fs HFS+ -format UDZO -ov \
-            "release/AIMusicMaker-v${{ needs.linux.outputs.version }}-macos-universal.dmg"
+      # Signed with the Developer ID and notarized by Apple, so neither a
+      # download nor an update is met by a Gatekeeper warning. hdiutil,
+      # codesign and notarytool all ship with macOS, so no brew install on the
+      # most expensive runner.
+      - name: Sign, package and notarize
+        env:
+          # Only with the certificate imported: naming an identity the keychain
+          # does not hold fails codesign rather than skipping it.
+          APPLE_DEVELOPER_ID: ${{ env.HAS_SIGNING_CERT == 'true' && secrets.APPLE_DEVELOPER_ID || '' }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: >
+          .github/scripts/package-macos.sh build/bin/aimusicmaker.app
+          "release/AIMusicMaker-v${{ needs.linux.outputs.version }}-macos-universal.dmg"
+
+      - name: Remove signing keychain
+        if: always() && env.HAS_SIGNING_CERT == 'true'
+        run: security delete-keychain "$RUNNER_TEMP/signing.keychain-db" || true
 
       - uses: actions/upload-artifact@v7
         with:

@@ -301,6 +301,41 @@ cd frontend && npm run build    # TypeScript (strict) and the production UI buil
 - **House style:** conventions for code, comments and UI colour tokens are in
   [CLAUDE.md](CLAUDE.md).
 
+### macOS signing and notarization
+
+Releases sign the Mac app with a Developer ID and have Apple notarize the disk
+image, so neither a download nor an in-app update meets a Gatekeeper warning.
+This is distribution outside the Mac App Store, the same as RapidRabbit.
+[`.github/scripts/package-macos.sh`](.github/scripts/package-macos.sh) does the
+signing, packaging and notarizing, in CI and by hand.
+
+The release workflow reads these repository secrets. Until they are set, the
+Mac build ships unsigned and the run shows a warning.
+
+| Secret | What it is |
+| --- | --- |
+| `APPLE_CERTIFICATE_BASE64` | The Developer ID Application certificate and its key, exported as `.p12`, base64-encoded |
+| `APPLE_CERTIFICATE_PASSWORD` | The password the `.p12` was exported with |
+| `APPLE_DEVELOPER_ID` | The identity name, e.g. `Developer ID Application: Will Jackson (4F796GLFSH)` |
+| `APPLE_ID` | The Apple ID of the developer account |
+| `APPLE_APP_PASSWORD` | An app-specific password for that Apple ID |
+| `APPLE_TEAM_ID` | The 10-character team ID, e.g. `4F796GLFSH` |
+
+To make a signed and notarized image on your own Mac, save the notarization
+credentials in the keychain once, then build and package:
+
+```bash
+xcrun notarytool store-credentials aimusicmaker-notary \
+  --apple-id <apple-id> --team-id <team-id> --password <app-specific-password>
+
+wails build -platform darwin/universal
+NOTARY_PROFILE=aimusicmaker-notary .github/scripts/package-macos.sh \
+  build/bin/aimusicmaker.app build/bin/AIMusicMaker-macos-universal.dmg
+```
+
+Without `NOTARY_PROFILE` the image is signed but not notarized, which is enough
+to check that signing works.
+
 ## Reporting bugs and contributing
 
 Bugs and ideas go on the
