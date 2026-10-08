@@ -130,6 +130,20 @@ jobs:
           wails build -s -skipbindings -m -trimpath -nsis
           -platform windows/amd64
           -ldflags "-X aimusicmaker/internal/app.appVersion=${{ steps.version.outputs.version }}"
+      # Signed through Azure Trusted Signing, as RapidRabbit is, so SmartScreen
+      # and the installer's UAC prompt name the publisher. Skipped, with a
+      # warning, until the Azure secrets and variables are all set.
+      - name: Sign Windows
+        env:
+          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+          AZURE_TRUSTED_SIGNING_ENDPOINT: ${{ vars.AZURE_TRUSTED_SIGNING_ENDPOINT }}
+          AZURE_TRUSTED_SIGNING_ACCOUNT: ${{ vars.AZURE_TRUSTED_SIGNING_ACCOUNT }}
+          AZURE_TRUSTED_SIGNING_CERT_PROFILE: ${{ vars.AZURE_TRUSTED_SIGNING_CERT_PROFILE }}
+        run: >
+          .github/scripts/package-windows.sh
+          build/bin/aimusicmaker.exe build/bin/aimusicmaker-amd64-installer.exe
 
       - name: Package
         run: |
