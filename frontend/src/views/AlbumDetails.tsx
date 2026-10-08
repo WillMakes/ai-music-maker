@@ -683,9 +683,12 @@ export function AlbumDetails({
               return (
                 <div className="space-y-1">
                   <div className="flex gap-2">
+                    {/* min-w-0 so the button gives way rather than pushing the
+                        folder button out of the 200px column (#147): buttons
+                        do not wrap their text. */}
                     <button
                       className={
-                        'sm-button flex-1 ' +
+                        'sm-button min-w-0 flex-1 ' +
                         (album.videoFile ? 'sm-button-quiet' : 'sm-button-primary')
                       }
                       type="button"
@@ -698,7 +701,7 @@ export function AlbumDetails({
                       {rendering
                         ? `Rendering… ${Math.round((videoJob?.fraction ?? 0) * 100)}%`
                         : album.videoFile
-                          ? 'Render the video again'
+                          ? 'Render again'
                           : 'Render the video'}
                     </button>
                     {album.videoFile && !rendering && (
