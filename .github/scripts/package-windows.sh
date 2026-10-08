@@ -75,7 +75,9 @@ sign() {
 sign "$exe"
 
 # The same makensis call Wails makes, reusing the wails_tools.nsh and WebView2
-# bootstrapper it left in build/windows/installer.
-(cd build/windows/installer && makensis -DARG_WAILS_AMD64_BINARY="$(cd "$(dirname "$exe")" && pwd)/$(basename "$exe")" project.nsi)
+# bootstrapper it left in build/windows/installer. The app's path is made
+# absolute first: a relative one does not survive the cd.
+exe_abs="$(cd "$(dirname "$exe")" && pwd)/$(basename "$exe")"
+(cd build/windows/installer && makensis -DARG_WAILS_AMD64_BINARY="$exe_abs" project.nsi)
 
 sign "$installer"
