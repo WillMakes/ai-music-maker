@@ -14,20 +14,16 @@
 name: Release
 
 on:
-  # Paused: merges to main do not build or release for now. Uncomment the push
-  # trigger to resume; until then a release is cut by hand from the Actions tab
-  # (Release -> Run workflow), which still numbers and publishes it as before.
-  #
-  # push:
-  #   branches: [main]
-  #   # Files nothing is built from. skills/*.md are NOT listed: they are embedded.
-  #   paths-ignore:
-  #     - README.md
-  #     - CLAUDE.md
-  #     - LICENSE
-  #     - docs/**
-  #     - .idea/**
-  #     - .claude/**
+  push:
+    branches: [main]
+    # Files nothing is built from. skills/*.md are NOT listed: they are embedded.
+    paths-ignore:
+      - README.md
+      - CLAUDE.md
+      - LICENSE
+      - docs/**
+      - .idea/**
+      - .claude/**
   workflow_dispatch:
 
 # One release at a time, so two quick merges cannot both read "latest is v0.1.4"
