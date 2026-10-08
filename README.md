@@ -336,6 +336,32 @@ NOTARY_PROFILE=aimusicmaker-notary .github/scripts/package-macos.sh \
 Without `NOTARY_PROFILE` the image is signed but not notarized, which is enough
 to check that signing works.
 
+### Windows signing
+
+Releases sign the Windows app and its installer through Azure Trusted Signing,
+with the same certificate profile as RapidRabbit, so SmartScreen and the
+installer's UAC prompt name the publisher instead of calling it unknown. The
+Windows build is cross-compiled on Linux, so
+[`.github/scripts/package-windows.sh`](.github/scripts/package-windows.sh) signs
+with [jsign](https://github.com/ebourg/jsign) rather than Microsoft's
+Windows-only action. It signs the app, rebuilds the installer around the signed
+app, then signs the installer.
+
+Until all six values below are set, the installer ships unsigned and the run
+shows a warning.
+
+| Name | Kind | What it is |
+| --- | --- | --- |
+| `AZURE_TRUSTED_SIGNING_ENDPOINT` | Variable | The account's regional endpoint, e.g. `https://eus.codesigning.azure.net/` |
+| `AZURE_TRUSTED_SIGNING_ACCOUNT` | Variable | The Trusted Signing account name |
+| `AZURE_TRUSTED_SIGNING_CERT_PROFILE` | Variable | The certificate profile name |
+| `AZURE_TENANT_ID` | Secret | The Microsoft Entra tenant (directory) ID |
+| `AZURE_CLIENT_ID` | Secret | The app registration's application (client) ID |
+| `AZURE_CLIENT_SECRET` | Secret | A client secret of that app registration |
+
+The app registration needs the **Trusted Signing Certificate Profile Signer**
+role on the signing account.
+
 ## Reporting bugs and contributing
 
 Bugs and ideas go on the
