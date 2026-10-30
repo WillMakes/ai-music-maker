@@ -187,6 +187,16 @@ func (a *App) interviewBrief(kind, subjectID string) (string, error) {
 	default:
 		return "", fmt.Errorf("unknown interview %q", kind)
 	}
+	// The album and track interviews write what Create via Suno MCP sends, so
+	// while Suno is connected they are told what it sends and what it cuts.
+	// Only then: a producer who never connected it would be reading about a
+	// button their albums do not have.
+	if (kind == subjectAlbum || kind == subjectTrack) && a.sunoConnected() {
+		if body := a.skillBody(skillSunoMCP); body != "" {
+			b.WriteString("\n\n")
+			b.WriteString(body)
+		}
+	}
 
 	facts, err := a.interviewFacts(kind, subjectID)
 	if err != nil {
@@ -509,7 +519,7 @@ Return ONLY a JSON object, no prose and no code fence, with these keys:
                     yourself on the technical style above, sequenced so each
                     track hands off into the next. Each entry has "name",
                     "prompt" (the Suno style prompt: comma-led, concrete,
-                    under about 200 words, most important terms first, ending
+                    under 1,000 characters, most important terms first, ending
                     with what to avoid), "lyrics" (the full lyrics with
                     [Section] tags; the tags alone for an instrumental) and
                     "targetSeconds".`
@@ -576,8 +586,8 @@ func (a *App) ExtractTracks(messages []InterviewMessage) ([]TrackDraft, error) {
 Return ONLY a JSON object, no prose and no code fence, of the form
 {"tracks":[…]}, where each entry has:
   "name"           the track title
-  "prompt"         the Suno style prompt: comma-led, concrete, under about 200
-                   words, most important terms first, ending with what to avoid
+  "prompt"         the Suno style prompt: comma-led, concrete, under 1,000
+                   characters, most important terms first, ending with what to avoid
   "lyrics"         the full lyrics with [Section] tags. For an instrumental,
                    the tags alone.
   "targetSeconds"  the target length in seconds`

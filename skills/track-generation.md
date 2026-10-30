@@ -37,8 +37,9 @@ song plays, and a title that runs off the edge of the frame is cut.
 This is the field that decides what Suno makes. Write it as Suno reads best:
 
 - **Comma-led, not prose.** A list of concrete musical facts.
-- **Under about 200 words.** Suno weights the front of the field most heavily,
-  so the most important terms go first.
+- **Under 1,000 characters** — about 150 words. That is Suno's limit on the
+  field and anything past it is cut off. Suno also weights the front of the
+  field most heavily, so the most important terms go first.
 - **Concrete over evocative.** "Brushed snare, upright bass, tape hiss" beats
   "warm and nostalgic". Adjectives that name a feeling and no sound are wasted
   characters.
@@ -48,9 +49,10 @@ This is the field that decides what Suno makes. Write it as Suno reads best:
 - **State what to avoid.** Suno responds to negative direction, and one line of
   it is often worth more than three more positive adjectives.
 
-Do not repeat the artist's and album's styles verbatim — the app has them
-already. Write the prompt as the whole picture *for this track*, taking the
-combined style as given and adding what is particular to this song.
+Do not paste in the artist's and album's styles verbatim — they will not fit,
+and this prompt is the only thing about the sound that reaches Suno. Write it as
+the whole picture *for this track*, distilling the combined style and adding
+what is particular to this song.
 
 ## Structure tags
 
@@ -80,8 +82,8 @@ and hoping:
 - **2:00–3:30** — verse, chorus, verse, chorus, bridge, chorus. The default.
 - **3:30–5:00** — add an instrumental break or a second bridge. Give something
   room rather than adding another verse.
-- **Over 5:00** — build it in movements. Say so in the style prompt too, or Suno
-  will write a three-minute song and repeat it.
+- **5:00 is the ceiling.** Suno's form takes no more than 300 seconds, so a
+  longer piece is two tracks. Nothing under 15 seconds either.
 
 Say the target length in the style prompt as well as setting the field: Suno
 reads it.

@@ -89,6 +89,15 @@ var sunoClient = func(a *App) (toolCaller, error) {
 	return a.mcpClient(record), nil
 }
 
+// sunoConnected says whether Suno is signed in, from the stored record alone.
+// It reaches nothing: an interview turn asks it every time, and a turn must not
+// wait on Suno to learn what Settings already shows. A sign-in Suno has since
+// refused is learned the first time something calls it, which marks the record.
+func (a *App) sunoConnected() bool {
+	record, err := a.mcpServerRecord(sunoServerID)
+	return err == nil && record.state() == mcpConnected
+}
+
 // sunoDownloadHTTP fetches the files audio-download points at.
 var sunoDownloadHTTP = &http.Client{Timeout: 10 * time.Minute}
 
