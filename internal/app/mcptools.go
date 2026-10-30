@@ -55,6 +55,21 @@ var mcpNotOffered = map[string]string{
 	"ConnectYouTubeMusic": "takes the cookies of the producer's signed-in browser, which are their Google sign-in and theirs to paste into Settings → YouTube, not an agent's to handle",
 	"DownloadUpdate":      "fetches a new version of the app to install, which is the producer's decision; check_for_update says whether there is one",
 	"InstallUpdate":       "runs the installer and closes the window, which is the producer's to do from the update dialog",
+	// The app's own sign-ins to remote MCP servers (mcpservers.go, sunomcp.go).
+	// list_mcp_servers reads them; everything that signs in, refreshes a token
+	// or spends Suno credits stays in the window. A refresh from this process
+	// could rotate the refresh token out from under the window's, and the
+	// album run asks the producer to approve spending download credits.
+	"GetMCPServer":          "reads one server, which list_mcp_servers already answers for all of them",
+	"AddMCPServer":          "adds a server the app will send a sign-in to, which is the producer's to decide in Settings → MCP servers",
+	"RemoveMCPServer":       "forgets a server and revokes its sign-in, which is the producer's to do in Settings → MCP servers",
+	"AuthorizeMCPServer":    "signs in to the server in the producer's browser, which needs the window to open it and the producer to approve it",
+	"DisconnectMCPServer":   "revokes the app's sign-in to a server, which is the producer's to do in Settings → MCP servers",
+	"RefreshMCPServerTools": "calls the server with the window's sign-in, and a token refreshed from this process could rotate the window's out from under it; list_mcp_servers answers the tools last read",
+	"GetSunoAccount":        "calls Suno with the window's sign-in, for the album dialog to show before credits are spent; an assistant can ask Suno's own server under its own sign-in",
+	"StartSunoAlbumRun":     "spends the producer's Suno credits and, when approved in the album's dialog, their download credits — a cost the producer approves there, not one an agent incurs for them",
+	"GetSunoAlbumRun":       "reads a run that lives in the window's process, which this server cannot see",
+	"CancelSunoAlbumRun":    "stops a run that lives in the window's process, which this server cannot reach",
 }
 
 // mcpTool is one tool's definition and its implementation together.

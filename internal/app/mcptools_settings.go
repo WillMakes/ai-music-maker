@@ -9,6 +9,7 @@ var secretSettings = map[string]string{
 	keyAIServices: "the AI connections are read through list_ai_services and written through connect_ai_key and connect_ai_account",
 	keyYouTube:    "the YouTube connection is read through get_youtube and made in Settings → YouTube",
 	keyYTMusic:    "the YouTube Music session is read through get_youtube_music and made in Settings → YouTube",
+	keyMCPServers: "the MCP server sign-ins are read through list_mcp_servers and made in Settings → MCP servers",
 }
 
 // ---------------------------------------------------------------------------
@@ -123,6 +124,23 @@ func settingsTools() []mcpTool {
 			}),
 		},
 
+		// -- MCP servers the app is a client of ---------------------------------
+		// Read-only on purpose. Making an album through Suno spends the
+		// producer's credits, and filing it spends download credits the tool
+		// itself says to ask about first; that question is asked in the album's
+		// dialog, by a person. An assistant that wants to make songs can reach
+		// Suno's own server directly, under its own sign-in.
+		{
+			name: "list_mcp_servers",
+			description: "The remote MCP servers the app itself signs in to — Suno, and any the producer " +
+				"added — with each one's state (not_connected, needs_authorization, connected) and tools. " +
+				"Never the tokens. Authorizing is done in Settings → MCP servers.",
+			binding: "GetMCPServers",
+			schema:  object(map[string]any{}),
+			run: with(func(app *App, _ struct{}) map[string]any {
+				return mcpResult(app.GetMCPServers())
+			}),
+		},
 		// -- YouTube (#121) -----------------------------------------------------
 		{
 			name: "get_youtube",
