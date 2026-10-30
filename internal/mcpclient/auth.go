@@ -356,15 +356,17 @@ type AuthorizeOptions struct {
 	// its redirect port can be listened on again.
 	Previous *Authorization
 	HTTP     *http.Client
-	// Timeout is how long the browser is waited on; zero is five minutes.
+	// Timeout is how long the browser is waited on; zero is SignInTimeout.
 	Timeout time.Duration
 	// Listen is how the loopback listener is made — a variable so a test can
 	// see which address was asked for.
 	Listen func(address string) (net.Listener, error)
 }
 
-// SignInTimeout is how long Authorize waits for the browser by default.
-const SignInTimeout = 5 * time.Minute
+// SignInTimeout is how long Authorize waits for the browser by default. Long
+// enough for a sign-in that needs a password manager or a second factor, or
+// that is approved a while after the tab opened; the listener is all it holds.
+const SignInTimeout = 15 * time.Minute
 
 // Authorize runs the whole sign-in and answers the authorization to store.
 func Authorize(ctx context.Context, opts AuthorizeOptions) (Authorization, error) {
