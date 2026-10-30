@@ -1,6 +1,7 @@
 import {useCallback, useEffect, useRef, useState} from 'react'
 import {BarChart3, ChevronDown, ChevronRight, Clapperboard, ExternalLink, FileText, FolderInput, FolderOpen, ImagePlus, ListMusic, ListPlus, Loader2, Maximize2, Pause, Pencil, Play, RefreshCw, Sparkles, Trash2, Upload, Wand2} from 'lucide-react'
 import {TakesList, TrackEditor} from './TrackDetails'
+import {SunoMCPPanel} from './SunoMCPPanel'
 import {
   ClearChat,
   DeleteAlbum,
@@ -814,6 +815,11 @@ export function AlbumDetails({
               </div>
             </Modal>
           )}
+
+          {/* The tracks made through Suno's MCP server, beside the extension.
+              Draws nothing unless Suno is authorized in Settings → MCP servers,
+              so without it this page is what it was. */}
+          <SunoMCPPanel albumId={album.id} tracks={tracks} />
 
           {/* The takes to the producer's own YouTube Music library (#124),
               tagged for the record. Says when it last went, because a second
