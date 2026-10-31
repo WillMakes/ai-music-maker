@@ -309,8 +309,9 @@ This is distribution outside the Mac App Store, the same as RapidRabbit.
 [`.github/scripts/package-macos.sh`](.github/scripts/package-macos.sh) does the
 signing, packaging and notarizing, in CI and by hand.
 
-The release workflow reads these repository secrets. Until they are set, the
-Mac build ships unsigned and the run shows a warning.
+The release workflow reads these secrets from the `release` environment, which
+only `main` can use, so a workflow run from any other branch cannot read them.
+Until they are set, the Mac build ships unsigned and the run shows a warning.
 
 | Secret | What it is |
 | --- | --- |
@@ -347,8 +348,9 @@ with [jsign](https://github.com/ebourg/jsign) rather than Microsoft's
 Windows-only action. It signs the app, rebuilds the installer around the signed
 app, then signs the installer.
 
-Until all six values below are set, the installer ships unsigned and the run
-shows a warning.
+The secrets below are in the `release` environment, like the Mac ones; the
+variables are repository-wide. Until all six are set, the installer ships
+unsigned and the run shows a warning.
 
 | Name | Kind | What it is |
 | --- | --- | --- |

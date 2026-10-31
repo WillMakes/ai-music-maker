@@ -1,0 +1,12 @@
+# The workflow's actions are pinned to exact commits, so a moved tag cannot
+# change what runs beside the signing secrets. This keeps those pins current:
+# a weekly PR for each new release of an action, grouped into one.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      actions:
+        patterns: ["*"]
