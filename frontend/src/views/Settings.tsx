@@ -8,6 +8,7 @@ import {AboutPanel} from '../settings/AboutPanel'
 import {BugsPanel} from '../settings/BugsPanel'
 import {ExtensionPanel} from '../settings/ExtensionPanel'
 import {LibraryPanel} from '../settings/LibraryPanel'
+import {MCPServersPanel} from '../settings/MCPServersPanel'
 import {PreferencesPanel} from '../settings/PreferencesPanel'
 import {YouTubePanel} from '../settings/YouTubePanel'
 
@@ -222,7 +223,9 @@ function sectionsOf(view: ViewId, onOpenService: (serviceId: string) => void): G
       ? [{id: 'library', label: 'Library', node: <LibraryPanel />}]
       : view === 'settings-extension'
         ? [{id: 'extension', label: 'Chrome extension', node: <ExtensionPanel />}]
-        : view === 'settings-bugs'
+        : view === 'settings-mcp'
+          ? [{id: 'mcp-servers', label: 'MCP servers', node: <MCPServersPanel />}]
+          : view === 'settings-bugs'
           ? [{id: 'bugs', label: 'Bug reports', node: <BugsPanel />}]
           : view === 'settings-youtube'
             ? [{id: 'youtube', label: 'YouTube', node: <YouTubePanel />}]

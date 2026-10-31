@@ -74,7 +74,7 @@ func (a *App) WriteAlbumTracks(albumID string) (Album, error) {
 		`{"tracks": [{"name": "...", "prompt": "...", "targetSeconds": 210}]}` +
 		"\n\nWrite eight to twelve tracks in running order, titles that " +
 		"belong on this record, every prompt built on the style below — " +
-		"comma-led, concrete, under about 200 words, most important terms " +
+		"comma-led, concrete, under 1,000 characters, most important terms " +
 		"first, ending with what to avoid — and sequence the list so each " +
 		"track hands off tempo, key and energy into the next. targetSeconds " +
 		"may be 0 when unspecified."

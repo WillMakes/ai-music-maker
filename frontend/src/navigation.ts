@@ -33,6 +33,7 @@ export type ViewId =
   | 'settings-ai-service'
   | 'settings-library'
   | 'settings-extension'
+  | 'settings-mcp'
   | 'settings-bugs'
   | 'settings-youtube'
   | 'settings-preferences'
@@ -54,6 +55,7 @@ export const ROUTE_TITLES: Record<ViewId, string> = {
   'settings-ai-service': 'Settings — AI service',
   'settings-library': 'Settings — Library',
   'settings-extension': 'Settings — Chrome extension',
+  'settings-mcp': 'Settings — MCP servers',
   'settings-bugs': 'Settings — Bug reports',
   'settings-youtube': 'Settings — YouTube',
   'settings-preferences': 'Settings — Preferences',
@@ -85,6 +87,7 @@ export const SECTION_OF: Record<ViewId, ViewId> = {
   'settings-ai-service': 'settings-ai',
   'settings-library': 'settings-ai',
   'settings-extension': 'settings-ai',
+  'settings-mcp': 'settings-ai',
   'settings-bugs': 'settings-ai',
   'settings-youtube': 'settings-ai',
   'settings-preferences': 'settings-ai',
@@ -129,6 +132,7 @@ export const SETTINGS_TABS: {id: ViewId; label: string}[] = [
   {id: 'settings-ai', label: 'AI'},
   {id: 'settings-library', label: 'Library'},
   {id: 'settings-extension', label: 'Chrome extension'},
+  {id: 'settings-mcp', label: 'MCP servers'},
   {id: 'settings-bugs', label: 'Bug reports'},
   {id: 'settings-youtube', label: 'YouTube'},
   {id: 'settings-preferences', label: 'Preferences'},

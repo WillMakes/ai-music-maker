@@ -47,6 +47,7 @@ const (
 	skillAlbumArtwork    = "album-artwork"
 	skillMusicVideo      = "music-video"
 	skillBugReports      = "bug-reports"
+	skillSunoMCP         = "suno-mcp"
 )
 
 // builtIn is one shipped skill: its identity here, its body in skills/.
@@ -82,6 +83,14 @@ var builtInSkills = []builtIn{
 		description: "How a track's Suno prompt and lyrics are written from the album's combined style and the target length.",
 		tags:        []string{"interview", "track", "suno"},
 		file:        "track-generation.md",
+	},
+	{
+		id:    skillSunoMCP,
+		title: "Making tracks with Suno's MCP server",
+		description: "What Create via Suno MCP sends and spends, and how to write a track for it and the extension alike. " +
+			"Added to the album and track interviews only while Suno is connected in Settings → MCP servers.",
+		tags: []string{"interview", "track", "suno", "mcp"},
+		file: "suno-mcp.md",
 	},
 	{
 		id:          skillAlbumArtwork,
