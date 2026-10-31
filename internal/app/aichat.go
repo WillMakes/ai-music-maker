@@ -309,7 +309,11 @@ func chatViaCLI(ctx context.Context, id, model, system string, turns []chatMsg) 
 		// -p is print mode: one turn, answer to stdout, no interactive session.
 		// text rather than stream-json because nothing here streams — the dialog
 		// shows a working line and then the whole reply.
-		args := []string{"-p", "--output-format", "text"}
+		// --strict-mcp-config with no --mcp-config is no MCP servers at all. The
+		// producer's Claude Code may have Suno connected, and a chat that could
+		// reach audio-create could spend credits nobody approved; generating
+		// stays behind the album's own button.
+		args := []string{"-p", "--output-format", "text", "--strict-mcp-config"}
 		if model != "" {
 			args = append(args, "--model", model)
 		}
