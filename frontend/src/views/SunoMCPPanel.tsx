@@ -223,7 +223,6 @@ function StartDialog({
   const [selected, setSelected] = useState<Set<string>>(
     () => new Set(tracks.filter((t) => t.files.length === 0).map((t) => t.id)),
   )
-  const [clipCount, setClipCount] = useState('2')
   const [model, setModel] = useState('')
   const [download, setDownload] = useState(false)
   const [starting, setStarting] = useState(false)
@@ -237,7 +236,8 @@ function StartDialog({
 
   const chosen = useMemo(() => tracks.filter((t) => selected.has(t.id)), [tracks, selected])
   const empty = chosen.filter((t) => !t.prompt.trim() && !t.lyrics.trim())
-  const songs = chosen.length * Number(clipCount)
+  // audio-create makes two songs a call, with no way to ask for fewer.
+  const songs = chosen.length * 2
   const short = account?.reported && download && songs > account.downloadCreditsRemaining
 
   const toggle = (id: string) =>
@@ -270,7 +270,6 @@ function StartDialog({
                     albumId,
                     app.SunoRunOptions.createFrom({
                       trackIds: chosen.map((t) => t.id),
-                      clipCount: Number(clipCount),
                       model,
                       download,
                     }),
@@ -341,17 +340,12 @@ function StartDialog({
           </div>
         </fieldset>
 
+        <p className="text-xs text-fg-muted">
+          Suno makes two songs from every track, as suno.com&apos;s Create does, and each is a
+          generation. It no longer takes a request for just one.
+        </p>
+
         <div className="grid gap-3 md:grid-cols-2">
-          <SelectField
-            label="Songs per track"
-            hint="Suno's Create makes two; each is a generation."
-            value={clipCount}
-            onChange={setClipCount}
-            options={[
-              {value: '2', label: 'Two, as suno.com does'},
-              {value: '1', label: 'One'},
-            ]}
-          />
           <SelectField
             label="Model"
             value={model}

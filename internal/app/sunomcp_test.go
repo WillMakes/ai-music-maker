@@ -9,6 +9,8 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"slices"
+	"sort"
 	"strings"
 	"sync"
 	"testing"
@@ -17,9 +19,21 @@ import (
 	"aimusicmaker/internal/mcpclient"
 )
 
+// sunoCreateSchema is audio-create's input schema as Suno listed it on
+// 2026-10-30, descriptions left out (docs/suno-mcp.md has them).
+const sunoCreateSchema = `{"additionalProperties":false,"type":"object","properties":{
+	"controls":{"type":"object"},"description":{"type":"string"},"duration":{"type":"integer"},
+	"duration_guidance":{"type":"boolean"},"duration_strict":{"type":"boolean"},
+	"idempotency_key":{"type":"string"},"instrumental":{"type":"boolean"},"lyrics":{"type":"string"},
+	"model":{"type":"string"},"negative_style":{"type":"string"},"style":{"type":"string"},
+	"title":{"type":"string"},"vocal_gender":{"type":"string"},"voice_id":{"type":"string"},
+	"workspace_id":{"type":"string"}}}`
+
 // fakeSuno answers the tools the album run calls, in the shapes Suno's server
-// answers them (docs/suno-mcp.md): account-usage, audio-create, audio-wait
-// pending once and then complete, and audio-download that wants a credit.
+// answers them (docs/suno-mcp.md): account-usage, audio-create making two
+// songs per call and refusing any argument its schema does not declare,
+// audio-wait pending once and then complete, and audio-download that wants a
+// credit.
 type fakeSuno struct {
 	mu        sync.Mutex
 	files     *httptest.Server
@@ -31,15 +45,35 @@ type fakeSuno struct {
 	waits     map[string]int
 	// outOfCredits makes audio-create refuse, as a 402 does.
 	outOfCredits bool
-	// failClip makes this clip end in error.
-	failClip string
+	// failClips end in error.
+	failClips []string
 	// unauthorized makes every call refused as a dead sign-in is.
 	unauthorized bool
 	nextClip     int
+	// schema is what audio-create declares, and what tools/list answers;
+	// listed is what the fake lists instead, when it differs (a stale list).
+	schema string
+	listed string
+	// keys maps each idempotency key to the clips it made, as Suno replays them.
+	keys map[string][]string
+}
+
+// sunoListingFake is fakeSuno with tools/list, as the real client has.
+type sunoListingFake struct{ *fakeSuno }
+
+func (f sunoListingFake) ListTools(context.Context) ([]mcpclient.Tool, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.calls = append(f.calls, "tools/list")
+	listed := f.listed
+	if listed == "" {
+		listed = f.schema
+	}
+	return []mcpclient.Tool{{Name: "audio-create", InputSchema: json.RawMessage(listed)}}, nil
 }
 
 func newFakeSuno(t *testing.T) *fakeSuno {
-	f := &fakeSuno{credits: 100, downloads: 10, waits: map[string]int{}}
+	f := &fakeSuno{credits: 100, downloads: 10, waits: map[string]int{}, schema: sunoCreateSchema, keys: map[string][]string{}}
 	f.files = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "audio/mpeg")
 		fmt.Fprint(w, "ID3-not-really-an-mp3-"+r.URL.Path)
@@ -75,16 +109,32 @@ func (f *fakeSuno) CallTool(_ context.Context, name string, args any) (mcpclient
 			return mcpclient.ToolResult{}, &mcpclient.ToolError{Tool: name,
 				Text: `402 {"error":"insufficient_credits","code":"insufficient_credits"}`}
 		}
-		f.created = append(f.created, in)
-		count, _ := in["clip_count"].(int)
-		ids := []string{}
-		for i := 0; i < count; i++ {
-			f.nextClip++
-			ids = append(ids, fmt.Sprintf("%08d-0000-4000-8000-000000000000", f.nextClip))
+		declared := declaredInputs(json.RawMessage(f.schema))
+		names := []string{}
+		for name := range declared {
+			names = append(names, name)
 		}
-		f.credits -= 10 * count
-		if count == 1 {
-			return result(map[string]any{"id": ids[0], "status": "submitted"}), nil
+		sort.Strings(names)
+		for name := range in {
+			if !declared[name] {
+				// Suno's own words when it refused clip_count.
+				return mcpclient.ToolResult{}, &mcpclient.ToolError{Tool: "audio-create", Text: fmt.Sprintf(
+					"unknown argument %q: audio-create takes only %s. Pass them at the top level of the arguments, not nested.",
+					name, strings.Join(names, ", "))}
+			}
+		}
+		key, _ := in["idempotency_key"].(string)
+		ids, replay := f.keys[key]
+		if !replay {
+			f.created = append(f.created, in)
+			// Two songs a call, as suno.com's Create makes: there is no
+			// count to ask for fewer since 2026-10-30.
+			for i := 0; i < 2; i++ {
+				f.nextClip++
+				ids = append(ids, fmt.Sprintf("%08d-0000-4000-8000-000000000000", f.nextClip))
+			}
+			f.keys[key] = ids
+			f.credits -= 10 * len(ids)
 		}
 		return result(map[string]any{"id": ids[0], "clip_ids": ids, "status": "submitted"}), nil
 	case "audio-wait":
@@ -97,7 +147,7 @@ func (f *fakeSuno) CallTool(_ context.Context, name string, args any) (mcpclient
 				status = "complete"
 			}
 			var clipErr any
-			if id == f.failClip {
+			if slices.Contains(f.failClips, id) {
 				status, clipErr = "error", "content policy"
 			}
 			clips = append(clips, map[string]any{"id": id, "status": status, "error": clipErr,
@@ -136,7 +186,7 @@ func (f *fakeSuno) count(name string) int {
 	return n
 }
 
-func withFakeSuno(t *testing.T, f *fakeSuno) {
+func withFakeSuno(t *testing.T, f toolCaller) {
 	previous := sunoClient
 	sunoClient = func(*App) (toolCaller, error) { return f, nil }
 	t.Cleanup(func() { sunoClient = previous })
@@ -184,7 +234,7 @@ func TestSunoRunFilesTakesLikeTheExtension(t *testing.T) {
 	withFakeSuno(t, suno)
 	album, tracks := sunoAlbum(t, app, "Static", "Dial Tone")
 
-	run, err := app.StartSunoAlbumRun(album.ID, SunoRunOptions{ClipCount: 2, Download: true})
+	run, err := app.StartSunoAlbumRun(album.ID, SunoRunOptions{Download: true})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -207,6 +257,19 @@ func TestSunoRunFilesTakesLikeTheExtension(t *testing.T) {
 	if first["title"] != "Static" || first["style"] != "lo-fi tape hiss, 80 BPM" ||
 		first["lyrics"] != "[Verse]\nstatic on the line" || first["duration"] != 90 {
 		t.Errorf("audio-create got %v", first)
+	}
+	// One call a track, keyed by the run and the track; Suno makes two songs
+	// from it and no count is sent, since audio-create refuses one now.
+	if len(suno.created) != 2 {
+		t.Fatalf("audio-create called %d times, want once per track", len(suno.created))
+	}
+	for i, track := range tracks {
+		if got := suno.created[i]["idempotency_key"]; got != run.ID+":"+track.ID {
+			t.Errorf("call %d key = %v", i+1, got)
+		}
+		if _, ok := suno.created[i]["clip_count"]; ok {
+			t.Errorf("call %d sent clip_count", i+1)
+		}
 	}
 
 	for _, track := range tracks {
@@ -253,7 +316,7 @@ func TestSunoRunWithoutDownloadApprovalSpendsNoDownloadCredits(t *testing.T) {
 	withFakeSuno(t, suno)
 	album, tracks := sunoAlbum(t, app, "Static")
 
-	if _, err := app.StartSunoAlbumRun(album.ID, SunoRunOptions{ClipCount: 1}); err != nil {
+	if _, err := app.StartSunoAlbumRun(album.ID, SunoRunOptions{}); err != nil {
 		t.Fatal(err)
 	}
 	run := waitForRun(t, app, album.ID)
@@ -276,7 +339,7 @@ func TestSunoRunStopsWhenOutOfCredits(t *testing.T) {
 	withFakeSuno(t, suno)
 	album, _ := sunoAlbum(t, app, "Static", "Dial Tone")
 
-	if _, err := app.StartSunoAlbumRun(album.ID, SunoRunOptions{ClipCount: 1, Download: true}); err != nil {
+	if _, err := app.StartSunoAlbumRun(album.ID, SunoRunOptions{Download: true}); err != nil {
 		t.Fatal(err)
 	}
 	run := waitForRun(t, app, album.ID)
@@ -295,11 +358,11 @@ func TestSunoRunStopsWhenOutOfCredits(t *testing.T) {
 func TestSunoRunReportsAFailedGeneration(t *testing.T) {
 	app := newTestApp(t)
 	suno := newFakeSuno(t)
-	suno.failClip = "00000001-0000-4000-8000-000000000000"
+	suno.failClips = []string{"00000001-0000-4000-8000-000000000000", "00000002-0000-4000-8000-000000000000"}
 	withFakeSuno(t, suno)
 	album, _ := sunoAlbum(t, app, "Static", "Dial Tone")
 
-	if _, err := app.StartSunoAlbumRun(album.ID, SunoRunOptions{ClipCount: 1, Download: true}); err != nil {
+	if _, err := app.StartSunoAlbumRun(album.ID, SunoRunOptions{Download: true}); err != nil {
 		t.Fatal(err)
 	}
 	run := waitForRun(t, app, album.ID)
@@ -327,7 +390,7 @@ func TestSunoRunMarksAnExpiredSignIn(t *testing.T) {
 	}
 	suno.unauthorized = true
 
-	if _, err := app.StartSunoAlbumRun(album.ID, SunoRunOptions{ClipCount: 1, Download: true}); err != nil {
+	if _, err := app.StartSunoAlbumRun(album.ID, SunoRunOptions{Download: true}); err != nil {
 		t.Fatal(err)
 	}
 	run := waitForRun(t, app, album.ID)
@@ -340,8 +403,73 @@ func TestSunoRunMarksAnExpiredSignIn(t *testing.T) {
 	}
 }
 
+func TestSunoRunSendsOnlyWhatAudioCreateDeclares(t *testing.T) {
+	app := newTestApp(t)
+	suno := newFakeSuno(t)
+	// Suno has since dropped duration_strict and model, and refuses them.
+	var schema map[string]any
+	_ = json.Unmarshal([]byte(sunoCreateSchema), &schema)
+	delete(schema["properties"].(map[string]any), "duration_strict")
+	delete(schema["properties"].(map[string]any), "model")
+	raw, _ := json.Marshal(schema)
+	suno.schema = string(raw)
+	withFakeSuno(t, sunoListingFake{suno})
+	album, _ := sunoAlbum(t, app, "Static")
+
+	if _, err := app.StartSunoAlbumRun(album.ID, SunoRunOptions{Model: "v6"}); err != nil {
+		t.Fatal(err)
+	}
+	run := waitForRun(t, app, album.ID)
+	if run.State != "done" || run.Tracks[0].State != sunoTrackInLibrary {
+		t.Fatalf("run = %s %q, track %+v; want a dropped field to cost only that field",
+			run.State, run.Error, run.Tracks[0])
+	}
+	if n := suno.count("audio-create"); n != 1 {
+		t.Errorf("audio-create called %d times, want the undeclared fields dropped before the first", n)
+	}
+	sent := suno.created[0]
+	if _, ok := sent["duration_strict"]; ok {
+		t.Errorf("sent %v, want duration_strict left out", sent)
+	}
+	if _, ok := sent["model"]; ok {
+		t.Errorf("sent %v, want model left out", sent)
+	}
+	if sent["duration"] != 90 || sent["idempotency_key"] == nil || sent["lyrics"] == nil {
+		t.Errorf("sent %v, want everything still declared", sent)
+	}
+	// The list read for the run is kept, so Settings shows today's tools.
+	status, _ := app.GetMCPServer(sunoServerID)
+	if len(status.Tools) != 1 || strings.Contains(status.Tools[0].Schema, "duration_strict") {
+		t.Errorf("stored tools = %+v, want the list the run read", status.Tools)
+	}
+}
+
+func TestSunoRunGetsPastAStaleToolList(t *testing.T) {
+	app := newTestApp(t)
+	suno := newFakeSuno(t)
+	// The list still declares a field the tool itself has dropped.
+	suno.listed = sunoCreateSchema
+	suno.schema = strings.Replace(sunoCreateSchema, `"duration_strict":{"type":"boolean"},`, "", 1)
+	withFakeSuno(t, sunoListingFake{suno})
+	album, _ := sunoAlbum(t, app, "Static")
+
+	if _, err := app.StartSunoAlbumRun(album.ID, SunoRunOptions{}); err != nil {
+		t.Fatal(err)
+	}
+	run := waitForRun(t, app, album.ID)
+	if run.State != "done" || run.Tracks[0].State != sunoTrackInLibrary {
+		t.Fatalf("run = %s %q, track %+v", run.State, run.Error, run.Tracks[0])
+	}
+	if n := suno.count("audio-create"); n != 2 {
+		t.Errorf("audio-create called %d times, want once refused and once without the field", n)
+	}
+	if _, ok := suno.created[0]["duration_strict"]; ok {
+		t.Errorf("sent %v", suno.created[0])
+	}
+}
+
 func TestSunoCreateArgs(t *testing.T) {
-	args := sunoCreateArgs(Track{Name: "Hum", Prompt: "drone", TargetSeconds: 600}, SunoRunOptions{ClipCount: 1, Model: "v6"}, "k")
+	args := sunoCreateArgs(Track{Name: "Hum", Prompt: "drone", TargetSeconds: 600}, SunoRunOptions{Model: "v6"}, "k")
 	if args["instrumental"] != true {
 		t.Error("a track with no lyrics was not sent as an instrumental")
 	}
@@ -351,7 +479,17 @@ func TestSunoCreateArgs(t *testing.T) {
 	if args["model"] != "v6" || args["idempotency_key"] != "k" {
 		t.Errorf("args = %v", args)
 	}
-	long := sunoCreateArgs(Track{Name: "x", Lyrics: strings.Repeat("ä", 6000)}, SunoRunOptions{ClipCount: 1}, "k")
+	// Suno refuses clip_count since 2026-10-30.
+	if _, ok := args["clip_count"]; ok {
+		t.Error("clip_count was sent")
+	}
+	declared := declaredInputs(json.RawMessage(sunoCreateSchema))
+	for name := range args {
+		if !declared[name] {
+			t.Errorf("%s is not in audio-create's schema", name)
+		}
+	}
+	long := sunoCreateArgs(Track{Name: "x", Lyrics: strings.Repeat("ä", 6000)}, SunoRunOptions{}, "k")
 	if n := len([]rune(long["lyrics"].(string))); n != sunoLyricsLimit {
 		t.Errorf("lyrics cut to %d runes, want %d", n, sunoLyricsLimit)
 	}
@@ -365,16 +503,13 @@ func TestSunoRunRefusals(t *testing.T) {
 	album, tracks := sunoAlbum(t, app, "Static")
 
 	// Not connected: the button is hidden, and the binding says why anyway.
-	if _, err := app.StartSunoAlbumRun(album.ID, SunoRunOptions{ClipCount: 1}); !errors.Is(err, errSunoNotConnected) {
+	if _, err := app.StartSunoAlbumRun(album.ID, SunoRunOptions{}); !errors.Is(err, errSunoNotConnected) {
 		t.Errorf("err = %v, want not connected", err)
 	}
 	suno := newFakeSuno(t)
 	withFakeSuno(t, suno)
-	if _, err := app.StartSunoAlbumRun(album.ID, SunoRunOptions{ClipCount: 3}); err == nil {
-		t.Error("three songs per track was accepted")
-	}
 	empty, _ := app.SaveTrack(Track{AlbumID: album.ID, Name: "Blank"})
-	if _, err := app.StartSunoAlbumRun(album.ID, SunoRunOptions{ClipCount: 1, TrackIDs: []string{empty.ID}}); err == nil ||
+	if _, err := app.StartSunoAlbumRun(album.ID, SunoRunOptions{TrackIDs: []string{empty.ID}}); err == nil ||
 		!strings.Contains(err.Error(), "neither") {
 		t.Errorf("err = %v, want the empty track named", err)
 	}

@@ -6,9 +6,11 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"sync"
 	"time"
@@ -38,9 +40,12 @@ import (
 //     when starting it. Without approval the songs stay in their Suno library,
 //     titled as the tracks, where the extension's recording can still file
 //     them for nothing.
-//   - audio-create makes two songs from one call unless told otherwise
-//     (clip_count defaults to 2 through MCP), as suno.com's Create does. The
-//     run asks for what the producer chose, and says what it costs.
+//   - audio-create makes two songs from one call, as suno.com's Create does.
+//     It once took a clip_count to ask for one; Suno dropped that on
+//     2026-10-30 and now refuses arguments it does not declare, so every
+//     track is two songs and the dialog says so. Each call sends only what the
+//     live schema lists, so the next field Suno drops costs that field, not
+//     the album.
 //
 // The run lives in this process, not the database: it is minutes of polling,
 // and a run the window was closed on cannot be resumed from a row — its songs
@@ -72,6 +77,12 @@ const sunoParallel = 3
 // toolCaller is what the run needs of a server.
 type toolCaller interface {
 	CallTool(ctx context.Context, name string, args any) (mcpclient.ToolResult, error)
+}
+
+// toolLister is a server that can say what its tools take. The real client
+// can; a stand-in need not.
+type toolLister interface {
+	ListTools(ctx context.Context) ([]mcpclient.Tool, error)
 }
 
 var errSunoNotConnected = errors.New("Suno is not connected — authorize it in Settings → MCP servers")
@@ -163,8 +174,6 @@ func (a *App) sunoAccount(ctx context.Context, client toolCaller) (SunoAccount, 
 type SunoRunOptions struct {
 	// TrackIDs is which tracks to make; empty is every track with no take yet.
 	TrackIDs []string `json:"trackIds"`
-	// ClipCount is songs per track, 1 or 2.
-	ClipCount int `json:"clipCount"`
 	// Model is a label from allowed_models, "" for the plan's default.
 	Model string `json:"model"`
 	// Download is the producer's approval to spend a download credit per take.
@@ -291,9 +300,6 @@ func (a *App) StartSunoAlbumRun(albumID string, opts SunoRunOptions) (SunoAlbumR
 	if err != nil {
 		return SunoAlbumRun{}, err
 	}
-	if opts.ClipCount != 1 && opts.ClipCount != 2 {
-		return SunoAlbumRun{}, errors.New("choose one or two songs per track")
-	}
 	tracks, err := a.ListTracks(albumID)
 	if err != nil {
 		return SunoAlbumRun{}, err
@@ -358,6 +364,8 @@ func (a *App) StartSunoAlbumRun(albumID string, opts SunoRunOptions) (SunoAlbumR
 func (a *App) runSunoAlbum(ctx context.Context, run *sunoRun, client toolCaller, tracks []Track) {
 	defer run.cancel()
 	opts := run.snapshot().Options
+	// What audio-create takes today, read once per run (it costs nothing).
+	inputs := a.sunoToolInputs(ctx, client, "audio-create")
 
 	// Submitted one at a time, so the producer sees them go in order and an
 	// empty balance stops the run at the track it ran out on.
@@ -369,7 +377,7 @@ func (a *App) runSunoAlbum(ctx context.Context, run *sunoRun, client toolCaller,
 			break
 		}
 		a.updateSunoTrack(run, i, func(tr *SunoTrackRun) { tr.State = sunoTrackSubmitting })
-		ids, err := a.submitSunoTrack(ctx, client, run.snapshot().ID, t, opts)
+		ids, err := a.submitSunoTrack(ctx, client, run.snapshot().ID, t, opts, inputs)
 		if err != nil {
 			a.updateSunoTrack(run, i, func(tr *SunoTrackRun) { tr.State, tr.Error = sunoTrackFailed, err.Error() })
 			if errors.Is(err, errSunoOutOfCredits) || errors.Is(err, errSunoSignIn) {
@@ -484,7 +492,6 @@ func sunoRateLimited(err error) bool {
 func sunoCreateArgs(t Track, opts SunoRunOptions, key string) map[string]any {
 	args := map[string]any{
 		"title":           clip(strings.TrimSpace(t.Name), sunoTitleLimit),
-		"clip_count":      opts.ClipCount,
 		"idempotency_key": key,
 	}
 	if style := strings.TrimSpace(t.Prompt); style != "" {
@@ -519,12 +526,79 @@ func clip(s string, n int) string {
 	return string(r[:n])
 }
 
-// submitSunoTrack sends one track and answers the clip ids Suno made.
+// sunoToolInputs is the set of arguments a tool's listed inputSchema
+// declares. It is read from the server when the client can list its tools —
+// and the fresh list is kept, so Settings shows it too — or else from the list
+// stored at the last sign-in. nil means neither said, and nothing is dropped.
+func (a *App) sunoToolInputs(ctx context.Context, client toolCaller, name string) map[string]bool {
+	var tools []mcpclient.Tool
+	if lister, ok := client.(toolLister); ok {
+		listCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
+		live, err := lister.ListTools(listCtx)
+		cancel()
+		if err == nil {
+			tools = live
+			_, _ = a.updateMCPServer(sunoServerID, func(r *mcpServerRecord) { r.Tools, r.ToolsAt = live, nowStamp() })
+		} else {
+			log.Printf("aimusicmaker: could not read Suno's tools, using the stored list: %v", err)
+		}
+	}
+	if tools == nil {
+		if record, err := a.mcpServerRecord(sunoServerID); err == nil {
+			tools = record.Tools
+		}
+	}
+	for _, tool := range tools {
+		if tool.Name == name {
+			return declaredInputs(tool.InputSchema)
+		}
+	}
+	return nil
+}
+
+// declaredInputs is the property names of a JSON schema, nil when it lists
+// none — a schema that says nothing is no reason to send nothing.
+func declaredInputs(schema json.RawMessage) map[string]bool {
+	var s struct {
+		Properties map[string]json.RawMessage `json:"properties"`
+	}
+	if json.Unmarshal(schema, &s) != nil || len(s.Properties) == 0 {
+		return nil
+	}
+	out := map[string]bool{}
+	for name := range s.Properties {
+		out[name] = true
+	}
+	return out
+}
+
+// keepDeclared drops (and logs) every argument the tool does not declare, so
+// a field Suno has since removed costs that field rather than the whole call.
+func keepDeclared(tool string, args map[string]any, declared map[string]bool) {
+	if declared == nil {
+		return
+	}
+	for name := range args {
+		if !declared[name] {
+			delete(args, name)
+			log.Printf("aimusicmaker: %s no longer takes %q — sent without it", tool, name)
+		}
+	}
+}
+
+// unknownArgument is the argument Suno named when it refused one.
+var unknownArgument = regexp.MustCompile(`unknown argument "([^"]+)"`)
+
+// submitSunoTrack sends one track and answers the clip ids Suno made — two,
+// as suno.com's Create makes, since audio-create no longer takes a count. It
+// is retried through rate limits and dropped connections, and once per
+// argument Suno says it does not know (a tool list gone stale mid-run).
 //
 // The idempotency key is the run and the track, so a retry after a dropped
 // connection gets the songs the first call made rather than paying again.
-func (a *App) submitSunoTrack(ctx context.Context, client toolCaller, runID string, t Track, opts SunoRunOptions) ([]string, error) {
+func (a *App) submitSunoTrack(ctx context.Context, client toolCaller, runID string, t Track, opts SunoRunOptions, inputs map[string]bool) ([]string, error) {
 	args := sunoCreateArgs(t, opts, runID+":"+t.ID)
+	keepDeclared("audio-create", args, inputs)
 	var res mcpclient.ToolResult
 	var err error
 	for attempt := 0; attempt < 4; attempt++ {
@@ -533,6 +607,16 @@ func (a *App) submitSunoTrack(ctx context.Context, client toolCaller, runID stri
 			break
 		}
 		var toolErr *mcpclient.ToolError
+		if errors.As(err, &toolErr) {
+			// The tool list was stale: drop what was named and go again now.
+			if m := unknownArgument.FindStringSubmatch(toolErr.Text); m != nil {
+				if _, sent := args[m[1]]; sent && m[1] != "idempotency_key" {
+					delete(args, m[1])
+					log.Printf("aimusicmaker: audio-create refused %q — sent again without it", m[1])
+					continue
+				}
+			}
+		}
 		retry := sunoRateLimited(err) || (!errors.As(err, &toolErr) && !needsSignIn(err))
 		if !retry {
 			break

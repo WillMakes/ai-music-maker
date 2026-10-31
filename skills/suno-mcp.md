@@ -22,8 +22,12 @@ no take yet):
 1. **account-usage** — reads the plan, the credits and the download credits,
    for the dialog to show before anything is spent. Read again at the end, so
    the run says what it spent.
-2. **audio-create** — once per track, one track at a time in album order, so an
-   empty balance stops at the track it ran out on.
+2. **audio-create** — once per track, one track at a time in album order, so
+   an empty balance stops at the track it ran out on. Each call makes **two
+   songs**, as suno.com's Create does; Suno no longer takes a count, so there is
+   no asking for one. Before the first call the run reads Suno's tool list and
+   sends only the fields audio-create still declares, so a field Suno drops is
+   left out rather than failing the album.
 3. **audio-wait** — all of a track's songs together, until each is complete or
    failed; up to three tracks at once, twenty minutes each.
 4. **audio-download** — only if the producer ticked *File the takes into this
@@ -40,7 +44,6 @@ No other Suno tool is used.
 | Lyrics | `lyrics` | Cut at **5,000** characters. |
 | Lyrics left empty | `instrumental: true` | No lyrics are sent. |
 | Target length | `duration` | Held to **15–360** seconds, as a soft target the song may overrun rather than one that cuts it off mid-phrase. |
-| Songs per track (dialog) | `clip_count` | One or two; each song is a generation. |
 | Model (dialog) | `model` | The plan's default unless one is chosen. |
 
 Nothing else goes. Not the artist's base style, not the album's style, not the
@@ -53,8 +56,8 @@ the end is where "avoid" usually sits.
 
 ## What it costs
 
-- **Generation credits** for every song. Two songs per track is two
-  generations. The dialog shows the balance first.
+- **Generation credits** for every song, and every track is two songs, so
+  two generations a track. The dialog shows the balance first.
 - **Download credits**, a separate allowance: one per file Suno hands over.
   Downloading is opt-in, off unless ticked. Left off, the songs stay in the
   producer's Suno library under the track's title, and playing them through

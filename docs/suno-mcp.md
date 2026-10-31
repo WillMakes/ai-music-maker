@@ -1,10 +1,13 @@
 # Suno's MCP server
 
-What `https://api.suno.com/mcp` really exposes, read on 2026-10-30 through
-Claude Code's own connection (`claude -p … --allowedTools "mcp__suno__*"`). The
-app's MCP client (`internal/mcpclient`) and the album flow
-(`internal/app/sunomcp.go`) are built against this, not against guesses. Re-read
-it when Suno changes the server: Settings → MCP servers lists the live tools.
+What `https://api.suno.com/mcp` really exposes. First read on 2026-10-30
+through Claude Code's own connection; the tools below were re-read on
+2026-10-31 from the server's raw `tools/list` (server `Suno 0e72ffb`), through
+the app's own sign-in, after Suno changed audio-create. The app's MCP client
+(`internal/mcpclient`) and the album flow (`internal/app/sunomcp.go`) are built
+against this, not against guesses. Re-read it when Suno changes the server:
+Settings → MCP servers lists the live tools, and every album run reads them
+again before it sends anything.
 
 ## Authorization, as discovered
 
@@ -18,6 +21,35 @@ it when Suno changes the server: Settings → MCP servers lists the live tools.
   token, revoke and **registration** endpoints, `code` only, PKCE `S256` only,
   `authorization_code` + `refresh_token`, public clients (`none`) accepted, and
   `client_id_metadata_document_supported`.
+
+## What changed on 2026-10-30/31
+
+Suno changed the server between the first read and the second, and audio-create
+now refuses any argument its schema does not declare (`unknown argument
+"clip_count": audio-create takes only …`). Every album run failed on it.
+
+- **`clip_count` is gone** from audio-create, audio-covers-create,
+  audio-extensions-create, audio-mashups-create and speech-create. It used to
+  default to 2 through MCP and could ask for 1.
+- **One audio-create call still makes two songs.** The description now says
+  "a new audio clip", but a live call on 2026-10-31 (30 s custom-mode track, no
+  `clip_count`) answered `{"id": …, "clip_ids": [two ids], "status":
+  "submitted"}` with the text "This made 2 songs, one per id", and spent 10
+  credits on a Pro plan (5 a song). There is no longer any way to ask for one
+  song, so the app makes two per track and its dialog no longer offers a
+  choice.
+- **audio-wait**: `ids` now says "At most 4 per call". The arguments the app
+  sends (`ids`, `until: "complete"`) are unchanged.
+- **audio-retrieve**: the description adds that it reads one clip per call and
+  points at audio-wait for several. Schema unchanged.
+- **audio-covers-create**: description rewritten (a cover always takes its
+  source's title). Not used by the app.
+- **audio-download**, **account-usage**: unchanged.
+
+How the app copes with the next one: before each run it reads `tools/list` and
+sends audio-create only the arguments the listed `inputSchema` declares,
+logging any it drops; a refusal naming an unknown argument is retried once
+without it.
 
 ## Tools (32)
 
@@ -137,7 +169,7 @@ could not be determined.
 ```text
 Create a cover
 
-Creates a new audio clip by covering an existing one with a new style or voice. The source must be `complete` (`400` otherwise). A voice always sings, so supplying voice_id keeps the vocals even with no lyrics. Signed in with Suno, the source may also be any suno.com song you may remix there: `404` if you can't see it, `403` if you can't remix it, `503` while it is still finishing. The cover then takes that song's title.
+Creates a new audio clip by covering an existing one with a new style or voice. The source must be `complete` (`400` otherwise). A voice always sings, so supplying voice_id keeps the vocals even with no lyrics. Signed in with Suno, the source may also be any suno.com song you may remix there: `404` if you can't see it, `403` if you can't remix it, `503` while it is still finishing. A cover always takes its source's title: there is no `title` field.
 ```
 
 **Input schema:**
@@ -145,11 +177,6 @@ Creates a new audio clip by covering an existing one with a new style or voice. 
 {
   "additionalProperties": false,
   "properties": {
-    "clip_count": {
-      "description": "How many songs to generate, as suno.com does. 2 returns both in `clip_ids`, each a song to wait on, and counts as two generations. Only a suno.com sign-in may ask for 2, outside `test_mode`; an API key gets 400. Defaults to 1, or to 2 for a suno.com sign-in calling through MCP.",
-      "enum": [1, 2],
-      "type": "integer"
-    },
     "controls": {
       "description": "Optional generation-control sliders, each a 0–1 fraction (suno.com shows the same values as 0–100%). Omit a slider to leave the model's own default alone — there is no value that means \"no change\", so `0` is a real setting, not an unset one. Requires the advanced-controls grant on your plan; sending one without it returns 403, and a value outside 0–1 returns 400.",
       "properties": {
@@ -244,11 +271,6 @@ no `style`, and no `lyrics` unless `instrumental` is `true`. With
 {
   "additionalProperties": false,
   "properties": {
-    "clip_count": {
-      "description": "How many songs to generate from one set of lyrics, as suno.com's Create does. 2 returns both in `clip_ids`, each a song to wait on, and counts as two generations. Only a suno.com sign-in may ask for 2, outside `test_mode`; an API key gets 400. Defaults to 1, or to 2 for a suno.com sign-in calling through MCP.",
-      "enum": [1, 2],
-      "type": "integer"
-    },
     "controls": {
       "description": "Optional generation-control sliders, each a 0–1 fraction (suno.com shows the same values as 0–100%). Omit a slider to leave the model's own default alone — there is no value that means \"no change\", so `0` is a real setting, not an unset one. Requires the advanced-controls grant on your plan; sending one without it returns 403, and a value outside 0–1 returns 400.",
       "properties": {
@@ -460,11 +482,6 @@ like any other.
 {
   "additionalProperties": false,
   "properties": {
-    "clip_count": {
-      "description": "How many songs to generate, as suno.com does. 2 returns both in `clip_ids`, each a song to wait on, and counts as two generations. Only a suno.com sign-in may ask for 2, outside `test_mode`; an API key gets 400. Defaults to 1, or to 2 for a suno.com sign-in calling through MCP.",
-      "enum": [1, 2],
-      "type": "integer"
-    },
     "continue_at": {
       "description": "Seconds into the source clip to continue from.",
       "minimum": 0.4,
@@ -695,11 +712,6 @@ finishing.
       "description": "Audio clip ID to blend with the source clip.",
       "type": "string"
     },
-    "clip_count": {
-      "description": "How many songs to generate, as suno.com does. 2 returns both in `clip_ids`, each a song to wait on, and counts as two generations. Only a suno.com sign-in may ask for 2, outside `test_mode`; an API key gets 400. Defaults to 1, or to 2 for a suno.com sign-in calling through MCP.",
-      "enum": [1, 2],
-      "type": "integer"
-    },
     "controls": {
       "description": "Optional generation-control sliders, each a 0–1 fraction (suno.com shows the same values as 0–100%). Omit a slider to leave the model's own default alone — there is no value that means \"no change\", so `0` is a real setting, not an unset one. Requires the advanced-controls grant on your plan; sending one without it returns 403, and a value outside 0–1 returns 400.",
       "properties": {
@@ -783,7 +795,8 @@ Retrieves the current state of an audio clip. Poll after any creation call.
 A generated clip is playable once `status` reaches `streaming`: play it
 through `GET /v0/audio/{id}/stream`, or share `song_url` when it is present.
 Keep polling until `complete` or `error` only when you need the finished
-file or its duration.
+file or its duration. It reads one clip per call, by `id`; through MCP,
+audio-wait takes several clips' `ids` at once.
 ```
 
 **Input schema:**
@@ -950,7 +963,7 @@ every one is settled it returns the first song's fields with every song, in orde
 `clips`, a clip it couldn't read as its `id` and `error`.
 ```
 
-**Input schema:** (this is the only schema without `"additionalProperties": false`)
+**Input schema:** (the only schema without `"additionalProperties": false`)
 ```json
 {
   "properties": {
@@ -959,7 +972,7 @@ every one is settled it returns the first song's fields with every song, in orde
       "type": "string"
     },
     "ids": {
-      "description": "Every clip ID a creation returned in `clip_ids`, instead of `id`.",
+      "description": "Every clip ID a creation returned in `clip_ids`, instead of `id`. At most 4 per call: for more, call audio-wait again with the rest.",
       "items": {
         "type": "string"
       },
@@ -1337,11 +1350,6 @@ on your plan.
       "default": false,
       "description": "Keep a music bed under the speech. Default is no music at all.",
       "type": "boolean"
-    },
-    "clip_count": {
-      "description": "How many clips to generate, as suno.com does. 2 returns both in `clip_ids`, each a clip to wait on, and counts as two generations. Only a suno.com sign-in may ask for 2, outside `test_mode`; an API key gets 400. Defaults to 1, or to 2 for a suno.com sign-in calling through MCP.",
-      "enum": [1, 2],
-      "type": "integer"
     },
     "duration": {
       "description": "Target length of the generated audio in seconds, 15–360. Omit to let the model choose. A value outside the range returns 400; the result is a target, not a guarantee.",
