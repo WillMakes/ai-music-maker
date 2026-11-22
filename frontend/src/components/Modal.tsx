@@ -1,4 +1,5 @@
 import {useEffect, type ReactNode} from 'react'
+import {createPortal} from 'react-dom'
 import {X} from 'lucide-react'
 
 /**
@@ -13,6 +14,13 @@ import {X} from 'lucide-react'
  * from the token set (::backdrop does not inherit custom properties in every
  * engine this ships to), and the whole point of the palette is that nothing
  * paints itself.
+ *
+ * Rendered into <body> through a portal. The page content fades in with an
+ * animation that leaves a transform on its wrapper, and a transformed
+ * ancestor is what a `position: fixed` element is positioned against — so a
+ * modal opened on a short page was clipped to the page's height (an artist
+ * with no albums showed a reference's modal 250 px tall). The theme class is
+ * on <html>, so the tokens reach the portal unchanged.
  */
 export function Modal({
   title,
@@ -39,7 +47,7 @@ export function Modal({
     return () => document.removeEventListener('keydown', onKey, true)
   }, [onClose])
 
-  return (
+  return createPortal(
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-scrim p-6"
       onClick={onClose}
@@ -75,6 +83,7 @@ export function Modal({
           </footer>
         )}
       </div>
-    </div>
+    </div>,
+    document.body,
   )
 }
