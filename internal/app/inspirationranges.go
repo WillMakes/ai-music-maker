@@ -411,6 +411,9 @@ func measurementLine(m *audioanalysis.Measurements) string {
 	parts := []string{}
 	if m.TempoBPM > 0 {
 		p := fmt.Sprintf("%.1f BPM", m.TempoBPM)
+		if m.TempoAlternate > 0 {
+			p += fmt.Sprintf(" (or %.1f, the other octave)", m.TempoAlternate)
+		}
 		if m.TempoConfidence < 0.3 {
 			p += " (weak pulse)"
 		}
@@ -418,8 +421,8 @@ func measurementLine(m *audioanalysis.Measurements) string {
 	}
 	if m.Key != "" {
 		p := m.Key
-		if m.KeyConfidence < 0.05 {
-			p += " (ambiguous)"
+		if m.KeyConfidence < 0.1 && m.KeyRunnerUp != "" {
+			p += " (ambiguous with " + m.KeyRunnerUp + ")"
 		}
 		parts = append(parts, p)
 	}

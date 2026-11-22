@@ -30,11 +30,20 @@ type Measurements struct {
 	// ~0.3 the section has no steady pulse (a rubato intro, a breakdown).
 	TempoBPM        float64 `json:"tempoBpm"`
 	TempoConfidence float64 `json:"tempoConfidence"`
+	// TempoAlternate is the double- or half-time reading when the audio
+	// supports it as well, 0 otherwise. Beat trackers and people disagree by
+	// exactly an octave all the time — a 171 BPM synth-pop chorus pulses at
+	// 85.5 — and stating one of the two as certain is how a brief gets the
+	// feel wrong.
+	TempoAlternate float64 `json:"tempoAlternate"`
 	// Key is "F# minor" and the like, from a chromagram correlated with the
 	// Krumhansl–Kessler profiles. KeyConfidence is the margin over the best
 	// different key, 0–1; small margins are usually the relative major/minor.
 	Key           string  `json:"key"`
 	KeyConfidence float64 `json:"keyConfidence"`
+	// KeyRunnerUp is the next-best key, so an ambiguous reading shows what
+	// it was torn between (usually the parallel or relative key).
+	KeyRunnerUp string `json:"keyRunnerUp"`
 	// The EBU R128 figures, from ffmpeg. Zero with LoudnessMeasured false
 	// when ffmpeg's meter could not be read.
 	LoudnessMeasured bool    `json:"loudnessMeasured"`
@@ -128,15 +137,15 @@ func AnalyzePCM(left, right []float64, rate int) Measurements {
 		return m
 	}
 	spectral(&m, frames, rate, 2048)
-	m.TempoBPM, m.TempoConfidence = tempo(frames, float64(rate)/512)
+	m.TempoBPM, m.TempoConfidence, m.TempoAlternate = tempo(frames, float64(rate)/512)
 	if m.TempoConfidence < 0.3 {
 		m.Caveats = append(m.Caveats, "no steady pulse — the tempo is a weak estimate")
 	}
 
 	// Key wants frequency resolution instead: 16384 points is ~2.7 Hz per bin,
 	// enough to tell a low E from an F.
-	m.Key, m.KeyConfidence = key(magnitudes(mono, 16384, 8192), rate, 16384)
-	if m.Key != "" && m.KeyConfidence < 0.05 {
+	m.Key, m.KeyConfidence, m.KeyRunnerUp = key(magnitudes(mono, 16384, 8192), rate, 16384)
+	if m.Key != "" && m.KeyConfidence < 0.1 {
 		m.Caveats = append(m.Caveats, "the key is ambiguous — likely its relative major/minor or a modal centre")
 	}
 	return m
@@ -194,7 +203,7 @@ func spectral(m *Measurements, frames [][]float64, rate, size int) {
 // alone is quantised to whole frames — 117 and 120 BPM are a frame apart at
 // this hop — and the refinement is what makes the answer usable as a number
 // rather than a neighbourhood.
-func tempo(frames [][]float64, frameRate float64) (float64, float64) {
+func tempo(frames [][]float64, frameRate float64) (float64, float64, float64) {
 	onset := make([]float64, len(frames))
 	prev := make([]float64, len(frames[0]))
 	for t, f := range frames {
@@ -221,7 +230,7 @@ func tempo(frames [][]float64, frameRate float64) (float64, float64) {
 		maxLag = len(onset)/2 - 1
 	}
 	if minLag < 1 || maxLag <= minLag {
-		return 0, 0
+		return 0, 0, 0
 	}
 	ac := make([]float64, maxLag+2)
 	for lag := 0; lag <= maxLag+1; lag++ {
@@ -232,7 +241,7 @@ func tempo(frames [][]float64, frameRate float64) (float64, float64) {
 		ac[lag] = s / float64(len(onset)-lag)
 	}
 	if ac[0] == 0 {
-		return 0, 0
+		return 0, 0, 0
 	}
 	best, bestScore := 0, -1.0
 	for lag := minLag; lag <= maxLag; lag++ {
@@ -270,7 +279,18 @@ func tempo(frames [][]float64, frameRate float64) (float64, float64) {
 	if ac[best] > 0 {
 		conf = (ac[best] - median) / ac[best]
 	}
-	return round(refined, 1), round(clamp(conf, 0, 1), 2)
+	// The other octave. Half-time is always as periodic as the beat (every
+	// second beat lines up too), so it is offered only for a fast reading;
+	// double-time only when there are onsets between the beats strong enough
+	// to carry a pulse of their own.
+	alternate := 0.0
+	if half := int(math.Round(lag / 2)); refined < 100 && half >= 1 && ac[best] > 0 &&
+		ac[half]/ac[best] >= 0.5 {
+		alternate = refined * 2
+	} else if refined > 140 {
+		alternate = refined / 2
+	}
+	return round(refined, 1), round(clamp(conf, 0, 1), 2), round(alternate, 1)
 }
 
 // pulseFit is the onset strength a pulse train of this period collects at
@@ -300,9 +320,9 @@ var (
 	pitchNames   = []string{"C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"}
 )
 
-func key(frames [][]float64, rate, size int) (string, float64) {
+func key(frames [][]float64, rate, size int) (string, float64, string) {
 	if len(frames) == 0 {
-		return "", 0
+		return "", 0, ""
 	}
 	binHz := float64(rate) / float64(size)
 	chroma := make([]float64, 12)
@@ -340,9 +360,9 @@ func key(frames [][]float64, rate, size int) (string, float64) {
 	}
 	sort.Slice(scores, func(i, j int) bool { return scores[i].r > scores[j].r })
 	if math.IsNaN(scores[0].r) {
-		return "", 0
+		return "", 0, ""
 	}
-	return scores[0].name, round(clamp(scores[0].r-scores[1].r, 0, 1), 3)
+	return scores[0].name, round(clamp(scores[0].r-scores[1].r, 0, 1), 3), scores[1].name
 }
 
 // correlate is Pearson's r between the chroma and the profile rotated to tonic.

@@ -122,3 +122,18 @@ func TestParseEBUR128ReadsOnlyTheSummary(t *testing.T) {
 		t.Error("parsed a meter with no summary")
 	}
 }
+
+func TestTempoOffersTheOtherOctaveOnlyWhenHeard(t *testing.T) {
+	// A kick alone at 96: nothing between the beats, so no double-time.
+	left, right := synth(30, 96, aMinor, 0)
+	if m := AnalyzePCM(left, right, 44100); m.TempoAlternate != 0 {
+		t.Errorf("a bare 96 BPM kick offered %v as the other octave", m.TempoAlternate)
+	}
+	// The same kick with a hat on every off-beat: 192 is as audible as 96.
+	left, right = synth(30, 192, aMinor, 0)
+	m := AnalyzePCM(left, right, 44100)
+	if !((math.Abs(m.TempoBPM-96) < 1 && math.Abs(m.TempoAlternate-192) < 2) ||
+		(math.Abs(m.TempoBPM-192) < 1 && math.Abs(m.TempoAlternate-96) < 1)) {
+		t.Errorf("a 192 BPM pulse: %v BPM, alternate %v", m.TempoBPM, m.TempoAlternate)
+	}
+}

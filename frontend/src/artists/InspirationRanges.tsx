@@ -432,10 +432,18 @@ function Measured({m}: {m: audioanalysis.Measurements}) {
     [
       'Tempo',
       m.tempoBpm
-        ? m.tempoBpm.toFixed(1) + ' BPM' + (m.tempoConfidence < 0.3 ? ' (weak pulse)' : '')
+        ? m.tempoBpm.toFixed(1) +
+          ' BPM' +
+          (m.tempoAlternate ? ` (or ${m.tempoAlternate.toFixed(1)}, the other octave)` : '') +
+          (m.tempoConfidence < 0.3 ? ' (weak pulse)' : '')
         : '—',
     ],
-    ['Key', m.key ? m.key + (m.keyConfidence < 0.05 ? ' (ambiguous)' : '') : '—'],
+    [
+      'Key',
+      m.key
+        ? m.key + (m.keyConfidence < 0.1 && m.keyRunnerUp ? ` (ambiguous with ${m.keyRunnerUp})` : '')
+        : '—',
+    ],
     [
       'Loudness',
       m.loudnessMeasured
