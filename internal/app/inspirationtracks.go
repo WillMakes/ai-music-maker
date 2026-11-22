@@ -93,7 +93,7 @@ func (a *App) FindInspirationTracks(url string) (TrackSplit, error) {
 		for _, c := range info.Chapters {
 			split.Tracks = append(split.Tracks, DetectedTrack{
 				StartSeconds: roundMillis(c.Start), EndSeconds: roundMillis(c.End),
-				Title: strings.TrimSpace(c.Title)})
+				Title: strings.TrimSpace(leadingNumber.ReplaceAllString(strings.TrimSpace(c.Title), ""))})
 		}
 		split.Source = "chapters"
 		split.Note = "From the video's chapters."

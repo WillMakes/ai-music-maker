@@ -71,14 +71,14 @@ func TestFindTracksPrefersChaptersThenDescriptionThenAudio(t *testing.T) {
 		Start float64 `json:"start_time"`
 		End   float64 `json:"end_time"`
 		Title string  `json:"title"`
-	}{0, 300, "Chapter One"}, struct {
+	}{0, 300, "1. Chapter One"}, struct {
 		Start float64 `json:"start_time"`
 		End   float64 `json:"end_time"`
 		Title string  `json:"title"`
 	}{300, 600, "Chapter Two"})
 	fakeVideo(t, info, nil)
 	split, err := app.FindInspirationTracks(link)
-	if err != nil || split.Source != "chapters" || split.Tracks[1].Title != "Chapter Two" {
+	if err != nil || split.Source != "chapters" || split.Tracks[0].Title != "Chapter One" || split.Tracks[1].Title != "Chapter Two" {
 		t.Errorf("chapters: %+v, %v", split, err)
 	}
 

@@ -1,5 +1,5 @@
 import {useState} from 'react'
-import {AudioLines, ListMusic, Loader2, Plus, Trash2} from 'lucide-react'
+import {AudioLines, ArrowUpToLine, ListMusic, Loader2, Plus, Trash2} from 'lucide-react'
 import {FindInspirationTracks, ParseRangeTimes} from '../../wailsjs/go/app/App'
 import {app, audioanalysis} from '../../wailsjs/go/models'
 import {CopyButton} from '../components/CopyButton'
@@ -99,6 +99,19 @@ export function InspirationRanges({
       ),
     ])
     setFound(null)
+  }
+  // A boundary heard in the audio can fall inside a song (a breakdown, a
+  // drop); joining a track to the one before it takes the boundary away.
+  const joinWithPrevious = (index: number) => {
+    if (!found || index === 0) return
+    const tracks = [...(found.tracks ?? [])]
+    tracks[index - 1] = app.DetectedTrack.createFrom({
+      ...tracks[index - 1],
+      endSeconds: tracks[index].endSeconds,
+    })
+    tracks.splice(index, 1)
+    setFound(app.TrackSplit.createFrom({...found, tracks}))
+    setPicked((current) => current.filter((_, i) => i !== index))
   }
   const pendingBreakdowns = ranges.filter((r) => r.id && !r.breakdown?.source).length
   const [start, setStart] = useState('')
@@ -203,7 +216,20 @@ export function InspirationRanges({
                   <span className="w-28 shrink-0 font-mono">
                     {formatTime(track.startSeconds)}–{formatTime(track.endSeconds)}
                   </span>
-                  <span className="truncate">{track.title}</span>
+                  <span className="flex-1 truncate">{track.title}</span>
+                  {i > 0 && (
+                    <button
+                      className="sm-button sm-button-quiet border-0 px-1.5 py-0.5"
+                      type="button"
+                      title="Join with the track before — the boundary is inside a song"
+                      onClick={(event) => {
+                        event.preventDefault()
+                        joinWithPrevious(i)
+                      }}
+                    >
+                      <ArrowUpToLine size={13} />
+                    </button>
+                  )}
                 </label>
               </li>
             ))}
