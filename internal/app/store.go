@@ -215,6 +215,17 @@ CREATE TABLE IF NOT EXISTS inspiration_ranges (
 );
 CREATE INDEX IF NOT EXISTS idx_inspiration_ranges_artist
 	ON inspiration_ranges(artist_id, inspiration_id, position);
+-- Each inspiration's citation number again, in a table only builds with
+-- citation keys know about. A build from before them rewrites
+-- artist_inspirations whole on every save and drops the number; this is what
+-- gives the reference its own number back rather than the next free one, so
+-- running an older build beside this one cannot renumber what albums cite.
+CREATE TABLE IF NOT EXISTS inspiration_keys (
+	inspiration_id TEXT PRIMARY KEY,
+	artist_id      TEXT NOT NULL,
+	cite_no        INTEGER NOT NULL DEFAULT 0,
+	range_seq      INTEGER NOT NULL DEFAULT 0
+);
 -- One row per album. artwork_file is a name under the app's artwork folder, not
 -- the bytes: the album list draws every cover at once, and a base64 image in a
 -- column is a payload every listing carries around to draw a thumbnail.

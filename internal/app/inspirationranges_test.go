@@ -502,3 +502,57 @@ func TestGetInspirationCitation(t *testing.T) {
 		t.Error("an unknown key was found")
 	}
 }
+
+// TestAnOlderBuildCannotRenumberKeys is the side-by-side case: a build from
+// before citation keys saves an artist by deleting and reinserting its
+// references with no number. The keys must come back as they were.
+func TestAnOlderBuildCannotRenumberKeys(t *testing.T) {
+	app := newTestApp(t)
+	a, _, _ := savedRangeArtist(t, app)
+	a, err := app.SaveArtist(Artist{ID: a.ID, Name: a.Name, Inspirations: append(a.Inspirations,
+		Inspiration{URL: "https://youtu.be/second", Title: "Second"})})
+	if err != nil {
+		t.Fatal(err)
+	}
+	// The older build's save, reversed order and no citation columns.
+	db := app.store.db
+	if _, err := db.Exec(`DELETE FROM artist_inspirations WHERE artist_id = ?`, a.ID); err != nil {
+		t.Fatal(err)
+	}
+	for n, i := range []Inspiration{a.Inspirations[1], a.Inspirations[0]} {
+		if _, err := db.Exec(`INSERT INTO artist_inspirations (id, artist_id, url, title, position, at)
+			VALUES (?, ?, ?, ?, ?, ?)`, i.ID, a.ID, i.URL, i.Title, n, nowStamp()); err != nil {
+			t.Fatal(err)
+		}
+	}
+	check := func(when string) {
+		got, err := app.GetArtist(a.ID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		keys := map[string]string{}
+		for _, i := range got.Inspirations {
+			keys[i.Title] = i.CiteKey
+			for _, r := range i.Ranges {
+				keys[r.Label] = r.CiteKey
+			}
+		}
+		if keys["Get Lucky"] != "INS-1" || keys["Second"] != "INS-2" || keys["pre-chorus build"] != "INS-1a" {
+			t.Errorf("%s: keys %v", when, keys)
+		}
+	}
+	check("read straight after")
+	if err := app.store.backfillCitations(); err != nil {
+		t.Fatal(err)
+	}
+	check("after the next launch's backfill")
+	got, _ := app.GetArtist(a.ID)
+	got.Inspirations = append(got.Inspirations, Inspiration{URL: "https://youtu.be/third", Title: "Third"})
+	saved, err := app.SaveArtist(got)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if k := saved.Inspirations[2].CiteKey; k != "INS-3" {
+		t.Errorf("a new reference after the old build's save got %q, want INS-3", k)
+	}
+}

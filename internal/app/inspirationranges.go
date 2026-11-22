@@ -470,7 +470,10 @@ func rangesFor(q interface {
 	rows, err := q.Query(
 		`SELECT r.id, r.inspiration_id, r.start_ms, r.end_ms, r.label, r.cite_no, r.breakdown,
 		        r.position, i.cite_no
-		 FROM inspiration_ranges r JOIN artist_inspirations i ON i.id = r.inspiration_id
+		 FROM inspiration_ranges r
+		 JOIN (SELECT a.id, CASE WHEN a.cite_no > 0 THEN a.cite_no ELSE COALESCE(k.cite_no, 0) END AS cite_no
+		       FROM artist_inspirations a LEFT JOIN inspiration_keys k ON k.inspiration_id = a.id) i
+		   ON i.id = r.inspiration_id
 		 WHERE r.artist_id = ? ORDER BY r.position, r.at`, artistID)
 	if err != nil {
 		return out, err
@@ -563,12 +566,39 @@ func (s *Store) fillInspirationIdentity(id string, found MusicAnalysis, duration
 	return err
 }
 
+// keepKey records an inspiration's numbers in inspiration_keys.
+func keepKey(tx *sql.Tx, inspirationID, artistID string, citeNo, rangeSeq int) error {
+	_, err := tx.Exec(
+		`INSERT INTO inspiration_keys (inspiration_id, artist_id, cite_no, range_seq) VALUES (?, ?, ?, ?)
+		 ON CONFLICT(inspiration_id) DO UPDATE SET cite_no = excluded.cite_no,
+		   range_seq = MAX(inspiration_keys.range_seq, excluded.range_seq)`,
+		inspirationID, artistID, citeNo, rangeSeq)
+	return err
+}
+
 // backfillCitations gives every inspiration that has no key one, per artist in
 // the order the producer listed them, and moves each artist's counter past
 // them. It runs on every launch and does nothing once every row has a key —
 // which is what makes it the migration for databases from before keys
 // existed without being a step that could run twice.
 func (s *Store) backfillCitations() error {
+	// Numbers an older build's save dropped come back from inspiration_keys
+	// first; only a reference that never had one gets a new number.
+	if _, err := s.db.Exec(
+		`UPDATE artist_inspirations SET
+		   cite_no = (SELECT k.cite_no FROM inspiration_keys k WHERE k.inspiration_id = artist_inspirations.id),
+		   range_seq = MAX(range_seq, (SELECT k.range_seq FROM inspiration_keys k WHERE k.inspiration_id = artist_inspirations.id))
+		 WHERE cite_no = 0 AND EXISTS (
+		   SELECT 1 FROM inspiration_keys k WHERE k.inspiration_id = artist_inspirations.id AND k.cite_no > 0)`); err != nil {
+		return err
+	}
+	// And every number already on a row is mirrored there, so one handed out
+	// before the table existed is protected too.
+	if _, err := s.db.Exec(
+		`INSERT OR IGNORE INTO inspiration_keys (inspiration_id, artist_id, cite_no, range_seq)
+		 SELECT id, artist_id, cite_no, range_seq FROM artist_inspirations WHERE cite_no > 0`); err != nil {
+		return err
+	}
 	rows, err := s.db.Query(
 		`SELECT id, artist_id FROM artist_inspirations WHERE cite_no = 0 ORDER BY artist_id, position, at`)
 	if err != nil {
@@ -594,15 +624,17 @@ func (s *Store) backfillCitations() error {
 	}
 	defer tx.Rollback()
 	for _, p := range todo {
-		var seq, highest int
+		var seq, highest, kept int
 		_ = tx.QueryRow(`SELECT cite_seq FROM artists WHERE id = ?`, p.artistID).Scan(&seq)
 		_ = tx.QueryRow(`SELECT COALESCE(MAX(cite_no), 0) FROM artist_inspirations WHERE artist_id = ?`,
 			p.artistID).Scan(&highest)
-		if highest > seq {
-			seq = highest
-		}
-		seq++
+		_ = tx.QueryRow(`SELECT COALESCE(MAX(cite_no), 0) FROM inspiration_keys WHERE artist_id = ?`,
+			p.artistID).Scan(&kept)
+		seq = max(seq, highest, kept) + 1
 		if _, err := tx.Exec(`UPDATE artist_inspirations SET cite_no = ? WHERE id = ?`, seq, p.id); err != nil {
+			return err
+		}
+		if err := keepKey(tx, p.id, p.artistID, seq, 0); err != nil {
 			return err
 		}
 		if _, err := tx.Exec(`UPDATE artists SET cite_seq = ? WHERE id = ?`, seq, p.artistID); err != nil {

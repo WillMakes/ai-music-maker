@@ -191,9 +191,11 @@ func (s *Store) artist(id string) (Artist, error) {
 func (s *Store) inspirations(artistID string) ([]Inspiration, error) {
 	out := []Inspiration{}
 	rows, err := s.db.Query(
-		`SELECT id, url, title, artist, album, artwork_url, note, position, cite_no, duration_seconds
-		 FROM artist_inspirations
-		 WHERE artist_id = ? ORDER BY position, at`, artistID)
+		`SELECT i.id, i.url, i.title, i.artist, i.album, i.artwork_url, i.note, i.position,
+		        CASE WHEN i.cite_no > 0 THEN i.cite_no ELSE COALESCE(k.cite_no, 0) END,
+		        i.duration_seconds
+		 FROM artist_inspirations i LEFT JOIN inspiration_keys k ON k.inspiration_id = i.id
+		 WHERE i.artist_id = ? ORDER BY i.position, i.at`, artistID)
 	if err != nil {
 		return out, err
 	}
@@ -296,9 +298,9 @@ func (s *Store) saveArtist(artist Artist) (Artist, error) {
 			insp.ID = newID("insp")
 		}
 		prev, known := stored[insp.ID]
-		if !known {
+		if !known || prev.citeNo == 0 {
 			seq++
-			prev = storedInspiration{citeNo: seq}
+			prev.citeNo = seq
 		}
 		if insp.DurationSeconds <= 0 {
 			insp.DurationSeconds = prev.duration
@@ -364,6 +366,9 @@ func (s *Store) saveArtist(artist Artist) (Artist, error) {
 			insp.DurationSeconds); err != nil {
 			return Artist{}, err
 		}
+		if err := keepKey(tx, insp.ID, artist.ID, prev.citeNo, rangeSeq); err != nil {
+			return Artist{}, err
+		}
 	}
 	if _, err := tx.Exec(`UPDATE artists SET cite_seq = ? WHERE id = ?`, seq, artist.ID); err != nil {
 		return Artist{}, err
@@ -384,8 +389,10 @@ func storedInspirations(tx *sql.Tx, artistID string) (map[string]storedInspirati
 		return out, 0, err
 	}
 	rows, err := tx.Query(
-		`SELECT id, cite_no, range_seq, duration_seconds FROM artist_inspirations WHERE artist_id = ?`,
-		artistID)
+		`SELECT i.id, CASE WHEN i.cite_no > 0 THEN i.cite_no ELSE COALESCE(k.cite_no, 0) END,
+		        MAX(i.range_seq, COALESCE(k.range_seq, 0)), i.duration_seconds
+		 FROM artist_inspirations i LEFT JOIN inspiration_keys k ON k.inspiration_id = i.id
+		 WHERE i.artist_id = ?`, artistID)
 	if err != nil {
 		return out, 0, err
 	}
@@ -406,6 +413,13 @@ func storedInspirations(tx *sql.Tx, artistID string) (map[string]storedInspirati
 	rows.Close()
 	if err := rows.Err(); err != nil {
 		return out, 0, err
+	}
+	// Numbers held for references no longer listed count too: a number is
+	// never handed out twice.
+	var kept int
+	if err := tx.QueryRow(`SELECT COALESCE(MAX(cite_no), 0) FROM inspiration_keys WHERE artist_id = ?`,
+		artistID).Scan(&kept); err == nil && kept > seq {
+		seq = kept
 	}
 	ranges, err := rangesFor(tx, artistID)
 	if err != nil {
@@ -452,6 +466,7 @@ func (s *Store) deleteArtist(id string) error {
 			SELECT id FROM albums WHERE artist_id = ?)`,
 		`DELETE FROM albums WHERE artist_id = ?`,
 		`DELETE FROM inspiration_ranges WHERE artist_id = ?`,
+		`DELETE FROM inspiration_keys WHERE artist_id = ?`,
 		`DELETE FROM artist_inspirations WHERE artist_id = ?`,
 		`DELETE FROM chats WHERE subject_kind = 'artist' AND subject_id = ?`,
 		`DELETE FROM artists WHERE id = ?`,
