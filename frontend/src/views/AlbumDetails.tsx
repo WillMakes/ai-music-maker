@@ -111,7 +111,7 @@ export function AlbumDetails({
   const [generating, setGenerating] = useState(false)
   // The record's two style panes as tabs (#48), this record's own style the
   // default — it is the editable half.
-  const [styleTab, setStyleTab] = useState<'style' | 'inherited'>('style')
+  const [styleTab, setStyleTab] = useState<'style' | 'inherited' | 'cited'>('style')
   // The empty track list's one-press writer (#71).
   const [writingTracks, setWritingTracks] = useState(false)
   // Whether a drag is hovering the track list (#76) — the batch drop zone.
@@ -944,6 +944,8 @@ export function AlbumDetails({
                 tabs={[
                   {id: 'style', label: 'This record'},
                   {id: 'inherited', label: 'Inherited from ' + album.artistName},
+                  // The inspirations the plan drew on, when it cited any.
+                  ...(album.citations ? [{id: 'cited' as const, label: 'Inspirations cited'}] : []),
                 ]}
                 current={styleTab}
                 onSelect={setStyleTab}
@@ -969,6 +971,24 @@ export function AlbumDetails({
                     {album.artistBaseStyle || 'No base style written yet.'}
                   </pre>
                   <p className="text-xs text-fg-muted">Read-only here — edit it on the artist.</p>
+                </div>
+              )}
+              {styleTab === 'cited' && album.citations && (
+                /* Kept as the lines the plan cited, not looked up live: the
+                   record should still say which song and which seconds after
+                   a reference is removed from the artist. */
+                <div className="flex flex-1 flex-col gap-1">
+                  <div className="flex items-start gap-1">
+                    <pre className="flex-1 overflow-auto whitespace-pre-wrap rounded-md border border-edge bg-surface px-3 py-2 font-mono text-xs leading-relaxed">
+                      {album.citations}
+                    </pre>
+                    <CopyButton text={album.citations} label="Copy the citations" />
+                  </div>
+                  <p className="text-xs text-fg-muted">
+                    The artist&apos;s references this record was planned from. Each key&apos;s full
+                    breakdown is on the artist&apos;s Inspiration tab; each track&apos;s own are in
+                    its notes.
+                  </p>
                 </div>
               )}
             </section>
@@ -1143,7 +1163,9 @@ export function AlbumDetails({
           finishLabel="Add tracks"
           onFinish={async (messages) => {
             try {
-              const drafts = await ExtractTracks(messages)
+              // The album, so the keys the tracks cite resolve to citation
+              // lines that land in each track's notes.
+              const drafts = await ExtractTracks(album.id, messages)
               if (!drafts?.length) return 'The conversation did not settle on a track yet.'
               // Audio dropped into the chat, resolved from the names the
               // extraction assigned back to the stored paths (#24).
@@ -1159,6 +1181,7 @@ export function AlbumDetails({
                     prompt: track.prompt,
                     lyrics: track.lyrics,
                     targetSeconds: track.targetSeconds,
+                    notes: track.notes ?? '',
                     files: [],
                   }),
                 )

@@ -2,6 +2,7 @@ import {useCallback, useEffect, useRef, useState} from 'react'
 import {AudioLines, Disc3, ExternalLink, FolderInput, ListPlus, Loader2, Music4, Play, Plus, Sparkles, Trash2, Wand2} from 'lucide-react'
 import {
   AnalyzeMusicURL,
+  BreakDownInspirationRange,
   ClearChat,
   MergeStyleWithAnalysis,
   DeleteArtist,
@@ -13,6 +14,7 @@ import {
   ListAlbums,
   OpenURL,
   PlanAlbum,
+  ProbeInspirationLink,
   SaveAlbum,
   SaveTrack,
   SaveArtist,
@@ -22,6 +24,8 @@ import {EmptyState} from '../components/EmptyState'
 import {PageHeader} from '../components/PageHeader'
 import {TextField} from '../components/Field'
 import {MarkdownField} from '../components/MarkdownField'
+import {CopyButton} from '../components/CopyButton'
+import {InspirationRanges, type RangeStatus} from '../artists/InspirationRanges'
 import {InterviewDialog} from '../chat/InterviewDialog'
 import {StyleEditAssistant} from '../artists/StyleEditAssistant'
 import {Modal} from '../components/Modal'
@@ -420,6 +424,7 @@ export function ArtistDetails({
 
       <div hidden={tab !== 'inspiration'}>
       <Inspirations
+        artistId={artistId}
         inspirations={draft.inspirations ?? []}
         onChange={updateInspirations}
         // Adding a reference updates the style (#31): the analysis that just
@@ -489,6 +494,9 @@ export function ArtistDetails({
                   name: plan.name || 'New album',
                   technicalStyle: plan.technicalStyle,
                   artworkPrompt: plan.artworkPrompt,
+                  // Which inspirations the record drew on, as citation lines
+                  // — the album keeps them after the conversation is gone.
+                  citations: plan.citationNotes ?? '',
                 }),
               )
               // Attached audio (#24) still lands on whichever track the plan
@@ -502,6 +510,7 @@ export function ArtistDetails({
                     prompt: track.prompt,
                     lyrics: track.lyrics,
                     targetSeconds: track.targetSeconds,
+                    notes: track.notes ?? '',
                     files: [],
                   }),
                 )
@@ -747,10 +756,12 @@ const styleBrief = (note: string) => {
 type AnalysisStatus = {state: 'queued' | 'running'} | {state: 'failed'; error: string}
 
 function Inspirations({
+  artistId,
   inspirations,
   onChange,
   onMergeStyle,
 }: {
+  artistId: string
   inspirations: app.Inspiration[]
   /** Changes the rows as they are when it lands, not as this render saw them. */
   onChange: (change: (rows: app.Inspiration[]) => app.Inspiration[]) => void
@@ -777,6 +788,74 @@ function Inspirations({
   const [pending, setPending] = useState<app.Inspiration | null>(null)
 
   const openRow = pending ?? (openIndex !== null ? inspirations[openIndex] : null)
+  // Each range's breakdown, keyed by range id: like the analyses, a run is
+  // minutes long and outlives the modal it was started from.
+  const [rangeStatus, setRangeStatus] = useState<Record<string, RangeStatus>>({})
+  // What yt-dlp said about each link this session — the video's length, which
+  // a range is checked against, and the link's own t=.
+  const [probed, setProbed] = useState<Record<string, app.LinkInfo | null>>({})
+  const openURL = openIndex !== null ? (openRow?.url ?? '').trim() : ''
+  useEffect(() => {
+    if (!openURL || openURL in probed) return
+    setProbed((current) => ({...current, [openURL]: null}))
+    ProbeInspirationLink(openURL)
+      .then((info) => {
+        setProbed((current) => ({...current, [openURL]: info}))
+        if (!info.durationSeconds) return
+        onChange((rows) =>
+          rows.map((row) =>
+            row.url.trim() === openURL && !row.durationSeconds
+              ? app.Inspiration.createFrom({...row, durationSeconds: info.durationSeconds})
+              : row,
+          ),
+        )
+      })
+      .catch(() => {})
+    // onChange is the page's stable updater; probing again per render would
+    // be a yt-dlp run per keystroke.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [openURL])
+
+  const breakDown = async (inspirationId: string, range: app.InspirationRange) => {
+    setRangeStatus((current) => ({...current, [range.id]: {state: 'running'}}))
+    try {
+      const stored = await BreakDownInspirationRange(artistId, inspirationId, range.id)
+      // Into the draft, so the next auto-save carries it rather than writing
+      // back the draft from before it. Identity only where the producer left
+      // a field empty, and a breakdown only onto a range still at the times
+      // it was made for.
+      const fill = (mine: string, theirs: string) => (mine.trim() ? mine : theirs)
+      onChange((rows) =>
+        rows.map((row) => {
+          if (row.id !== inspirationId) return row
+          return app.Inspiration.createFrom({
+            ...row,
+            title: fill(row.title, stored.title),
+            artist: fill(row.artist, stored.artist),
+            album: fill(row.album, stored.album),
+            artworkUrl: fill(row.artworkUrl, stored.artworkUrl),
+            note: fill(row.note, stored.note),
+            durationSeconds: stored.durationSeconds || row.durationSeconds,
+            ranges: (row.ranges ?? []).map((r) => {
+              const fresh = (stored.ranges ?? []).find((x) => x.id === r.id)
+              return fresh &&
+                fresh.startSeconds === r.startSeconds &&
+                fresh.endSeconds === r.endSeconds
+                ? app.InspirationRange.createFrom({...r, breakdown: fresh.breakdown})
+                : r
+            }),
+          })
+        }),
+      )
+      setRangeStatus((current) => {
+        const copy = {...current}
+        delete copy[range.id]
+        return copy
+      })
+    } catch (err) {
+      setRangeStatus((current) => ({...current, [range.id]: {state: 'failed', error: toMessage(err)}}))
+    }
+  }
   const closeModal = () => {
     setPending(null)
     setOpenIndex(null)
@@ -900,6 +979,10 @@ function Inspirations({
                 artworkUrl: '',
                 note: '',
                 position: inspirations.length,
+                citeKey: '',
+                citation: '',
+                durationSeconds: 0,
+                ranges: [],
               }),
             )
           }
@@ -945,8 +1028,15 @@ function Inspirations({
                     />
                   )}
                   <span className="min-w-0 flex-1">
-                    <span className="block truncate text-sm font-medium">
-                      {row.title || row.url || 'New reference'}
+                    <span className="flex items-baseline gap-2">
+                      {row.citeKey && (
+                        <span className="shrink-0 font-mono text-xs text-fg-muted">
+                          [{row.citeKey}]
+                        </span>
+                      )}
+                      <span className="truncate text-sm font-medium">
+                        {row.title || row.url || 'New reference'}
+                      </span>
                     </span>
                     {(row.artist || row.album) && (
                       <span className="block truncate text-xs text-fg-muted">
@@ -961,6 +1051,23 @@ function Inspirations({
                           : styleBrief(row.note) ||
                             'No style yet — open the card to write or analyze it.'}
                     </span>
+                    {(row.ranges ?? []).length > 0 && (
+                      <span className="mt-1 block truncate font-mono text-xs text-fg-muted">
+                        {(row.ranges ?? [])
+                          .map(
+                            (r) =>
+                              (r.citeKey ? '[' + r.citeKey + '] ' : '') +
+                              (r.id && rangeStatus[r.id]?.state === 'running'
+                                ? 'breaking down…'
+                                : r.breakdown?.source === 'audio'
+                                  ? 'measured'
+                                  : r.breakdown?.source === 'research'
+                                    ? 'research only'
+                                    : 'not broken down'),
+                          )
+                          .join(' · ')}
+                      </span>
+                    )}
                   </span>
                   {(rowStatus?.state === 'running' || rowStatus?.state === 'queued') && (
                     <Loader2 size={15} className="mt-0.5 shrink-0 animate-spin" aria-hidden />
@@ -1085,6 +1192,43 @@ function Inspirations({
               placeholder="https://music.youtube.com/watch?v=…"
               onChange={(url) => editOpen({url})}
             />
+            {openRow.citation && (
+              <div className="flex items-start gap-1 rounded-md bg-surface px-2 py-1.5">
+                <p className="flex-1 font-mono text-xs leading-relaxed">{openRow.citation}</p>
+                <CopyButton text={openRow.citation} label="Copy the citation" />
+              </div>
+            )}
+            {openIndex !== null && openRow.url.trim() ? (
+              <InspirationRanges
+                row={openRow}
+                saved={!!openRow.id}
+                linkStart={
+                  probed[openRow.url.trim()]?.hasStart
+                    ? (probed[openRow.url.trim()]?.startSeconds ?? null)
+                    : null
+                }
+                status={rangeStatus}
+                onRanges={(ranges) => editOpen({ranges})}
+                onDuration={(durationSeconds) => editOpen({durationSeconds})}
+                onBreakDown={(range) => void breakDown(openRow.id, range)}
+                onBreakDownAll={() => {
+                  // One after another: each is a yt-dlp fetch and a model
+                  // call, and twenty at once would be twenty of each.
+                  const id = openRow.id
+                  const todo = (openRow.ranges ?? []).filter(
+                    (r) => r.id && !r.breakdown?.source && rangeStatus[r.id]?.state !== 'running',
+                  )
+                  void (async () => {
+                    for (const r of todo) await breakDown(id, r)
+                  })()
+                }}
+              />
+            ) : (
+              <p className="text-xs text-fg-muted">
+                Paste the link to add time ranges — the sections of the song this reference is
+                about.
+              </p>
+            )}
             {/* "Style", and markdown (#51): the analysis writes its whole
                 breakdown here, and a breakdown is read rendered, not as one
                 long unwrapped line in a text input. */}
