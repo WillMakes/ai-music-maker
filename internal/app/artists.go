@@ -2,7 +2,9 @@ package app
 
 import (
 	"database/sql"
+	"encoding/json"
 	"fmt"
+	"math"
 	"strings"
 )
 
@@ -56,6 +58,18 @@ type Inspiration struct {
 	// breakdown once the song has been analyzed, or the producer's own line.
 	Note     string `json:"note"`
 	Position int    `json:"position"`
+	// CiteKey ("INS-3") and Citation (its one-line reference) are the
+	// store's, filled on read; see inspirationranges.go.
+	CiteKey  string `json:"citeKey"`
+	Citation string `json:"citation"`
+	// DurationSeconds is the video's length once something has fetched it,
+	// 0 until then. Ranges are checked against it.
+	DurationSeconds float64 `json:"durationSeconds"`
+	// Ranges are the sections of the video this reference is really about.
+	// Empty for a whole-song reference. On save, a nil list (the field left
+	// out, as an MCP client that predates ranges does) keeps the stored ones;
+	// an empty list removes them.
+	Ranges []InspirationRange `json:"ranges"`
 }
 
 // ListArtists reports every artist, newest first.
@@ -177,22 +191,41 @@ func (s *Store) artist(id string) (Artist, error) {
 func (s *Store) inspirations(artistID string) ([]Inspiration, error) {
 	out := []Inspiration{}
 	rows, err := s.db.Query(
-		`SELECT id, url, title, artist, album, artwork_url, note, position
+		`SELECT id, url, title, artist, album, artwork_url, note, position, cite_no, duration_seconds
 		 FROM artist_inspirations
 		 WHERE artist_id = ? ORDER BY position, at`, artistID)
 	if err != nil {
 		return out, err
 	}
-	defer rows.Close()
 	for rows.Next() {
 		var i Inspiration
+		var citeNo int
 		if err := rows.Scan(&i.ID, &i.URL, &i.Title, &i.Artist, &i.Album,
-			&i.ArtworkURL, &i.Note, &i.Position); err != nil {
+			&i.ArtworkURL, &i.Note, &i.Position, &citeNo, &i.DurationSeconds); err != nil {
+			rows.Close()
 			return out, err
 		}
+		i.CiteKey = citeKey(citeNo)
+		i.Ranges = []InspirationRange{}
 		out = append(out, i)
 	}
-	return out, rows.Err()
+	rows.Close()
+	if err := rows.Err(); err != nil {
+		return out, err
+	}
+	// Closed before the second query: the store runs on one connection, and
+	// a query issued while rows are still open would wait on itself.
+	ranges, err := rangesFor(s.db, artistID)
+	if err != nil {
+		return out, err
+	}
+	for n := range out {
+		if r := ranges[out[n].ID]; r != nil {
+			out[n].Ranges = r
+		}
+	}
+	fillCitations(out)
+	return out, nil
 }
 
 func (s *Store) saveArtist(artist Artist) (Artist, error) {
@@ -234,8 +267,18 @@ func (s *Store) saveArtist(artist Artist) (Artist, error) {
 		return Artist{}, err
 	}
 
-	// Replaced whole rather than diffed — see SaveArtist.
+	// Replaced whole rather than diffed — see SaveArtist. What the rows carry
+	// that the caller does not decide — citation numbers, the counters, a
+	// breakdown that landed after the caller's copy was taken — is read first
+	// and carried across by id.
+	stored, seq, err := storedInspirations(tx, artist.ID)
+	if err != nil {
+		return Artist{}, err
+	}
 	if _, err := tx.Exec(`DELETE FROM artist_inspirations WHERE artist_id = ?`, artist.ID); err != nil {
+		return Artist{}, err
+	}
+	if _, err := tx.Exec(`DELETE FROM inspiration_ranges WHERE artist_id = ?`, artist.ID); err != nil {
 		return Artist{}, err
 	}
 	for n, insp := range artist.Inspirations {
@@ -252,21 +295,136 @@ func (s *Store) saveArtist(artist Artist) (Artist, error) {
 		if insp.ID == "" {
 			insp.ID = newID("insp")
 		}
+		prev, known := stored[insp.ID]
+		if !known {
+			seq++
+			prev = storedInspiration{citeNo: seq}
+		}
+		if insp.DurationSeconds <= 0 {
+			insp.DurationSeconds = prev.duration
+		}
+		ranges := insp.Ranges
+		if ranges == nil {
+			ranges = prev.ranges
+		}
+		storedRanges := map[string]*storedRange{}
+		for k := range prev.ranges {
+			r := prev.ranges[k]
+			storedRanges[r.ID] = &storedRange{citeNo: r.letter, breakdown: r.Breakdown}
+		}
+		name := strings.TrimSpace(insp.Title)
+		if name == "" {
+			name = strings.TrimSpace(insp.URL)
+		}
+		rangeSeq := prev.rangeSeq
+		for k, r := range ranges {
+			r.StartSeconds, r.EndSeconds = roundMillis(r.StartSeconds), roundMillis(r.EndSeconds)
+			if err := validateRange(r.StartSeconds, r.EndSeconds, insp.DurationSeconds); err != nil {
+				return Artist{}, fmt.Errorf("%s, range %d: %w", name, k+1, err)
+			}
+			if r.ID == "" {
+				r.ID = newID("rng")
+			}
+			sr := storedRanges[r.ID]
+			letter := 0
+			if sr != nil {
+				letter = sr.citeNo
+			}
+			if letter == 0 {
+				rangeSeq++
+				letter = rangeSeq
+			}
+			breakdown := ""
+			if b := keepBreakdown(r, sr); b.Source != "" {
+				raw, err := json.Marshal(b)
+				if err != nil {
+					return Artist{}, err
+				}
+				breakdown = string(raw)
+			}
+			if _, err := tx.Exec(
+				`INSERT INTO inspiration_ranges
+				 (id, inspiration_id, artist_id, start_ms, end_ms, label, cite_no, breakdown, position, at)
+				 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+				r.ID, insp.ID, artist.ID, int64(math.Round(r.StartSeconds*1000)),
+				int64(math.Round(r.EndSeconds*1000)), strings.TrimSpace(r.Label), letter,
+				breakdown, k, now); err != nil {
+				return Artist{}, err
+			}
+		}
 		if _, err := tx.Exec(
 			`INSERT INTO artist_inspirations
-			 (id, artist_id, url, title, artist, album, artwork_url, note, position, at)
-			 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			 (id, artist_id, url, title, artist, album, artwork_url, note, position, at,
+			  cite_no, range_seq, duration_seconds)
+			 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 			insp.ID, artist.ID, strings.TrimSpace(insp.URL), strings.TrimSpace(insp.Title),
 			strings.TrimSpace(insp.Artist), strings.TrimSpace(insp.Album),
 			strings.TrimSpace(insp.ArtworkURL),
-			strings.TrimSpace(insp.Note), n, now); err != nil {
+			strings.TrimSpace(insp.Note), n, now, prev.citeNo, rangeSeq,
+			insp.DurationSeconds); err != nil {
 			return Artist{}, err
 		}
+	}
+	if _, err := tx.Exec(`UPDATE artists SET cite_seq = ? WHERE id = ?`, seq, artist.ID); err != nil {
+		return Artist{}, err
 	}
 	if err := tx.Commit(); err != nil {
 		return Artist{}, err
 	}
 	return s.artist(artist.ID)
+}
+
+// storedInspirations reads, inside the save's transaction, what saveArtist
+// carries across by id, and the artist's citation counter.
+func storedInspirations(tx *sql.Tx, artistID string) (map[string]storedInspiration, int, error) {
+	out := map[string]storedInspiration{}
+	var seq int
+	if err := tx.QueryRow(`SELECT cite_seq FROM artists WHERE id = ?`, artistID).Scan(&seq); err != nil &&
+		err != sql.ErrNoRows {
+		return out, 0, err
+	}
+	rows, err := tx.Query(
+		`SELECT id, cite_no, range_seq, duration_seconds FROM artist_inspirations WHERE artist_id = ?`,
+		artistID)
+	if err != nil {
+		return out, 0, err
+	}
+	for rows.Next() {
+		var id string
+		var si storedInspiration
+		if err := rows.Scan(&id, &si.citeNo, &si.rangeSeq, &si.duration); err != nil {
+			rows.Close()
+			return out, 0, err
+		}
+		// The counter never falls behind a number already on a row, whatever
+		// path wrote it.
+		if si.citeNo > seq {
+			seq = si.citeNo
+		}
+		out[id] = si
+	}
+	rows.Close()
+	if err := rows.Err(); err != nil {
+		return out, 0, err
+	}
+	ranges, err := rangesFor(tx, artistID)
+	if err != nil {
+		return out, 0, err
+	}
+	for id, list := range ranges {
+		si, ok := out[id]
+		if !ok {
+			continue
+		}
+		si.ranges = list
+		for _, r := range list {
+			if r.letter > si.rangeSeq {
+				si.rangeSeq = r.letter
+			}
+		}
+		out[id] = si
+	}
+	return out, seq, nil
 }
 
 func (s *Store) deleteArtist(id string) error {
@@ -293,6 +451,7 @@ func (s *Store) deleteArtist(id string) error {
 		`DELETE FROM chats WHERE subject_kind = 'album' AND subject_id IN (
 			SELECT id FROM albums WHERE artist_id = ?)`,
 		`DELETE FROM albums WHERE artist_id = ?`,
+		`DELETE FROM inspiration_ranges WHERE artist_id = ?`,
 		`DELETE FROM artist_inspirations WHERE artist_id = ?`,
 		`DELETE FROM chats WHERE subject_kind = 'artist' AND subject_id = ?`,
 		`DELETE FROM artists WHERE id = ?`,

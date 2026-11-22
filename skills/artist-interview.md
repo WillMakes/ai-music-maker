@@ -58,6 +58,11 @@ For each one, ask what it is there for. "This, but slower." "The drum sound
 only." "The way the vocal sits." That note is the part that survives: a bare list
 of URLs a year later says nothing about why any of them is on it.
 
+If a reference is about one moment rather than the whole song — "the build at
+1:12" — note the time. On the artist's page each reference can carry time
+ranges, and each range gets a technical breakdown measured from that section's
+audio and a citation key the album interviews use.
+
 If they have no links to hand, do not stall the interview. Say the references can
 be added later on the artist's page, and move on.
 

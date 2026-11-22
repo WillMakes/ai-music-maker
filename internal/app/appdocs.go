@@ -72,7 +72,12 @@ the ones made afterwards.
 1. **Create an artist.** An AI-led interview asks what the music is, settles on
    a name, and gathers YouTube or YouTube Music references with a note against
    each saying what it is there for. The interview writes the base technical
-   style from the answers.
+   style from the answers. On the artist's Inspiration tab a reference can carry
+   time ranges ("1:12–1:48, the pre-chorus build"); each range is broken down
+   from that section's audio — tempo, key, LUFS, spectral balance, stereo width
+   measured, the rest written by the model — and gets a citation key like
+   [INS-3a] that the album and track interviews cite (needs yt-dlp and ffmpeg;
+   without them the breakdown is written from research and says so).
 
 2. **Create an album** for that artist. Another interview: what is different
    about this record, what to call it, and what the cover should look like. The

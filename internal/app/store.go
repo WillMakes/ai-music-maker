@@ -196,6 +196,25 @@ CREATE TABLE IF NOT EXISTS artist_inspirations (
 );
 CREATE INDEX IF NOT EXISTS idx_inspirations_artist
 	ON artist_inspirations(artist_id, position);
+-- Sections of an inspiration's video (see inspirationranges.go): the
+-- pre-chorus, not the song. Times in milliseconds so equality is exact — a
+-- breakdown is only kept while its range still has the times it was made for.
+-- cite_no is the range's letter under its inspiration (1 = a), handed out
+-- once. breakdown is JSON: measurements and the model's prose, kept apart.
+CREATE TABLE IF NOT EXISTS inspiration_ranges (
+	id             TEXT PRIMARY KEY,
+	inspiration_id TEXT NOT NULL,
+	artist_id      TEXT NOT NULL,
+	start_ms       INTEGER NOT NULL DEFAULT 0,
+	end_ms         INTEGER NOT NULL DEFAULT 0,
+	label          TEXT NOT NULL DEFAULT '',
+	cite_no        INTEGER NOT NULL DEFAULT 0,
+	breakdown      TEXT NOT NULL DEFAULT '',
+	position       INTEGER NOT NULL DEFAULT 0,
+	at             TEXT NOT NULL DEFAULT ''
+);
+CREATE INDEX IF NOT EXISTS idx_inspiration_ranges_artist
+	ON inspiration_ranges(artist_id, inspiration_id, position);
 -- One row per album. artwork_file is a name under the app's artwork folder, not
 -- the bytes: the album list draws every cover at once, and a base64 image in a
 -- column is a payload every listing carries around to draw a thumbnail.
@@ -351,7 +370,12 @@ CREATE TABLE IF NOT EXISTS resolved_reports (
 	if _, err := s.db.Exec(schema); err != nil {
 		return err
 	}
-	return s.addColumns()
+	if err := s.addColumns(); err != nil {
+		return err
+	}
+	// After the columns exist: references from before citation keys get
+	// theirs, in the order they were listed.
+	return s.backfillCitations()
 }
 
 // addColumns widens tables that already exist.
@@ -378,6 +402,16 @@ func (s *Store) addColumns() error {
 		{"artist_inspirations", "artist", "TEXT NOT NULL DEFAULT ''"},
 		{"artist_inspirations", "album", "TEXT NOT NULL DEFAULT ''"},
 		{"artist_inspirations", "artwork_url", "TEXT NOT NULL DEFAULT ''"},
+		// Citation keys (see inspirationranges.go): an artist's counter, so a
+		// number is never handed out twice, and each reference's number and
+		// its own counter for its ranges' letters. The video's length, once
+		// known, is what a range is checked against.
+		{"artists", "cite_seq", "INTEGER NOT NULL DEFAULT 0"},
+		{"artist_inspirations", "cite_no", "INTEGER NOT NULL DEFAULT 0"},
+		{"artist_inspirations", "range_seq", "INTEGER NOT NULL DEFAULT 0"},
+		{"artist_inspirations", "duration_seconds", "REAL NOT NULL DEFAULT 0"},
+		// The inspirations an album's plan cited, as citation lines.
+		{"albums", "citations", "TEXT NOT NULL DEFAULT ''"},
 		// The take's real playing time, read at import (#85).
 		{"track_files", "seconds", "INTEGER NOT NULL DEFAULT 0"},
 		// The Suno clip a take was filed from while it played (#91), so the

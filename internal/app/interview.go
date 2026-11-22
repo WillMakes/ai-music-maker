@@ -321,17 +321,66 @@ func writeArtistFacts(b *strings.Builder, artist Artist) {
 		b.WriteString("\n")
 	}
 	if len(artist.Inspirations) > 0 {
-		b.WriteString("\n**References:**\n\n")
-		for _, i := range artist.Inspirations {
-			label := i.Title
-			if label == "" {
-				label = i.URL
+		b.WriteString("\n**References**\n\n")
+		b.WriteString(citationInstruction)
+		b.WriteString("\n\n")
+		writeReferences(b, artist.Inspirations, referenceNoteExcerpt)
+	}
+}
+
+// citationInstruction is what every brief carrying references says about
+// them. In the facts rather than only in the skills, because a producer's
+// edited skill is theirs and may not mention keys, and a model never told to
+// cite them will not.
+const citationInstruction = "Each reference and each section of one has a " +
+	"citation key in square brackets. When something you propose draws on a " +
+	"reference — a sound, a tempo, an arrangement move — cite its key, e.g. " +
+	"[INS-2a], so the record can show which inspirations shaped it. Cite only " +
+	"keys listed here; never invent one. These are summaries: the full " +
+	"breakdown behind any key is on the artist's Inspiration tab (and from the " +
+	"get_inspiration_citation tool), and you can ask the producer for it."
+
+// referenceNoteExcerpt is how much of a whole-song research note a brief
+// carries. The note can be a sixteen-line breakdown per reference, and an
+// artist with eight references would otherwise spend the brief on them.
+const referenceNoteExcerpt = 280
+
+// writeReferences lists the references with their keys: each song's research
+// cut to noteMax runes (0 for whole), then each range with what was measured
+// and the model's one-line summary — never the full prose, which is what the
+// key is for.
+func writeReferences(b *strings.Builder, inspirations []Inspiration, noteMax int) {
+	for _, i := range inspirations {
+		line := i.Citation
+		if line == "" {
+			line = songName(i) + " — " + i.URL
+		}
+		fmt.Fprintf(b, "- %s\n", line)
+		if note := strings.TrimSpace(i.Note); note != "" {
+			if noteMax > 0 {
+				note = excerpt(note, noteMax)
 			}
-			if i.Note != "" {
-				fmt.Fprintf(b, "- %s — %s\n", label, i.Note)
-			} else {
-				fmt.Fprintf(b, "- %s\n", label)
+			fmt.Fprintf(b, "  Whole song (research): %s\n", note)
+		}
+		for _, r := range i.Ranges {
+			fmt.Fprintf(b, "  - [%s] %s–%s", r.CiteKey, formatTimestamp(r.StartSeconds),
+				formatTimestamp(r.EndSeconds))
+			if r.Label != "" {
+				fmt.Fprintf(b, " “%s”", r.Label)
 			}
+			bd := r.Breakdown
+			switch bd.Source {
+			case "audio":
+				fmt.Fprintf(b, " — measured from the audio: %s", measurementLine(bd.Measurements))
+			case "research":
+				b.WriteString(" — research only, the audio was not measured")
+			default:
+				b.WriteString(" — not broken down yet")
+			}
+			if bd.Summary != "" {
+				fmt.Fprintf(b, " — %s", bd.Summary)
+			}
+			b.WriteString("\n")
 		}
 	}
 }
@@ -429,6 +478,10 @@ type TrackDraft struct {
 	// base name — assigned by the extraction from the conversation, resolved
 	// back to paths and imported by the caller that creates the track.
 	Files []string `json:"files"`
+	// Citations are the reference keys this track drew on; Notes is them as
+	// citation lines, for the track's notes.
+	Citations []string `json:"citations"`
+	Notes     string   `json:"notes"`
 }
 
 // ExtractArtist reads an artist out of a finished conversation.
@@ -480,6 +533,10 @@ type AlbumPlan struct {
 	TechnicalStyle string       `json:"technicalStyle"`
 	ArtworkPrompt  string       `json:"artworkPrompt"`
 	Tracks         []TrackDraft `json:"tracks"`
+	// Citations are the reference keys the record's style drew on, and
+	// CitationNotes those keys as citation lines — what the album keeps.
+	Citations     []string `json:"citations"`
+	CitationNotes string   `json:"citationNotes"`
 }
 
 // PlanAlbum writes the record an album interview described.
@@ -494,7 +551,7 @@ type AlbumPlan struct {
 // sound the conversation asked for, the way EvolveAlbum (#42) writes a
 // successor from what made the source itself.
 func (a *App) PlanAlbum(artistID string, messages []InterviewMessage) (AlbumPlan, error) {
-	empty := AlbumPlan{Tracks: []TrackDraft{}}
+	empty := AlbumPlan{Tracks: []TrackDraft{}, Citations: []string{}}
 	artist, err := a.GetArtist(artistID)
 	if err != nil {
 		return empty, err
@@ -543,16 +600,19 @@ that belongs to none. The attached audio files are: ` +
 	if base := strings.TrimSpace(artist.BaseStyle); base != "" {
 		ground = append(ground, "The artist's base technical style:\n"+base)
 	}
-	for _, insp := range artist.Inspirations {
-		note := strings.TrimSpace(insp.Note)
-		if note == "" {
-			continue
-		}
-		label := strings.TrimSpace(insp.Title)
-		if label == "" {
-			label = strings.TrimSpace(insp.URL)
-		}
-		ground = append(ground, "Reference — "+label+":\n"+note)
+	// The references keyed, so the plan can say which it drew on. Whole-song
+	// research in full, as before (#70) — it is the ground the style is built
+	// on — and each range as its numbers and summary.
+	if len(artist.Inspirations) > 0 {
+		var refs strings.Builder
+		writeReferences(&refs, artist.Inspirations, 0)
+		ground = append(ground, "The artist's references, with their citation keys:\n"+refs.String())
+		instruction += `
+  "citations"       the citation keys (e.g. "INS-2a") of the references the
+                    record's style draws on — only keys listed below, an
+                    empty array if none
+Each track entry also has "citations": the keys that track draws on, an
+empty array if none.`
 	}
 	if len(ground) > 0 {
 		instruction += "\n\nThe artist this record belongs to, " + artist.Name +
@@ -573,11 +633,38 @@ that belongs to none. The attached audio files are: ` +
 			plan.Tracks[i].Files = []string{}
 		}
 	}
+	// Keys resolved to the artist's citation lines now, while every key still
+	// means what the plan meant by it: the lines are what the album and its
+	// tracks keep, so they still say which song and which seconds even after
+	// a reference is removed from the artist.
+	plan.Citations = citedKeys(artist, plan.Citations)
+	plan.CitationNotes = citationNotes(resolveCitations(artist, plan.Citations))
+	citeTracks(artist, plan.Tracks)
 	return plan, nil
 }
 
-// ExtractTracks reads the tracks out of a finished conversation.
-func (a *App) ExtractTracks(messages []InterviewMessage) ([]TrackDraft, error) {
+// citedKeys keeps the keys that name one of the artist's references, in the
+// form "INS-2a", never nil.
+func citedKeys(artist Artist, keys []string) []string {
+	out := []string{}
+	for _, line := range resolveCitations(artist, keys) {
+		out = append(out, strings.Trim(strings.Fields(line)[0], "[]"))
+	}
+	return out
+}
+
+// citeTracks resolves each track's keys and writes them into its notes.
+func citeTracks(artist Artist, tracks []TrackDraft) {
+	for i := range tracks {
+		tracks[i].Citations = citedKeys(artist, tracks[i].Citations)
+		tracks[i].Notes = citationNotes(resolveCitations(artist, tracks[i].Citations))
+	}
+}
+
+// ExtractTracks reads the tracks out of a finished conversation. albumID is
+// the album they are for, whose artist's citation keys the tracks may cite;
+// "" leaves citations out.
+func (a *App) ExtractTracks(albumID string, messages []InterviewMessage) ([]TrackDraft, error) {
 	var wrapper struct {
 		Tracks []TrackDraft `json:"tracks"`
 	}
@@ -605,6 +692,18 @@ Return ONLY a JSON object, no prose and no code fence, of the form
 
 The attached audio files are: ` + strings.Join(names, ", ")
 	}
+	var artist Artist
+	if albumID != "" && a.store != nil {
+		if album, err := a.store.album(albumID); err == nil {
+			artist, _ = a.store.artist(album.ArtistID)
+		}
+	}
+	if len(artist.Inspirations) > 0 {
+		instruction += `
+  "citations"      the reference citation keys (e.g. "INS-2a") the
+                   conversation tied to this track — an empty array if none.
+                   Only keys that appear in the conversation.`
+	}
 	instruction += `
 
 Return every track that was agreed, in the order they were discussed. If only
@@ -622,6 +721,7 @@ one was settled, return an array of one.`
 			wrapper.Tracks[i].Files = []string{}
 		}
 	}
+	citeTracks(artist, wrapper.Tracks)
 	return wrapper.Tracks, nil
 }
 

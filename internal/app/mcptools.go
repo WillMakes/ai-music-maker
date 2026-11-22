@@ -350,7 +350,9 @@ func libraryTools() []mcpTool {
 			description: "Create or update an artist. Omit id to create. baseStyle is the " +
 				"technical breakdown every album under this artist inherits — dense and " +
 				"comma-led, not a genre label. The inspirations given replace the ones " +
-				"stored. Returns the stored record.",
+				"stored; keep each one's id to keep its citation key. An inspiration's " +
+				"ranges left out keep the stored ones (and their breakdowns); an empty " +
+				"list removes them. Returns the stored record.",
 			binding: "SaveArtist",
 			schema: object(map[string]any{
 				"id":        text("the artist id; omit to create"),
@@ -364,11 +366,107 @@ func libraryTools() []mcpTool {
 						"artist":     text("who performs it, once analyzed"),
 						"album":      text("the release it appears on, once analyzed"),
 						"artworkUrl": text("its cover art, once analyzed"),
+						"id":         text("the inspiration id, to keep its citation key and ranges; omit for a new one"),
 						"note":       text("what this reference is here for — or its full analyzed style breakdown"),
+						"ranges": array("sections of the video this reference is about; omit to keep the stored ones",
+							object(map[string]any{
+								"id":           text("the range id, to keep its key and breakdown; omit for a new one"),
+								"startSeconds": number("where the section starts, in seconds"),
+								"endSeconds":   number("where it ends, in seconds; within the video"),
+								"label":        text("the producer's name for the section, e.g. the pre-chorus build"),
+							}, "startSeconds", "endSeconds")),
 					}, "url")),
 			}, "name"),
 			run: with(func(app *App, artist Artist) map[string]any {
 				return answer(app.SaveArtist(artist))
+			}),
+		},
+		{
+			name: "get_inspiration_citation",
+			description: "Everything behind one inspiration citation key of an artist — " +
+				"[INS-3] for a whole reference, [INS-3a] for a section of it: the one-line " +
+				"citation, and for a section its full technical breakdown, with the numbers " +
+				"measured from the audio kept apart from the model's interpretation. The " +
+				"briefs carry only summaries; this is the full text.",
+			binding: "GetInspirationCitation",
+			schema: object(map[string]any{
+				"artistId": text("the artist id"),
+				"key":      text("the citation key, e.g. INS-3a"),
+			}, "artistId", "key"),
+			run: with(func(app *App, in struct {
+				ArtistID string `json:"artistId"`
+				Key      string `json:"key"`
+			}) map[string]any {
+				return answer(app.GetInspirationCitation(in.ArtistID, in.Key))
+			}),
+		},
+		{
+			name: "break_down_inspiration_range",
+			description: "Fetch one saved range of an artist's inspiration (that section's audio " +
+				"only, deleted afterwards), measure it — tempo, key, LUFS, dynamics, spectral " +
+				"balance, stereo width — and have the model write the breakdown from the " +
+				"numbers and the song's research. Falls back to a research-only breakdown, " +
+				"labelled so, when yt-dlp or ffmpeg is missing or the video will not fetch. " +
+				"Slow: a minute or more. Returns the inspiration as stored.",
+			binding: "BreakDownInspirationRange",
+			schema: object(map[string]any{
+				"artistId":      text("the artist id"),
+				"inspirationId": text("the inspiration id"),
+				"rangeId":       text("the range id"),
+			}, "artistId", "inspirationId", "rangeId"),
+			run: with(func(app *App, in struct {
+				ArtistID      string `json:"artistId"`
+				InspirationID string `json:"inspirationId"`
+				RangeID       string `json:"rangeId"`
+			}) map[string]any {
+				return answer(app.BreakDownInspirationRange(in.ArtistID, in.InspirationID, in.RangeID))
+			}),
+		},
+		{
+			name: "parse_range_times",
+			description: "Read a range as a producer types it — m:ss or h:mm:ss, \"1:12–1:48\" in " +
+				"start alone, or a link with t= — and check it lies inside the video. " +
+				"Returns the start and end in seconds.",
+			binding: "ParseRangeTimes",
+			schema: object(map[string]any{
+				"start":           text("the start, or the whole range"),
+				"end":             text("the end; omit when start holds the whole range"),
+				"durationSeconds": number("the video's length in seconds; 0 when unknown"),
+			}, "start"),
+			run: with(func(app *App, in struct {
+				Start    string  `json:"start"`
+				End      string  `json:"end"`
+				Duration float64 `json:"durationSeconds"`
+			}) map[string]any {
+				return answer(app.ParseRangeTimes(in.Start, in.End, in.Duration))
+			}),
+		},
+		{
+			name: "find_inspiration_tracks",
+			description: "Find the tracks in a long YouTube or YouTube Music video — a full " +
+				"album or a mix: from its chapters, else from a tracklist in its description, " +
+				"else by fetching the audio (deleted afterwards) and listening for gaps and " +
+				"changes of sound. Returns each track's start, end and title, and where they " +
+				"came from. Nothing is saved: add them as the inspiration's ranges with " +
+				"save_artist. Listening takes a minute or more on a long video.",
+			binding: "FindInspirationTracks",
+			schema:  object(map[string]any{"url": text("the link")}, "url"),
+			run: with(func(app *App, in struct {
+				URL string `json:"url"`
+			}) map[string]any {
+				return answer(app.FindInspirationTracks(in.URL))
+			}),
+		},
+		{
+			name: "probe_inspiration_link",
+			description: "Read a YouTube or YouTube Music link's video id and t= start, and ask " +
+				"yt-dlp how long the video is (0 when it cannot say).",
+			binding: "ProbeInspirationLink",
+			schema:  object(map[string]any{"url": text("the link")}, "url"),
+			run: with(func(app *App, in struct {
+				URL string `json:"url"`
+			}) map[string]any {
+				return answer(app.ProbeInspirationLink(in.URL))
 			}),
 		},
 		{
@@ -412,6 +510,7 @@ func libraryTools() []mcpTool {
 				"artistId":       text("the artist this album belongs to"),
 				"name":           text("the album name"),
 				"technicalStyle": text("what differs from or adds to the artist's base style"),
+				"citations":      text("the inspiration citation lines the record drew on (plan_album's citationNotes); omit to keep the stored ones"),
 				"artworkPrompt":  text("what the cover should look like"),
 				"appleMusicUrl":  text("the Apple Music link, once the record is out"),
 				"spotifyUrl":     text("the Spotify link"),

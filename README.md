@@ -194,7 +194,10 @@ wails build
 
 1. **Create an artist.** An interview asks what the music is: instruments,
    vocal, tempo, production. It settles on a name, gathers YouTube references,
-   and writes the artist's base style.
+   and writes the artist's base style. A reference can be narrowed to time
+   ranges — the section you actually mean — and each range gets a technical
+   breakdown measured from its audio (yt-dlp and ffmpeg) and a citation key such
+   as `[INS-3a]`, which album and track planning cite and keep in their notes.
 2. **Create an album.** A second interview covers what is different about this
    record, what to call it, and what the cover should look like. Only the name
    is required.

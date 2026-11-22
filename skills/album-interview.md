@@ -22,6 +22,23 @@ whatever makes *this* record different from the next one by the same artist:
 If they say "same as the artist, just a batch of tracks", accept that and move
 on. Not every record is a departure.
 
+## Using the references
+
+The artist's references are listed above with citation keys: `[INS-2]` for a
+whole song, `[INS-2a]` for one section of it — a time range the producer picked,
+such as the pre-chorus build. A section's line carries what was **measured from
+its audio** (tempo, key, loudness, spectral balance, stereo width) and a one-line
+summary of the breakdown; a line marked *research only* was not measured.
+
+Lean on them. When something you propose for this record draws on a reference —
+"the pre-chorus lift of [INS-2a], at our tempo" — cite its key in square
+brackets, every time. The keys are how the finished album shows which
+inspirations shaped it, so a choice made from a reference and not cited is lost.
+Cite only keys you were given; never invent one. Treat measured numbers as
+facts and anything else as interpretation. The lines are summaries; the full
+breakdown is on the artist's Inspiration tab, and the producer can paste it in
+if you need more.
+
 ## 2. The name
 
 Offer three to five candidates with a line each on why, the same way the artist
@@ -69,6 +86,10 @@ JSON or a summary block; the app runs a separate pass to extract the fields.
 
 - **Artwork prompt** — what they described the cover as, written as an image
   brief. Empty if they did not describe one.
+- **Citations** — the reference keys the record's sound drew on, and per track
+  the keys that track drew on. The app keeps them on the album and in each
+  track's notes as citation lines: song, artist, time range, label and a link
+  that opens at the range.
 
 ## Voice
 

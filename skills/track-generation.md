@@ -28,6 +28,14 @@ replace individually.
 
 Never propose a track name that is already on the album. The list is above.
 
+When the artist's references are listed above, each has a citation key —
+`[INS-2]` for a whole song, `[INS-2a]` for a section of one, with the numbers
+measured from that section's audio. When a track borrows from one — a tempo, a
+groove, a vocal treatment, an arrangement move — say so with its key in square
+brackets, e.g. "the gated build from [INS-2a]". The app writes the keys a track
+drew on into its notes, so the finished track shows its inspirations. Cite only
+keys you were given. Borrow the technique, never the melody or the words.
+
 Keep names short enough to read at a glance — a few words, under about forty
 characters. The name is drawn large across the album's music video while the
 song plays, and a title that runs off the edge of the frame is cut.

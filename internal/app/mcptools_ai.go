@@ -253,8 +253,10 @@ func aiTools() []mcpTool {
 			description: "Write the whole record an album interview described: the album's name, " +
 				"a complete technical style built from the artist's own style and " +
 				"references, and the full track list — every track the conversation " +
-				"settled kept as agreed, the rest written to fill the plan. Nothing is " +
-				"saved: create the album with save_album and the tracks with save_track.",
+				"settled kept as agreed, the rest written to fill the plan — with the " +
+				"inspiration citation keys the record and each track drew on. Nothing is " +
+				"saved: create the album with save_album (citations = citationNotes) and " +
+				"the tracks with save_track (notes = each track's notes).",
 			binding: "PlanAlbum",
 			schema: object(map[string]any{
 				"artistId": text("the artist the record is for"),
@@ -270,13 +272,20 @@ func aiTools() []mcpTool {
 		{
 			name: "extract_tracks",
 			description: "Read a finished track interview and return every track it settled: " +
-				"title, Suno prompt, lyrics, target length, and which attached audio files " +
-				"are takes of it. Nothing is saved — save_track each, then " +
-				"import_track_file the takes.",
+				"title, Suno prompt, lyrics, target length, which attached audio files " +
+				"are takes of it, and the inspiration citation keys it drew on (with " +
+				"notes holding them as citation lines). Nothing is saved — save_track " +
+				"each with its notes, then import_track_file the takes.",
 			binding: "ExtractTracks",
-			schema:  object(map[string]any{"messages": messagesSchema("the finished conversation")}, "messages"),
-			run: with(func(app *App, in messagesArg) map[string]any {
-				return answer(app.ExtractTracks(in.Messages))
+			schema: object(map[string]any{
+				"albumId":  text("the album the tracks are for; its artist's citation keys are resolved"),
+				"messages": messagesSchema("the finished conversation"),
+			}, "messages"),
+			run: with(func(app *App, in struct {
+				AlbumID  string             `json:"albumId"`
+				Messages []InterviewMessage `json:"messages"`
+			}) map[string]any {
+				return answer(app.ExtractTracks(in.AlbumID, in.Messages))
 			}),
 		},
 

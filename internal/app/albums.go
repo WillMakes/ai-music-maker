@@ -66,6 +66,12 @@ type Album struct {
 	// YouTube Music library (#124); empty if never. A second upload adds a
 	// second copy there, so the page says when the first went.
 	YTMusicUploadedAt string `json:"ytmusicUploadedAt"`
+	// Citations are the artist's inspirations the album's plan drew on, as
+	// citation lines (see inspirationranges.go) — kept as text, so the record
+	// still says which song and which seconds after a reference is removed.
+	// Written when the album is made from a plan; a later save that sends it
+	// empty keeps it, since no page edits it.
+	Citations string `json:"citations"`
 	// TrackCount is joined for the card, for listArtists' reason.
 	TrackCount int `json:"trackCount"`
 	// WrittenCount and MadeCount are the card's progress (#43): tracks with a
@@ -183,6 +189,7 @@ func (a *App) DeleteAlbum(id string) error {
 const albumColumns = `al.id, al.artist_id, al.name, al.slug, al.artwork_file,
 	al.artwork_prompt, al.technical_style, al.apple_music_url, al.spotify_url,
 	al.youtube_url, al.video_file, al.video_description, al.video_youtube_id, al.ytmusic_uploaded_at, al.created_at, al.updated_at,
+	al.citations,
 	(SELECT COUNT(*) FROM tracks WHERE tracks.album_id = al.id),
 	(SELECT COUNT(*) FROM tracks WHERE tracks.album_id = al.id
 	   AND TRIM(tracks.prompt) <> ''),
@@ -195,7 +202,7 @@ func scanAlbum(scan func(...any) error) (Album, error) {
 	err := scan(&al.ID, &al.ArtistID, &al.Name, &al.Slug, &al.ArtworkFile,
 		&al.ArtworkPrompt, &al.TechnicalStyle, &al.AppleMusicURL, &al.SpotifyURL,
 		&al.YouTubeURL, &al.VideoFile, &al.VideoDescription, &al.VideoYouTubeID,
-		&al.YTMusicUploadedAt, &al.CreatedAt, &al.UpdatedAt, &al.TrackCount,
+		&al.YTMusicUploadedAt, &al.CreatedAt, &al.UpdatedAt, &al.Citations, &al.TrackCount,
 		&al.WrittenCount, &al.MadeCount, &al.ArtistName, &al.ArtistBaseStyle)
 	al.VideoYouTubeURL = youtube.WatchURL(al.VideoYouTubeID)
 	return al, err
@@ -260,18 +267,22 @@ func (s *Store) saveAlbum(album Album) (Album, error) {
 
 	_, err = s.db.Exec(
 		`INSERT INTO albums (id, artist_id, name, slug, artwork_file, artwork_prompt,
-		   technical_style, apple_music_url, spotify_url, youtube_url, created_at, updated_at)
-		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		   technical_style, apple_music_url, spotify_url, youtube_url, citations,
+		   created_at, updated_at)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		 ON CONFLICT(id) DO UPDATE SET
 		   artist_id = excluded.artist_id, name = excluded.name, slug = excluded.slug,
 		   artwork_file = excluded.artwork_file, artwork_prompt = excluded.artwork_prompt,
 		   technical_style = excluded.technical_style,
 		   apple_music_url = excluded.apple_music_url, spotify_url = excluded.spotify_url,
-		   youtube_url = excluded.youtube_url, updated_at = excluded.updated_at`,
+		   youtube_url = excluded.youtube_url,
+		   citations = CASE WHEN excluded.citations <> '' THEN excluded.citations
+		                    ELSE albums.citations END,
+		   updated_at = excluded.updated_at`,
 		album.ID, album.ArtistID, album.Name, album.Slug, album.ArtworkFile,
 		album.ArtworkPrompt, album.TechnicalStyle, strings.TrimSpace(album.AppleMusicURL),
 		strings.TrimSpace(album.SpotifyURL), strings.TrimSpace(album.YouTubeURL),
-		album.CreatedAt, album.UpdatedAt)
+		strings.TrimSpace(album.Citations), album.CreatedAt, album.UpdatedAt)
 	if err != nil {
 		return Album{}, err
 	}
